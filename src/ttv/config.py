@@ -456,6 +456,8 @@ class Settings(BaseSettings):
 
     `dry_run` defaults to True: the engine classifies and logs but writes nothing until
     `TTV_DRY_RUN=false` is set after the dry-run review (AGENT.md §20.6).
+    `pricing_dir` holds snapshot files imported at startup; `pricing_snapshot` pins the
+    present-day snapshot id (unset: the latest published), which is also the rollback (ADR-0003).
     """
 
     model_config = SettingsConfigDict(env_prefix="TTV_", env_file=".env", extra="ignore")
@@ -476,8 +478,24 @@ class Settings(BaseSettings):
     detail_concurrency: int = Field(default=8, ge=1, le=64)
     unknown_grace_scans: int = Field(default=2, ge=1)
     tombstone_after: timedelta = timedelta(hours=24)
+    pricing_dir: Path = Path("config/pricing/snapshots")
+    pricing_snapshot: str | None = None
     api_host: str = "0.0.0.0"  # noqa: S104 — serves inside a container; exposure is decided by the Service
     api_port: int = 8080
+
+    @field_validator("pricing_snapshot", mode="before")
+    @classmethod
+    def _blank_is_unset(cls, value: Any) -> Any:
+        """
+        Treat an empty `TTV_PRICING_SNAPSHOT` as unset.
+
+        Args:
+            value (Any): The raw value.
+
+        Returns:
+            Any: None for a blank string, else the value unchanged.
+        """
+        return None if isinstance(value, str) and not value.strip() else value
 
     @field_validator("detail_ttl", "tombstone_after", mode="before")
     @classmethod

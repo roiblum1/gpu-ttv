@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 
 from prometheus_client import CollectorRegistry, Gauge
 from prometheus_client import Counter as PromCounter
@@ -27,6 +27,13 @@ class EngineMetrics:
             "ttv_unknown_gpus",
             "GPUs whose state is unknown, by reason.",
             ["reason_code"],
+            registry=self.registry,
+        )
+        self.unpriced_gpus = Gauge(
+            "ttv_unpriced_gpus",
+            "Observed GPUs (any category) whose model has no rate in the present-day pricing "
+            "snapshot, by raw model. Shown as unpriced, never valued at 0.",
+            ["gpu_model"],
             registry=self.registry,
         )
         self.last_success = Gauge(
@@ -103,6 +110,25 @@ class EngineMetrics:
         self.unknown_gpus.clear()
         for reason, value in unknown.items():
             self.unknown_gpus.labels(reason).set(value)
+
+    def observe_unpriced(
+        self, decisions: Mapping[str, Decision], is_priced: Callable[[str | None], bool]
+    ) -> None:
+        """
+        Replace `ttv_unpriced_gpus` with this scan's GPUs that have no present-day rate.
+
+        Args:
+            decisions (Mapping[str, Decision]): Decisions by asset id.
+            is_priced (Callable[[str | None], bool]): Whether a raw GPU model has a rate.
+        """
+        totals: Counter[str] = Counter()
+        for decision in decisions.values():
+            for b in decision.buckets:
+                if not is_priced(b.gpu_model):
+                    totals[b.gpu_model or ""] += b.gpus
+        self.unpriced_gpus.clear()
+        for model, value in totals.items():
+            self.unpriced_gpus.labels(model).set(value)
 
     def observe_scan(
         self,
