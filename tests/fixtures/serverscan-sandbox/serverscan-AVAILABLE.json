@@ -1,0 +1,61 @@
+{
+  "_meta": {
+    "evidence": "lab-tested",
+    "source": "GET https://server-scan-sandbox.example/api/v1/servers/srv_5532a086f2514abaa7643daf0881c603",
+    "fetched_at_utc": "2026-10-28T01:10:36Z",
+    "note": "server-scan sandbox (fake/seeded data, auth disabled), version >= v4.43.0/defe172; trimmed to AGENT.md §20.4 fields; API field is `id` (not `_id`)"
+  },
+  "id": "srv_5532a086f2514abaa7643daf0881c603",
+  "name": "ocp-dell-r650-bat-yam-128c-1024gb-h200-DEL0000818",
+  "model": "PowerEdge R650",
+  "identity": {
+    "vendor": "dell",
+    "serial": "DEL0000818",
+    "serial_normalized": "del0000818",
+    "system_uuid": "706017d2-6df6-4277-b893-85d0ea77c46c"
+  },
+  "site_id": "bat-yam",
+  "source_provider": "OPENMANAGE",
+  "hardware": {
+    "gpus": [
+      {
+        "vendor": "NVIDIA",
+        "model": "NVIDIA T4 16GB",
+        "serial": "GPU805b7c77",
+        "health": "CRITICAL",
+        "power_watts": 167.0
+      },
+      {
+        "vendor": "NVIDIA",
+        "model": "NVIDIA T4 16GB",
+        "serial": "GPU1f99eadd",
+        "health": "HEALTHY",
+        "power_watts": 550.0
+      }
+    ]
+  },
+  "profile_template": {
+    "name": "OME-Standard-Template",
+    "external_id": "OME-Standard-Template"
+  },
+  "openshift": {
+    "lifecycle_state": "AVAILABLE",
+    "cluster_name": null,
+    "mce_name": null,
+    "reported_name": null,
+    "contested_with": null,
+    "claim_changed_at": null
+  },
+  "maintenance": {
+    "enabled": false,
+    "reason": null
+  },
+  "health": {
+    "overall": "CRITICAL"
+  },
+  "reachable": true,
+  "unreachable_since": null,
+  "last_seen_at": "2026-09-30T21:00:04.394651Z",
+  "created_at": "2026-09-17T13:25:36.403377Z",
+  "stale": true
+}

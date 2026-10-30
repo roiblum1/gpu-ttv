@@ -1,0 +1,126 @@
+{
+  "_meta": {
+    "evidence": "lab-tested",
+    "source": "GET https://server-scan-sandbox.example/api/v1/servers/rows",
+    "fetched_at_utc": "2026-10-30T21:48:12Z",
+    "etag": "W/\"6df7b23ad36beb147407a704a83b804c\"",
+    "note": "server-scan sandbox (fake/seeded data, auth disabled), version >= v4.43.0/defe172; the 3 of 3008 items whose details are in ../serverscan-sandbox/; not production data"
+  },
+  "generated_at": "2026-10-30T19:00:10.741316Z",
+  "items": [
+    {
+      "id": "srv_5532a086f2514abaa7643daf0881c603",
+      "name": "ocp-dell-r650-bat-yam-128c-1024gb-h200-DEL0000818",
+      "vendor": "dell",
+      "model": "PowerEdge R650",
+      "site_id": "bat-yam",
+      "source_provider": "OPENMANAGE",
+      "installation_type": "HOSTED_CLUSTER",
+      "health": "CRITICAL",
+      "maintenance": {
+        "enabled": false,
+        "reason": null,
+        "created_by": null
+      },
+      "reservation": {
+        "held": false,
+        "holder": null,
+        "mce_cluster": null,
+        "infra_env": null,
+        "expires_at": null
+      },
+      "openshift_state": "AVAILABLE",
+      "cluster_name": null,
+      "mce_name": null,
+      "openshift_reported_name": null,
+      "contested_with": null,
+      "profile_template_name": "OME-Standard-Template",
+      "last_seen_at": "2026-09-30T21:00:04.394651Z",
+      "stale": true,
+      "reachable": true,
+      "serial": "DEL0000818",
+      "bmc_host": "10.12.3.50",
+      "macs": [
+        "6f:35:4a:9a:87:0e",
+        "9d:49:e1:d0:8b:54",
+        "e9:59:55:f3:42:ab",
+        "cb:22:81:b1:21:60"
+      ]
+    },
+    {
+      "id": "srv_beec9a7ab8aa4a2a8107625e1ab6bc82",
+      "name": "ocp-cisco-m6-bat-yam-192c-512gb-CIS0001830",
+      "vendor": "cisco",
+      "model": "UCS B200 M6",
+      "site_id": "bat-yam",
+      "source_provider": "UCS_CENTRAL",
+      "installation_type": "HOSTED_CLUSTER",
+      "health": "CRITICAL",
+      "maintenance": {
+        "enabled": false,
+        "reason": null,
+        "created_by": null
+      },
+      "reservation": {
+        "held": false,
+        "holder": null,
+        "mce_cluster": null,
+        "infra_env": null,
+        "expires_at": null
+      },
+      "openshift_state": "INSTALLED",
+      "cluster_name": "hc-bat-yam-01",
+      "mce_name": "mce-bat-yam",
+      "openshift_reported_name": null,
+      "contested_with": null,
+      "profile_template_name": "SPT-OCP-Master-C240",
+      "last_seen_at": "2026-10-30T19:00:03.019857Z",
+      "stale": false,
+      "reachable": true,
+      "serial": "CIS0001830",
+      "bmc_host": "10.12.7.38",
+      "macs": [
+        "36:89:ce:84:b5:17",
+        "18:3a:fd:79:11:fe",
+        "a9:b4:79:6d:42:5d"
+      ]
+    },
+    {
+      "id": "srv_de2beaa28a3b40a3a2334027303c9170",
+      "name": "ocp-standalone-as-2125hs-tnr-bat-yam-64c-256gb-STA0000686",
+      "vendor": "standalone",
+      "model": "AS-2125HS-TNR",
+      "site_id": "bat-yam",
+      "source_provider": "REDFISH_STANDALONE",
+      "installation_type": "HOSTED_CLUSTER",
+      "health": "CRITICAL",
+      "maintenance": {
+        "enabled": false,
+        "reason": null,
+        "created_by": null
+      },
+      "reservation": {
+        "held": false,
+        "holder": null,
+        "mce_cluster": null,
+        "infra_env": null,
+        "expires_at": null
+      },
+      "openshift_state": "AVAILABLE",
+      "cluster_name": null,
+      "mce_name": null,
+      "openshift_reported_name": null,
+      "contested_with": null,
+      "profile_template_name": null,
+      "last_seen_at": "2026-10-30T19:00:09.304145Z",
+      "stale": false,
+      "reachable": true,
+      "serial": "STA0000686",
+      "bmc_host": "10.12.2.174",
+      "macs": [
+        "c1:f0:f7:af:b9:c6",
+        "40:cd:e1:92:fb:23"
+      ]
+    }
+  ]
+}

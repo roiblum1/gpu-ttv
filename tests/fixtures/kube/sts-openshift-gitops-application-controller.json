@@ -1,0 +1,42 @@
+{
+ "_meta": {
+  "evidence": "fixture-tested",
+  "source": "OpenShift 4.22.13 workshop cluster (lab, no GPUs; vLLM on CPU), `oc get --raw /apis/apps/v1/namespaces/openshift-gitops/statefulsets/openshift-gitops-application-controller`",
+  "captured": "2026-10-31",
+  "sanitised": "managedFields, annotations, pod template, model URI/router config and status dropped; metadata incl. ownerReferences kept as captured"
+ },
+ "apiVersion": "apps/v1",
+ "kind": "StatefulSet",
+ "metadata": {
+  "name": "openshift-gitops-application-controller",
+  "namespace": "openshift-gitops",
+  "uid": "19fce343-5095-4df6-8719-108d14bd434c",
+  "resourceVersion": "52394622",
+  "generation": 2,
+  "creationTimestamp": "2026-09-18T08:03:31Z",
+  "ownerReferences": [
+   {
+    "apiVersion": "argoproj.io/v1beta1",
+    "kind": "ArgoCD",
+    "name": "openshift-gitops",
+    "uid": "b75c194c-5f8a-47c6-b65b-bcbd3459ee83",
+    "controller": true,
+    "blockOwnerDeletion": true
+   }
+  ],
+  "labels": {
+   "app.kubernetes.io/component": "application-controller",
+   "app.kubernetes.io/managed-by": "openshift-gitops",
+   "app.kubernetes.io/name": "openshift-gitops-application-controller",
+   "app.kubernetes.io/part-of": "argocd"
+  }
+ },
+ "spec": {
+  "replicas": 1,
+  "selector": {
+   "matchLabels": {
+    "app.kubernetes.io/name": "openshift-gitops-application-controller"
+   }
+  }
+ }
+}

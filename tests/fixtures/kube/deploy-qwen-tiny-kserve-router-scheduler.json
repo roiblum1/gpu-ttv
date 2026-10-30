@@ -1,0 +1,43 @@
+{
+ "_meta": {
+  "evidence": "fixture-tested",
+  "source": "OpenShift 4.22.13 workshop cluster (lab, no GPUs; vLLM on CPU), `oc get --raw /apis/apps/v1/namespaces/vllm-lab/deployments/qwen-tiny-kserve-router-scheduler`",
+  "captured": "2026-10-31",
+  "sanitised": "managedFields, annotations, pod template, model URI/router config and status dropped; metadata incl. ownerReferences kept as captured"
+ },
+ "apiVersion": "apps/v1",
+ "kind": "Deployment",
+ "metadata": {
+  "name": "qwen-tiny-kserve-router-scheduler",
+  "namespace": "vllm-lab",
+  "uid": "159f14cb-3ec3-4a45-b7fd-314dcf35f393",
+  "resourceVersion": "52071049",
+  "generation": 38,
+  "creationTimestamp": "2026-10-11T00:02:28Z",
+  "ownerReferences": [
+   {
+    "apiVersion": "serving.kserve.io/v1alpha2",
+    "kind": "LLMInferenceService",
+    "name": "qwen-tiny",
+    "uid": "7a346ddb-7ac7-4a2e-9c76-0086a878ba67",
+    "controller": true,
+    "blockOwnerDeletion": true
+   }
+  ],
+  "labels": {
+   "app.kubernetes.io/component": "llminferenceservice-router-scheduler",
+   "app.kubernetes.io/name": "qwen-tiny",
+   "app.kubernetes.io/part-of": "llminferenceservice"
+  }
+ },
+ "spec": {
+  "replicas": 1,
+  "selector": {
+   "matchLabels": {
+    "app.kubernetes.io/component": "llminferenceservice-router-scheduler",
+    "app.kubernetes.io/name": "qwen-tiny",
+    "app.kubernetes.io/part-of": "llminferenceservice"
+   }
+  }
+ }
+}

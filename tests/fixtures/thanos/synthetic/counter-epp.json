@@ -1,0 +1,45 @@
+{
+  "_meta": {
+    "evidence": "fixture-tested",
+    "synthetic": true,
+    "query": "sum by (namespace, pod) (increase(llm_d_epp_request_total[86400s]))",
+    "http_status": 200,
+    "note": "EPP counter with traffic on two replicas; the NaN sample for mistral is rejected (its pod stays absent). Synthetic values; not lab or production data."
+  },
+  "status": "success",
+  "data": {
+    "resultType": "vector",
+    "result": [
+      {
+        "metric": {
+          "namespace": "llm",
+          "pod": "qwen-kserve-router-scheduler-5d8f9c7b4-x2k9p"
+        },
+        "value": [
+          1793397600.0,
+          "1234"
+        ]
+      },
+      {
+        "metric": {
+          "namespace": "llm",
+          "pod": "qwen-kserve-router-scheduler-5d8f9c7b4-q7w3z"
+        },
+        "value": [
+          1793397600.0,
+          "5"
+        ]
+      },
+      {
+        "metric": {
+          "namespace": "llm",
+          "pod": "mistral-kserve-router-scheduler-6c4d8b9f7-abcde"
+        },
+        "value": [
+          1793397600.0,
+          "NaN"
+        ]
+      }
+    ]
+  }
+}

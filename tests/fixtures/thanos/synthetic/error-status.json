@@ -1,0 +1,12 @@
+{
+  "_meta": {
+    "evidence": "fixture-tested",
+    "synthetic": true,
+    "query": "any",
+    "http_status": 200,
+    "note": "HTTP 200 carrying status=error. Synthetic values; not lab or production data."
+  },
+  "status": "error",
+  "errorType": "execution",
+  "error": "synthetic: query processing failed"
+}

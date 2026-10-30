@@ -1,0 +1,838 @@
+{
+ "_meta": {
+  "evidence": "fixture-tested",
+  "source": "OpenShift 4.22.13 workshop cluster (lab, no GPUs; vLLM on CPU), `oc get --raw /api/v1/pods?limit=500&fieldSelector=status.phase!=Succeeded,status.phase!=Failed (Running items) and /api/v1/namespaces/vllm-lab/pods (Failed/Succeeded items)`",
+  "captured": "2026-10-31",
+  "sanitised": "subset of 5 pods; managedFields, all annotations, podIP(s)/hostIP(s), env, args, command, volumes, volumeMounts, probes, securityContext and termination messages dropped. The Failed/Succeeded pods are what the phase fieldSelector must exclude"
+ },
+ "kind": "PodList",
+ "apiVersion": "v1",
+ "metadata": {
+  "resourceVersion": "61156650"
+ },
+ "items": [
+  {
+   "apiVersion": "v1",
+   "kind": "Pod",
+   "metadata": {
+    "name": "qwen-tiny-kserve-84fd6f5c76-b4wzq",
+    "generateName": "qwen-tiny-kserve-84fd6f5c76-",
+    "namespace": "vllm-lab",
+    "uid": "6996d0de-f528-4235-a028-2da7b7fce101",
+    "resourceVersion": "60536416",
+    "generation": 1,
+    "creationTimestamp": "2026-10-30T12:01:18Z",
+    "ownerReferences": [
+     {
+      "apiVersion": "apps/v1",
+      "kind": "ReplicaSet",
+      "name": "qwen-tiny-kserve-84fd6f5c76",
+      "uid": "0dba37ee-c2e4-4e77-a928-f34d3ecd8457",
+      "controller": true,
+      "blockOwnerDeletion": true
+     }
+    ],
+    "labels": {
+     "app.kubernetes.io/component": "llminferenceservice-workload",
+     "app.kubernetes.io/name": "qwen-tiny",
+     "app.kubernetes.io/part-of": "llminferenceservice",
+     "kserve.io/component": "workload",
+     "llm-d.ai/role": "both",
+     "pod-template-hash": "84fd6f5c76"
+    }
+   },
+   "spec": {
+    "nodeName": "control-plane-cluster-64spr-1",
+    "schedulerName": "default-scheduler",
+    "restartPolicy": "Always",
+    "priority": 0,
+    "containers": [
+     {
+      "name": "main",
+      "image": "docker.io/vllm/vllm-openai-cpu:v0.32.0",
+      "resources": {
+       "limits": {
+        "cpu": "8",
+        "memory": "12Gi"
+       },
+       "requests": {
+        "cpu": "4",
+        "memory": "8Gi"
+       }
+      },
+      "ports": [
+       {
+        "containerPort": 8000,
+        "protocol": "TCP"
+       }
+      ]
+     }
+    ]
+   },
+   "status": {
+    "phase": "Running",
+    "conditions": [
+     {
+      "type": "PodReadyToStartContainers",
+      "observedGeneration": 1,
+      "status": "True",
+      "lastProbeTime": null,
+      "lastTransitionTime": "2026-10-30T12:07:49Z"
+     },
+     {
+      "type": "Initialized",
+      "observedGeneration": 1,
+      "status": "True",
+      "lastProbeTime": null,
+      "lastTransitionTime": "2026-10-30T12:06:27Z"
+     },
+     {
+      "type": "Ready",
+      "observedGeneration": 1,
+      "status": "True",
+      "lastProbeTime": null,
+      "lastTransitionTime": "2026-10-30T12:09:58Z"
+     },
+     {
+      "type": "ContainersReady",
+      "observedGeneration": 1,
+      "status": "True",
+      "lastProbeTime": null,
+      "lastTransitionTime": "2026-10-30T12:09:58Z"
+     },
+     {
+      "type": "PodScheduled",
+      "observedGeneration": 1,
+      "status": "True",
+      "lastProbeTime": null,
+      "lastTransitionTime": "2026-10-30T12:06:27Z"
+     }
+    ],
+    "startTime": "2026-10-30T12:06:27Z",
+    "qosClass": "Burstable",
+    "containerStatuses": [
+     {
+      "name": "main",
+      "ready": true,
+      "started": true,
+      "restartCount": 0,
+      "image": "docker.io/vllm/vllm-openai-cpu:v0.32.0",
+      "state": {
+       "running": {
+        "startedAt": "2026-10-30T12:07:49Z"
+       }
+      },
+      "lastState": {}
+     }
+    ]
+   }
+  },
+  {
+   "apiVersion": "v1",
+   "kind": "Pod",
+   "metadata": {
+    "name": "qwen-tiny-kserve-router-scheduler-65bdbffc9-jch5b",
+    "generateName": "qwen-tiny-kserve-router-scheduler-65bdbffc9-",
+    "namespace": "vllm-lab",
+    "uid": "d6b01468-b67e-4227-9ac1-ad33dd4535f7",
+    "resourceVersion": "52071044",
+    "generation": 1,
+    "creationTimestamp": "2026-10-24T16:55:46Z",
+    "ownerReferences": [
+     {
+      "apiVersion": "apps/v1",
+      "kind": "ReplicaSet",
+      "name": "qwen-tiny-kserve-router-scheduler-65bdbffc9",
+      "uid": "d99c119f-f49a-49dd-892c-4fcbb7a9184d",
+      "controller": true,
+      "blockOwnerDeletion": true
+     }
+    ],
+    "labels": {
+     "app.kubernetes.io/component": "llminferenceservice-router-scheduler",
+     "app.kubernetes.io/name": "qwen-tiny",
+     "app.kubernetes.io/part-of": "llminferenceservice",
+     "pod-template-hash": "65bdbffc9"
+    }
+   },
+   "spec": {
+    "nodeName": "control-plane-cluster-64spr-1",
+    "schedulerName": "default-scheduler",
+    "restartPolicy": "Always",
+    "priority": 0,
+    "containers": [
+     {
+      "name": "main",
+      "image": "ghcr.io/llm-d/llm-d-router-endpoint-picker:v0.10.0",
+      "resources": {
+       "limits": {
+        "cpu": "6",
+        "memory": "16Gi"
+       },
+       "requests": {
+        "cpu": "1",
+        "memory": "2Gi"
+       }
+      },
+      "ports": [
+       {
+        "name": "grpc",
+        "containerPort": 9002,
+        "protocol": "TCP"
+       },
+       {
+        "name": "grpc-health",
+        "containerPort": 9003,
+        "protocol": "TCP"
+       },
+       {
+        "name": "metrics",
+        "containerPort": 9090,
+        "protocol": "TCP"
+       },
+       {
+        "name": "zmq",
+        "containerPort": 5557,
+        "protocol": "TCP"
+       }
+      ]
+     }
+    ]
+   },
+   "status": {
+    "phase": "Running",
+    "conditions": [
+     {
+      "type": "PodReadyToStartContainers",
+      "observedGeneration": 1,
+      "status": "True",
+      "lastProbeTime": null,
+      "lastTransitionTime": "2026-10-24T16:55:47Z"
+     },
+     {
+      "type": "Initialized",
+      "observedGeneration": 1,
+      "status": "True",
+      "lastProbeTime": null,
+      "lastTransitionTime": "2026-10-24T16:55:46Z"
+     },
+     {
+      "type": "Ready",
+      "observedGeneration": 1,
+      "status": "True",
+      "lastProbeTime": null,
+      "lastTransitionTime": "2026-10-24T16:56:18Z"
+     },
+     {
+      "type": "ContainersReady",
+      "observedGeneration": 1,
+      "status": "True",
+      "lastProbeTime": null,
+      "lastTransitionTime": "2026-10-24T16:56:18Z"
+     },
+     {
+      "type": "PodScheduled",
+      "observedGeneration": 1,
+      "status": "True",
+      "lastProbeTime": null,
+      "lastTransitionTime": "2026-10-24T16:55:46Z"
+     }
+    ],
+    "startTime": "2026-10-24T16:55:46Z",
+    "qosClass": "Burstable",
+    "containerStatuses": [
+     {
+      "name": "main",
+      "ready": true,
+      "started": true,
+      "restartCount": 0,
+      "image": "ghcr.io/llm-d/llm-d-router-endpoint-picker:v0.10.0",
+      "state": {
+       "running": {
+        "startedAt": "2026-10-24T16:55:47Z"
+       }
+      },
+      "lastState": {}
+     }
+    ]
+   }
+  },
+  {
+   "apiVersion": "v1",
+   "kind": "Pod",
+   "metadata": {
+    "name": "qwen-tiny-kserve-84fd6f5c76-755hl",
+    "generateName": "qwen-tiny-kserve-84fd6f5c76-",
+    "namespace": "vllm-lab",
+    "uid": "6f27c841-c033-4d4e-b6e7-bc3a9363c14e",
+    "resourceVersion": "52394181",
+    "generation": 1,
+    "creationTimestamp": "2026-10-24T22:14:05Z",
+    "ownerReferences": [
+     {
+      "apiVersion": "apps/v1",
+      "kind": "ReplicaSet",
+      "name": "qwen-tiny-kserve-84fd6f5c76",
+      "uid": "0dba37ee-c2e4-4e77-a928-f34d3ecd8457",
+      "controller": true,
+      "blockOwnerDeletion": true
+     }
+    ],
+    "labels": {
+     "app.kubernetes.io/component": "llminferenceservice-workload",
+     "app.kubernetes.io/name": "qwen-tiny",
+     "app.kubernetes.io/part-of": "llminferenceservice",
+     "kserve.io/component": "workload",
+     "llm-d.ai/role": "both",
+     "pod-template-hash": "84fd6f5c76"
+    }
+   },
+   "spec": {
+    "nodeName": "control-plane-cluster-64spr-1",
+    "schedulerName": "default-scheduler",
+    "restartPolicy": "Always",
+    "priority": 0,
+    "containers": [
+     {
+      "name": "main",
+      "image": "docker.io/vllm/vllm-openai-cpu:v0.32.0",
+      "resources": {
+       "limits": {
+        "cpu": "8",
+        "memory": "12Gi"
+       },
+       "requests": {
+        "cpu": "4",
+        "memory": "8Gi"
+       }
+      },
+      "ports": [
+       {
+        "containerPort": 8000,
+        "protocol": "TCP"
+       }
+      ]
+     }
+    ]
+   },
+   "status": {
+    "phase": "Failed",
+    "reason": "Evicted",
+    "conditions": [
+     {
+      "type": "DisruptionTarget",
+      "observedGeneration": 1,
+      "status": "True",
+      "lastProbeTime": null,
+      "lastTransitionTime": "2026-10-24T22:15:10Z",
+      "reason": "TerminationByKubelet",
+      "message": "The node was low on resource: ephemeral-storage. Threshold quantity: 16015370671, available: 13832768Ki. "
+     },
+     {
+      "type": "PodReadyToStartContainers",
+      "observedGeneration": 1,
+      "status": "False",
+      "lastProbeTime": null,
+      "lastTransitionTime": "2026-10-24T22:15:10Z"
+     },
+     {
+      "type": "Initialized",
+      "observedGeneration": 1,
+      "status": "True",
+      "lastProbeTime": null,
+      "lastTransitionTime": "2026-10-24T22:14:05Z"
+     },
+     {
+      "type": "Ready",
+      "observedGeneration": 1,
+      "status": "False",
+      "lastProbeTime": null,
+      "lastTransitionTime": "2026-10-24T22:14:05Z",
+      "reason": "PodFailed"
+     },
+     {
+      "type": "ContainersReady",
+      "observedGeneration": 1,
+      "status": "False",
+      "lastProbeTime": null,
+      "lastTransitionTime": "2026-10-24T22:14:05Z",
+      "reason": "PodFailed"
+     },
+     {
+      "type": "PodScheduled",
+      "observedGeneration": 1,
+      "status": "True",
+      "lastProbeTime": null,
+      "lastTransitionTime": "2026-10-24T22:14:05Z"
+     }
+    ],
+    "startTime": "2026-10-24T22:14:05Z",
+    "qosClass": "Burstable",
+    "containerStatuses": [
+     {
+      "name": "main",
+      "ready": false,
+      "started": false,
+      "restartCount": 0,
+      "image": "docker.io/vllm/vllm-openai-cpu:v0.32.0",
+      "state": {
+       "terminated": {
+        "exitCode": 137,
+        "reason": "Error",
+        "startedAt": "2026-10-24T22:15:06Z",
+        "finishedAt": "2026-10-24T22:15:10Z"
+       }
+      },
+      "lastState": {}
+     }
+    ]
+   }
+  },
+  {
+   "apiVersion": "v1",
+   "kind": "Pod",
+   "metadata": {
+    "name": "qwen-tiny-kserve-856fc8d7db-2dwl9",
+    "generateName": "qwen-tiny-kserve-856fc8d7db-",
+    "namespace": "vllm-lab",
+    "uid": "b90499bd-4c34-45ec-a6bd-2a95893e78f0",
+    "resourceVersion": "47644352",
+    "generation": 1,
+    "creationTimestamp": "2026-10-21T16:19:51Z",
+    "ownerReferences": [
+     {
+      "apiVersion": "apps/v1",
+      "kind": "ReplicaSet",
+      "name": "qwen-tiny-kserve-856fc8d7db",
+      "uid": "94df9ec0-9a3e-4994-893e-005c05180525",
+      "controller": true,
+      "blockOwnerDeletion": true
+     }
+    ],
+    "labels": {
+     "app.kubernetes.io/component": "llminferenceservice-workload",
+     "app.kubernetes.io/name": "qwen-tiny",
+     "app.kubernetes.io/part-of": "llminferenceservice",
+     "kserve.io/component": "workload",
+     "llm-d.ai/role": "both",
+     "pod-template-hash": "856fc8d7db"
+    }
+   },
+   "spec": {
+    "nodeName": "control-plane-cluster-64spr-1",
+    "schedulerName": "default-scheduler",
+    "restartPolicy": "Always",
+    "priority": 0,
+    "initContainers": [
+     {
+      "name": "storage-initializer",
+      "image": "docker.io/kserve/storage-initializer:v0.21.0-rc1",
+      "resources": {
+       "limits": {
+        "cpu": "1",
+        "memory": "1Gi"
+       },
+       "requests": {
+        "cpu": "100m",
+        "memory": "100Mi"
+       }
+      }
+     }
+    ],
+    "containers": [
+     {
+      "name": "main",
+      "image": "public.ecr.aws/q9t5s3a7/vllm-cpu-release-repo:v0.29.0",
+      "resources": {
+       "limits": {
+        "cpu": "8",
+        "memory": "12Gi"
+       },
+       "requests": {
+        "cpu": "4",
+        "memory": "8Gi"
+       }
+      },
+      "ports": [
+       {
+        "containerPort": 8000,
+        "protocol": "TCP"
+       }
+      ]
+     }
+    ]
+   },
+   "status": {
+    "phase": "Failed",
+    "reason": "Evicted",
+    "conditions": [
+     {
+      "type": "PodReadyToStartContainers",
+      "observedGeneration": 1,
+      "status": "False",
+      "lastProbeTime": null,
+      "lastTransitionTime": "2026-10-21T16:19:51Z"
+     },
+     {
+      "type": "Initialized",
+      "observedGeneration": 1,
+      "status": "False",
+      "lastProbeTime": null,
+      "lastTransitionTime": "2026-10-21T16:19:51Z",
+      "reason": "ContainersNotInitialized",
+      "message": "containers with incomplete status: [storage-initializer]"
+     },
+     {
+      "type": "Ready",
+      "observedGeneration": 1,
+      "status": "False",
+      "lastProbeTime": null,
+      "lastTransitionTime": "2026-10-21T16:19:51Z",
+      "reason": "PodFailed"
+     },
+     {
+      "type": "ContainersReady",
+      "observedGeneration": 1,
+      "status": "False",
+      "lastProbeTime": null,
+      "lastTransitionTime": "2026-10-21T16:19:51Z",
+      "reason": "PodFailed"
+     },
+     {
+      "type": "PodScheduled",
+      "observedGeneration": 1,
+      "status": "True",
+      "lastProbeTime": null,
+      "lastTransitionTime": "2026-10-21T16:19:51Z"
+     }
+    ],
+    "startTime": "2026-10-21T16:19:51Z",
+    "qosClass": "Burstable",
+    "initContainerStatuses": [
+     {
+      "name": "storage-initializer",
+      "ready": false,
+      "started": false,
+      "restartCount": 0,
+      "image": "docker.io/kserve/storage-initializer:v0.21.0-rc1",
+      "state": {
+       "terminated": {
+        "exitCode": 137,
+        "reason": "ContainerStatusUnknown",
+        "startedAt": null,
+        "finishedAt": null
+       }
+      },
+      "lastState": {}
+     }
+    ],
+    "containerStatuses": [
+     {
+      "name": "main",
+      "ready": false,
+      "started": false,
+      "restartCount": 0,
+      "image": "public.ecr.aws/q9t5s3a7/vllm-cpu-release-repo:v0.29.0",
+      "state": {
+       "waiting": {
+        "reason": "PodInitializing"
+       }
+      },
+      "lastState": {}
+     }
+    ]
+   }
+  },
+  {
+   "apiVersion": "v1",
+   "kind": "Pod",
+   "metadata": {
+    "name": "aiperf-1-build",
+    "namespace": "vllm-lab",
+    "uid": "5a88a5b4-9124-4484-b57f-8524e11b93f6",
+    "resourceVersion": "37218896",
+    "generation": 1,
+    "creationTimestamp": "2026-10-14T12:55:35Z",
+    "ownerReferences": [
+     {
+      "apiVersion": "build.openshift.io/v1",
+      "kind": "Build",
+      "name": "aiperf-1",
+      "uid": "354ddc8e-8fdc-41d1-8cce-82a672b63925",
+      "controller": true
+     }
+    ],
+    "labels": {
+     "openshift.io/build.name": "aiperf-1"
+    }
+   },
+   "spec": {
+    "nodeName": "worker-cluster-64spr-2",
+    "schedulerName": "default-scheduler",
+    "restartPolicy": "Never",
+    "priority": 0,
+    "initContainers": [
+     {
+      "name": "git-clone",
+      "image": "quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:c1abdad8d9c8bcb58c6900d810dfc39fa4ba3da63ce2fe827c5d10ac81ab5d69",
+      "resources": {}
+     },
+     {
+      "name": "manage-dockerfile",
+      "image": "quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:c1abdad8d9c8bcb58c6900d810dfc39fa4ba3da63ce2fe827c5d10ac81ab5d69",
+      "resources": {}
+     }
+    ],
+    "containers": [
+     {
+      "name": "docker-build",
+      "image": "quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:c1abdad8d9c8bcb58c6900d810dfc39fa4ba3da63ce2fe827c5d10ac81ab5d69",
+      "resources": {}
+     }
+    ]
+   },
+   "status": {
+    "phase": "Succeeded",
+    "conditions": [
+     {
+      "type": "PodReadyToStartContainers",
+      "observedGeneration": 1,
+      "status": "False",
+      "lastProbeTime": null,
+      "lastTransitionTime": "2026-10-14T12:57:06Z"
+     },
+     {
+      "type": "Initialized",
+      "observedGeneration": 1,
+      "status": "True",
+      "lastProbeTime": null,
+      "lastTransitionTime": "2026-10-14T12:55:39Z",
+      "reason": "PodCompleted"
+     },
+     {
+      "type": "Ready",
+      "observedGeneration": 1,
+      "status": "False",
+      "lastProbeTime": null,
+      "lastTransitionTime": "2026-10-14T12:57:05Z",
+      "reason": "PodCompleted"
+     },
+     {
+      "type": "ContainersReady",
+      "observedGeneration": 1,
+      "status": "False",
+      "lastProbeTime": null,
+      "lastTransitionTime": "2026-10-14T12:57:05Z",
+      "reason": "PodCompleted"
+     },
+     {
+      "type": "PodScheduled",
+      "observedGeneration": 1,
+      "status": "True",
+      "lastProbeTime": null,
+      "lastTransitionTime": "2026-10-14T12:55:35Z"
+     }
+    ],
+    "startTime": "2026-10-14T12:55:35Z",
+    "qosClass": "BestEffort",
+    "initContainerStatuses": [
+     {
+      "name": "git-clone",
+      "ready": true,
+      "started": false,
+      "restartCount": 0,
+      "image": "quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:c1abdad8d9c8bcb58c6900d810dfc39fa4ba3da63ce2fe827c5d10ac81ab5d69",
+      "state": {
+       "terminated": {
+        "exitCode": 0,
+        "reason": "Completed",
+        "startedAt": "2026-10-14T12:55:36Z",
+        "finishedAt": "2026-10-14T12:55:37Z"
+       }
+      },
+      "lastState": {}
+     },
+     {
+      "name": "manage-dockerfile",
+      "ready": true,
+      "started": false,
+      "restartCount": 0,
+      "image": "quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:c1abdad8d9c8bcb58c6900d810dfc39fa4ba3da63ce2fe827c5d10ac81ab5d69",
+      "state": {
+       "terminated": {
+        "exitCode": 0,
+        "reason": "Completed",
+        "startedAt": "2026-10-14T12:55:38Z",
+        "finishedAt": "2026-10-14T12:55:38Z"
+       }
+      },
+      "lastState": {}
+     }
+    ],
+    "containerStatuses": [
+     {
+      "name": "docker-build",
+      "ready": false,
+      "started": false,
+      "restartCount": 0,
+      "image": "quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:c1abdad8d9c8bcb58c6900d810dfc39fa4ba3da63ce2fe827c5d10ac81ab5d69",
+      "state": {
+       "terminated": {
+        "exitCode": 0,
+        "reason": "Completed",
+        "startedAt": "2026-10-14T12:55:39Z",
+        "finishedAt": "2026-10-14T12:57:04Z"
+       }
+      },
+      "lastState": {}
+     }
+    ]
+   }
+  },
+  {
+   "apiVersion": "v1",
+   "kind": "Pod",
+   "metadata": {
+    "name": "dns-default-6ztlc",
+    "generateName": "dns-default-",
+    "namespace": "openshift-dns",
+    "uid": "1f3af56b-1423-49bb-83b2-7847bb6c798a",
+    "resourceVersion": "3312183",
+    "generation": 1,
+    "creationTimestamp": "2026-09-20T16:52:11Z",
+    "ownerReferences": [
+     {
+      "apiVersion": "apps/v1",
+      "kind": "DaemonSet",
+      "name": "dns-default",
+      "uid": "efc16feb-1831-421c-967a-fd857c4fb218",
+      "controller": true,
+      "blockOwnerDeletion": true
+     }
+    ],
+    "labels": {
+     "controller-revision-hash": "54477b8944",
+     "dns.operator.openshift.io/daemonset-dns": "default",
+     "pod-template-generation": "7"
+    }
+   },
+   "spec": {
+    "nodeName": "worker-cluster-64spr-1",
+    "schedulerName": "default-scheduler",
+    "restartPolicy": "Always",
+    "priority": 2000001000,
+    "containers": [
+     {
+      "name": "dns",
+      "image": "quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:2168f78e98dee245b93011b4af41970f4e2e64ae46ece6ce7742dc3c2a0cd1cd",
+      "resources": {
+       "requests": {
+        "cpu": "50m",
+        "memory": "70Mi"
+       }
+      },
+      "ports": [
+       {
+        "name": "dns",
+        "containerPort": 5353,
+        "protocol": "UDP"
+       },
+       {
+        "name": "dns-tcp",
+        "containerPort": 5353,
+        "protocol": "TCP"
+       }
+      ]
+     },
+     {
+      "name": "kube-rbac-proxy",
+      "image": "quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:aca89d4425559ab9dc9b775f13dd9fa11abece702c2aff9b831bcc376f4532d7",
+      "resources": {
+       "requests": {
+        "cpu": "10m",
+        "memory": "40Mi"
+       }
+      },
+      "ports": [
+       {
+        "name": "metrics",
+        "containerPort": 9154,
+        "protocol": "TCP"
+       }
+      ]
+     }
+    ]
+   },
+   "status": {
+    "phase": "Running",
+    "conditions": [
+     {
+      "type": "PodReadyToStartContainers",
+      "observedGeneration": 1,
+      "status": "True",
+      "lastProbeTime": null,
+      "lastTransitionTime": "2026-09-20T17:18:11Z"
+     },
+     {
+      "type": "Initialized",
+      "observedGeneration": 1,
+      "status": "True",
+      "lastProbeTime": null,
+      "lastTransitionTime": "2026-09-20T16:52:11Z"
+     },
+     {
+      "type": "Ready",
+      "observedGeneration": 1,
+      "status": "True",
+      "lastProbeTime": null,
+      "lastTransitionTime": "2026-09-20T17:18:21Z"
+     },
+     {
+      "type": "ContainersReady",
+      "observedGeneration": 1,
+      "status": "True",
+      "lastProbeTime": null,
+      "lastTransitionTime": "2026-09-20T17:18:21Z"
+     },
+     {
+      "type": "PodScheduled",
+      "observedGeneration": 1,
+      "status": "True",
+      "lastProbeTime": null,
+      "lastTransitionTime": "2026-09-20T16:52:11Z"
+     }
+    ],
+    "startTime": "2026-09-20T16:52:11Z",
+    "qosClass": "Burstable",
+    "containerStatuses": [
+     {
+      "name": "dns",
+      "ready": true,
+      "started": true,
+      "restartCount": 1,
+      "image": "quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:2168f78e98dee245b93011b4af41970f4e2e64ae46ece6ce7742dc3c2a0cd1cd",
+      "state": {
+       "running": {
+        "startedAt": "2026-09-20T17:18:10Z"
+       }
+      },
+      "lastState": {}
+     },
+     {
+      "name": "kube-rbac-proxy",
+      "ready": true,
+      "started": true,
+      "restartCount": 1,
+      "image": "quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:aca89d4425559ab9dc9b775f13dd9fa11abece702c2aff9b831bcc376f4532d7",
+      "state": {
+       "running": {
+        "startedAt": "2026-09-20T17:18:11Z"
+       }
+      },
+      "lastState": {}
+     }
+    ]
+   }
+  }
+ ]
+}

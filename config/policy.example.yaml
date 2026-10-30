@@ -1,0 +1,81 @@
+# Business policy for the GPU Time-to-Value engine. Validated at startup; an invalid file stops the engine.
+# Bump policy_version whenever anything below changes: every ledger interval records the version it used.
+policy_version: "2026-10-30.1"
+
+# Team that owns each stage (AGENT.md §0.1). Names are free text and appear on dashboards.
+teams:
+  PRE_PROVISIONING: DC
+  PROVISIONING: Redbull
+  GPU_PLATFORM: POPAI
+  SERVING: Serving
+
+# Idle time in a stage beyond its objective counts as overdue.
+# ASSUMPTION (AGENT.md I1, not yet approved): DC 3 d, Redbull 2 d, POPAI 1 d, Serving 7 d.
+stage_objectives:
+  PRE_PROVISIONING: 3d
+  PROVISIONING: 2d
+  GPU_PLATFORM: 1d
+  SERVING: 7d
+
+# Target GPU clusters. Names must equal server-scan's openshift.cluster_name (probe P-SS-2 lists them).
+target_clusters:
+  - ocp4-prod-gpu-site1
+
+# health.overall values that count as critical hardware (ADR-0002 row 6b).
+critical_health_values: [CRITICAL]
+
+# Intentional exclusions (AGENT.md I5): lab, teaching, cold spare. Excluded GPUs are never charged.
+exclusions:
+  asset_ids: []
+  serverscan_names: []
+
+# --- Target-cluster rules (ADR-0002 rows 15-22). Every key below is optional; the values shown are the
+# --- defaults built into the engine. Copy a block only to change it, and bump policy_version when you do.
+
+# Serving demand (§20.2 rows 17-20). useful_requests_per_gpu_hour is AGENT.md I2: null until the
+# threshold is approved, so LOW_USE stays inactive and genuine use is flagged low_use_unverified.
+# serving:
+#   demand_window: 24h
+#   warmup_grace: 30m
+#   useful_requests_per_gpu_hour: null
+#   kinds:                                    # versioned counter-of-record mapping (D8); first candidate with series wins, never summed
+#     - group: serving.kserve.io
+#       kind: LLMInferenceService
+#       counters:
+#         - metric: llm_d_epp_request_total
+#           pod_regex: "^{name}-kserve-router-scheduler-[a-z0-9]+-[a-z0-9]+$"
+#           matchers: ""                      # e.g. 'fairness_id!="canary"' once synthetic traffic is tagged (D9)
+#         - {metric: inference_objective_request_total, pod_regex: "^{name}-kserve-router-scheduler-[a-z0-9]+-[a-z0-9]+$"}
+#         - {metric: inference_model_request_total, pod_regex: "^{name}-kserve-router-scheduler-[a-z0-9]+-[a-z0-9]+$"}
+#         - {metric: "vllm:request_success_total", pod_regex: "^{name}-kserve-[a-z0-9]+-[a-z0-9]+$"}
+#     - group: serving.kserve.io
+#       kind: InferenceService
+#       counters:
+#         - {metric: "vllm:request_success_total", pod_regex: "^{name}-predictor-(?:[0-9]+-deployment-)?[a-z0-9]+-[a-z0-9]+$"}
+#     - group: apps
+#       kind: Deployment
+#       image_pattern: vllm                   # plain vLLM Deployments are recognised by image
+#       counters:
+#         - {metric: "vllm:request_success_total", pod_regex: "^{name}-[a-z0-9]+-[a-z0-9]+$"}
+
+# Run:ai kinds that are productive by presence (§0.2); interactive work is idle (C6). Verify with probe R5.
+# runai:
+#   group: run.ai
+#   productive_kinds: [TrainingWorkload, DistributedWorkload, InferenceWorkload, DistributedInferenceWorkload, RunaiJob]
+#   interactive_priority_classes: [build]
+#   priority_label: priorityClassName
+
+# allocated_idle flag (§20.2 Flags): productive GPUs below 5% activity for 6 h.
+# allocated_idle:
+#   window: 6h
+#   threshold: 0.05
+
+# Node pools recorded on intervals: the first matching node selector names the pool.
+pools: []
+#  - name: runai-h100
+#    node_selector: {node-role.kubernetes.io/runai: ""}
+
+# Consuming team of productive GPUs (for adoption views). Unmapped → "unassigned".
+team_map:
+  workloads: {}     # "namespace/Kind/name": team
+  namespaces: {}    # namespace: team

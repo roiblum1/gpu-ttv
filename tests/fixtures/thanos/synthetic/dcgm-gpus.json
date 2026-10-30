@@ -1,0 +1,220 @@
+{
+  "_meta": {
+    "evidence": "fixture-tested",
+    "synthetic": true,
+    "query": "group by (Hostname, UUID) (DCGM_FI_DEV_POWER_USAGE)",
+    "http_status": 200,
+    "note": "Node a reports 8 GPUs, node b 7 (b7 missing). b0 repeats 3x with MIG instance labels: a real `group by` collapses these, the rows check R still counts distinct UUIDs. The last two rows lack Hostname (absent, then empty) and must be skipped. Synthetic values; not lab or production data."
+  },
+  "status": "success",
+  "data": {
+    "resultType": "vector",
+    "result": [
+      {
+        "metric": {
+          "Hostname": "synthetic-gpu-a",
+          "UUID": "GPU-0000000a-0000-0000-0000-000000000000"
+        },
+        "value": [
+          1793397600.0,
+          "1"
+        ]
+      },
+      {
+        "metric": {
+          "Hostname": "synthetic-gpu-a",
+          "UUID": "GPU-0000000a-0000-0000-0000-000000000001"
+        },
+        "value": [
+          1793397600.0,
+          "1"
+        ]
+      },
+      {
+        "metric": {
+          "Hostname": "synthetic-gpu-a",
+          "UUID": "GPU-0000000a-0000-0000-0000-000000000002"
+        },
+        "value": [
+          1793397600.0,
+          "1"
+        ]
+      },
+      {
+        "metric": {
+          "Hostname": "synthetic-gpu-a",
+          "UUID": "GPU-0000000a-0000-0000-0000-000000000003"
+        },
+        "value": [
+          1793397600.0,
+          "1"
+        ]
+      },
+      {
+        "metric": {
+          "Hostname": "synthetic-gpu-a",
+          "UUID": "GPU-0000000a-0000-0000-0000-000000000004"
+        },
+        "value": [
+          1793397600.0,
+          "1"
+        ]
+      },
+      {
+        "metric": {
+          "Hostname": "synthetic-gpu-a",
+          "UUID": "GPU-0000000a-0000-0000-0000-000000000005"
+        },
+        "value": [
+          1793397600.0,
+          "1"
+        ]
+      },
+      {
+        "metric": {
+          "Hostname": "synthetic-gpu-a",
+          "UUID": "GPU-0000000a-0000-0000-0000-000000000006"
+        },
+        "value": [
+          1793397600.0,
+          "1"
+        ]
+      },
+      {
+        "metric": {
+          "Hostname": "synthetic-gpu-a",
+          "UUID": "GPU-0000000a-0000-0000-0000-000000000007"
+        },
+        "value": [
+          1793397600.0,
+          "1"
+        ]
+      },
+      {
+        "metric": {
+          "Hostname": "synthetic-gpu-b",
+          "UUID": "GPU-0000000b-0000-0000-0000-000000000000"
+        },
+        "value": [
+          1793397600.0,
+          "1"
+        ]
+      },
+      {
+        "metric": {
+          "Hostname": "synthetic-gpu-b",
+          "UUID": "GPU-0000000b-0000-0000-0000-000000000001"
+        },
+        "value": [
+          1793397600.0,
+          "1"
+        ]
+      },
+      {
+        "metric": {
+          "Hostname": "synthetic-gpu-b",
+          "UUID": "GPU-0000000b-0000-0000-0000-000000000002"
+        },
+        "value": [
+          1793397600.0,
+          "1"
+        ]
+      },
+      {
+        "metric": {
+          "Hostname": "synthetic-gpu-b",
+          "UUID": "GPU-0000000b-0000-0000-0000-000000000003"
+        },
+        "value": [
+          1793397600.0,
+          "1"
+        ]
+      },
+      {
+        "metric": {
+          "Hostname": "synthetic-gpu-b",
+          "UUID": "GPU-0000000b-0000-0000-0000-000000000004"
+        },
+        "value": [
+          1793397600.0,
+          "1"
+        ]
+      },
+      {
+        "metric": {
+          "Hostname": "synthetic-gpu-b",
+          "UUID": "GPU-0000000b-0000-0000-0000-000000000005"
+        },
+        "value": [
+          1793397600.0,
+          "1"
+        ]
+      },
+      {
+        "metric": {
+          "Hostname": "synthetic-gpu-b",
+          "UUID": "GPU-0000000b-0000-0000-0000-000000000006"
+        },
+        "value": [
+          1793397600.0,
+          "1"
+        ]
+      },
+      {
+        "metric": {
+          "Hostname": "synthetic-gpu-b",
+          "UUID": "GPU-0000000b-0000-0000-0000-000000000000",
+          "GPU_I_PROFILE": "1g.10gb",
+          "GPU_I_ID": "1"
+        },
+        "value": [
+          1793397600.0,
+          "1"
+        ]
+      },
+      {
+        "metric": {
+          "Hostname": "synthetic-gpu-b",
+          "UUID": "GPU-0000000b-0000-0000-0000-000000000000",
+          "GPU_I_PROFILE": "1g.10gb",
+          "GPU_I_ID": "2"
+        },
+        "value": [
+          1793397600.0,
+          "1"
+        ]
+      },
+      {
+        "metric": {
+          "Hostname": "synthetic-gpu-b",
+          "UUID": "GPU-0000000b-0000-0000-0000-000000000000",
+          "GPU_I_PROFILE": "1g.10gb",
+          "GPU_I_ID": "3"
+        },
+        "value": [
+          1793397600.0,
+          "1"
+        ]
+      },
+      {
+        "metric": {
+          "UUID": "GPU-0000000c-0000-0000-0000-000000000000"
+        },
+        "value": [
+          1793397600.0,
+          "1"
+        ]
+      },
+      {
+        "metric": {
+          "Hostname": "",
+          "UUID": "GPU-0000000c-0000-0000-0000-000000000001"
+        },
+        "value": [
+          1793397600.0,
+          "1"
+        ]
+      }
+    ]
+  }
+}

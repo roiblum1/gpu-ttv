@@ -1,0 +1,35 @@
+{
+  "_meta": {
+    "evidence": "fixture-tested",
+    "synthetic": true,
+    "query": "sum by (namespace, pod) (increase(vllm:request_success_total[86400s]))",
+    "http_status": 200,
+    "note": "vLLM counters that exist but did not move: present with 0.0, not absent. Synthetic values; not lab or production data."
+  },
+  "status": "success",
+  "data": {
+    "resultType": "vector",
+    "result": [
+      {
+        "metric": {
+          "namespace": "llm",
+          "pod": "qwen-kserve-7c9d6f5b8-h4j2k"
+        },
+        "value": [
+          1793397600.0,
+          "0"
+        ]
+      },
+      {
+        "metric": {
+          "namespace": "llm",
+          "pod": "qwen-kserve-7c9d6f5b8-m8n3p"
+        },
+        "value": [
+          1793397600.0,
+          "0"
+        ]
+      }
+    ]
+  }
+}

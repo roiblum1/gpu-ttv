@@ -1,0 +1,35 @@
+{
+  "_meta": {
+    "evidence": "fixture-tested",
+    "synthetic": true,
+    "query": "sum by (namespace, pod) (increase(inference_model_request_total[86400s]))",
+    "http_status": 200,
+    "note": "Every sample is NaN or +Inf: the selector has no usable value and must be absent, never 0. Synthetic values; not lab or production data."
+  },
+  "status": "success",
+  "data": {
+    "resultType": "vector",
+    "result": [
+      {
+        "metric": {
+          "namespace": "llm",
+          "pod": "legacy-epp-7b9c8d6f5-zzzzz"
+        },
+        "value": [
+          1793397600.0,
+          "NaN"
+        ]
+      },
+      {
+        "metric": {
+          "namespace": "llm",
+          "pod": "legacy-epp-7b9c8d6f5-yyyyy"
+        },
+        "value": [
+          1793397600.0,
+          "+Inf"
+        ]
+      }
+    ]
+  }
+}

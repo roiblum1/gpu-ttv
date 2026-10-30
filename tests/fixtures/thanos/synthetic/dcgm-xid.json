@@ -1,0 +1,35 @@
+{
+  "_meta": {
+    "evidence": "fixture-tested",
+    "synthetic": true,
+    "query": "max by (Hostname, UUID) (DCGM_FI_DEV_XID_ERRORS) != 0",
+    "http_status": 200,
+    "note": "XID 79 (GPU fallen off the bus) on b3; a NaN sample on a5 must be rejected, never read as a value. Synthetic values; not lab or production data."
+  },
+  "status": "success",
+  "data": {
+    "resultType": "vector",
+    "result": [
+      {
+        "metric": {
+          "Hostname": "synthetic-gpu-b",
+          "UUID": "GPU-0000000b-0000-0000-0000-000000000003"
+        },
+        "value": [
+          1793397600.0,
+          "79"
+        ]
+      },
+      {
+        "metric": {
+          "Hostname": "synthetic-gpu-a",
+          "UUID": "GPU-0000000a-0000-0000-0000-000000000005"
+        },
+        "value": [
+          1793397600.0,
+          "NaN"
+        ]
+      }
+    ]
+  }
+}

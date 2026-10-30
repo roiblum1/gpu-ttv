@@ -1,0 +1,30 @@
+{
+ "_meta": {
+  "evidence": "fixture-tested",
+  "source": "OpenShift 4.22.13 workshop cluster (lab, no GPUs; vLLM on CPU), `oc get --raw /apis/serving.kserve.io/v1alpha2/namespaces/vllm-lab/llminferenceservices/qwen-tiny`",
+  "captured": "2026-10-31",
+  "sanitised": "managedFields, annotations, pod template, model URI/router config and status dropped; metadata incl. ownerReferences kept as captured"
+ },
+ "apiVersion": "serving.kserve.io/v1alpha2",
+ "kind": "LLMInferenceService",
+ "metadata": {
+  "name": "qwen-tiny",
+  "namespace": "vllm-lab",
+  "uid": "7a346ddb-7ac7-4a2e-9c76-0086a878ba67",
+  "resourceVersion": "60536921",
+  "generation": 36,
+  "creationTimestamp": "2026-10-11T00:01:26Z",
+  "labels": {
+   "app.kubernetes.io/instance": "popai-lab-qwen-tiny-deploy",
+   "app.kubernetes.io/managed-by": "Helm",
+   "app.kubernetes.io/name": "qwen-tiny",
+   "helm.sh/chart": "model-deployer-0.1.0"
+  }
+ },
+ "spec": {
+  "model": {
+   "name": "qwen-tiny"
+  },
+  "replicas": 1
+ }
+}

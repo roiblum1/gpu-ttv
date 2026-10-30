@@ -1,0 +1,30 @@
+{
+  "_meta": {
+    "evidence": "lab-tested",
+    "source": "GET https://thanos-querier-openshift-monitoring.apps.<lab-cluster>/api/v1/query?query=<below>&time=<scan>&partial_response=false",
+    "query": "sum by (namespace, pod) (increase(kubelet_running_pods[1h]))",
+    "http_status": 200,
+    "cluster": "Red Hat workshop cluster, OpenShift 4.22, no GPUs, nothing scrapes vLLM/EPP (not production)",
+    "fetched_at_utc": "2026-10-30T22:25:06Z",
+    "note": "Thanos returns PromQL *info* annotations in `warnings`; they are not partial-response warnings"
+  },
+  "status": "success",
+  "data": {
+    "resultType": "vector",
+    "result": [
+      {
+        "metric": {
+          "namespace": "kube-system"
+        },
+        "value": [
+          1793399106.092,
+          "325.4237288135593"
+        ]
+      }
+    ],
+    "analysis": {}
+  },
+  "warnings": [
+    "PromQL info: metric might not be a counter, name does not end in _total/_sum/_count/_bucket: \"kubelet_running_pods\""
+  ]
+}

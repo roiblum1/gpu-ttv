@@ -1,0 +1,40 @@
+{
+  "_meta": {
+    "evidence": "lab-tested",
+    "source": "GET https://thanos-querier-openshift-monitoring.apps.<lab-cluster>/api/v1/query?query=<below>&time=<scan>&partial_response=false",
+    "query": "up{job=\"apiserver\"}[1m]",
+    "http_status": 200,
+    "cluster": "Red Hat workshop cluster, OpenShift 4.22, no GPUs, nothing scrapes vLLM/EPP (not production)",
+    "fetched_at_utc": "2026-10-30T22:25:06Z",
+    "note": "a range-vector result, trimmed to 1 series and 2 samples"
+  },
+  "status": "success",
+  "data": {
+    "resultType": "matrix",
+    "result": [
+      {
+        "metric": {
+          "__name__": "up",
+          "apiserver": "kube-apiserver",
+          "endpoint": "https",
+          "instance": "10.10.10.10:6443",
+          "job": "apiserver",
+          "namespace": "default",
+          "prometheus": "openshift-monitoring/k8s",
+          "service": "kubernetes"
+        },
+        "values": [
+          [
+            1793399117.927,
+            "1"
+          ],
+          [
+            1793399147.927,
+            "1"
+          ]
+        ]
+      }
+    ],
+    "analysis": {}
+  }
+}

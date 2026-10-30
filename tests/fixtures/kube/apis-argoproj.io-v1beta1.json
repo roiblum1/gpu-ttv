@@ -1,0 +1,69 @@
+{
+ "_meta": {
+  "evidence": "fixture-tested",
+  "source": "OpenShift 4.22.13 workshop cluster (lab, no GPUs; vLLM on CPU), `oc get --raw /apis/argoproj.io/v1beta1`",
+  "captured": "2026-10-31",
+  "sanitised": "none needed (discovery document)"
+ },
+ "kind": "APIResourceList",
+ "apiVersion": "v1",
+ "groupVersion": "argoproj.io/v1beta1",
+ "resources": [
+  {
+   "name": "argocds",
+   "singularName": "argocd",
+   "namespaced": true,
+   "kind": "ArgoCD",
+   "verbs": [
+    "delete",
+    "deletecollection",
+    "get",
+    "list",
+    "patch",
+    "create",
+    "update",
+    "watch"
+   ],
+   "storageVersionHash": "IXhMdAFffOM="
+  },
+  {
+   "name": "argocds/status",
+   "singularName": "",
+   "namespaced": true,
+   "kind": "ArgoCD",
+   "verbs": [
+    "get",
+    "patch",
+    "update"
+   ]
+  },
+  {
+   "name": "namespacemanagements",
+   "singularName": "namespacemanagement",
+   "namespaced": true,
+   "kind": "NamespaceManagement",
+   "verbs": [
+    "delete",
+    "deletecollection",
+    "get",
+    "list",
+    "patch",
+    "create",
+    "update",
+    "watch"
+   ],
+   "storageVersionHash": "7Ggo/XAWtwI="
+  },
+  {
+   "name": "namespacemanagements/status",
+   "singularName": "",
+   "namespaced": true,
+   "kind": "NamespaceManagement",
+   "verbs": [
+    "get",
+    "patch",
+    "update"
+   ]
+  }
+ ]
+}

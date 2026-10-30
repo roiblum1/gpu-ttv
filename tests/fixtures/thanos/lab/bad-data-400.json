@@ -1,0 +1,14 @@
+{
+  "_meta": {
+    "evidence": "lab-tested",
+    "source": "GET https://thanos-querier-openshift-monitoring.apps.<lab-cluster>/api/v1/query?query=<below>&time=<scan>&partial_response=false",
+    "query": "sum(",
+    "http_status": 400,
+    "cluster": "Red Hat workshop cluster, OpenShift 4.22, no GPUs, nothing scrapes vLLM/EPP (not production)",
+    "fetched_at_utc": "2026-10-30T22:25:06Z",
+    "note": "PromQL parse error: HTTP 400 with a JSON error body"
+  },
+  "status": "error",
+  "errorType": "bad_data",
+  "error": "1:5: parse error: unclosed left parenthesis"
+}

@@ -1,0 +1,55 @@
+{
+  "_meta": {
+    "evidence": "fixture-tested",
+    "synthetic": true,
+    "query": "max by (exported_namespace, exported_pod) (max_over_time(DCGM_FI_DEV_GPU_UTIL{exported_pod!=\"\"}[21600s])) / 100",
+    "http_status": 200,
+    "note": "UTIL already divided by 100 server-side. both-0 also has PROF, which wins. Synthetic values; not lab or production data."
+  },
+  "status": "success",
+  "data": {
+    "resultType": "vector",
+    "result": [
+      {
+        "metric": {
+          "exported_namespace": "serving",
+          "exported_pod": "both-0"
+        },
+        "value": [
+          1793397600.0,
+          "0.9"
+        ]
+      },
+      {
+        "metric": {
+          "exported_namespace": "serving",
+          "exported_pod": "nan-0"
+        },
+        "value": [
+          1793397600.0,
+          "0.02"
+        ]
+      },
+      {
+        "metric": {
+          "exported_namespace": "serving",
+          "exported_pod": "sentinel-0"
+        },
+        "value": [
+          1793397600.0,
+          "0.07"
+        ]
+      },
+      {
+        "metric": {
+          "exported_namespace": "legacy",
+          "exported_pod": "old-gpu-0"
+        },
+        "value": [
+          1793397600.0,
+          "0.03"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "_meta": {
+    "evidence": "fixture-tested",
+    "synthetic": true,
+    "query": "sum by (namespace, pod) (increase(vllm:request_success_total[86400s]))",
+    "http_status": 200,
+    "note": "A store was missing: the 0 here may be partial and must fail the fetch, not read as zero traffic. Synthetic values; not lab or production data."
+  },
+  "status": "success",
+  "data": {
+    "resultType": "vector",
+    "result": [
+      {
+        "metric": {
+          "namespace": "llm",
+          "pod": "qwen-kserve-7c9d6f5b8-h4j2k"
+        },
+        "value": [
+          1793397600.0,
+          "0"
+        ]
+      }
+    ]
+  },
+  "warnings": [
+    "synthetic: receive series from Addr: prometheus-user-workload-1:10901: rpc error: code = Unavailable"
+  ]
+}

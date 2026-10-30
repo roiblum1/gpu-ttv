@@ -1,0 +1,103 @@
+{
+  "_meta": {
+    "evidence": "lab-tested",
+    "source": "GET https://server-scan-sandbox.example/api/v1/servers/srv_de2beaa28a3b40a3a2334027303c9170",
+    "fetched_at_utc": "2026-10-28T01:10:36Z",
+    "note": "server-scan sandbox (fake/seeded data, auth disabled), version >= v4.43.0/defe172; trimmed to AGENT.md §20.4 fields; API field is `id` (not `_id`)"
+  },
+  "id": "srv_de2beaa28a3b40a3a2334027303c9170",
+  "name": "ocp-standalone-as-2125hs-tnr-bat-yam-64c-256gb-STA0000686",
+  "model": "AS-2125HS-TNR",
+  "identity": {
+    "vendor": "standalone",
+    "serial": "STA0000686",
+    "serial_normalized": "sta0000686",
+    "system_uuid": "d5c4b7af-eff2-4b85-bf34-a4af502998fa"
+  },
+  "site_id": "bat-yam",
+  "source_provider": "REDFISH_STANDALONE",
+  "hardware": {
+    "gpus": [
+      {
+        "vendor": "NVIDIA",
+        "model": "NVIDIA T4 16GB",
+        "serial": "GPUdcfe7b2e",
+        "health": "HEALTHY",
+        "power_watts": 436.0
+      },
+      {
+        "vendor": "NVIDIA",
+        "model": "NVIDIA T4 16GB",
+        "serial": "GPUcb2245c0",
+        "health": "HEALTHY",
+        "power_watts": 313.0
+      },
+      {
+        "vendor": "NVIDIA",
+        "model": "NVIDIA T4 16GB",
+        "serial": "GPU0929e5b0",
+        "health": "CRITICAL",
+        "power_watts": 594.0
+      },
+      {
+        "vendor": "NVIDIA",
+        "model": "NVIDIA T4 16GB",
+        "serial": "GPU489dc3a5",
+        "health": "HEALTHY",
+        "power_watts": 277.0
+      },
+      {
+        "vendor": "NVIDIA",
+        "model": "NVIDIA T4 16GB",
+        "serial": "GPU58aabc34",
+        "health": "HEALTHY",
+        "power_watts": 302.0
+      },
+      {
+        "vendor": "NVIDIA",
+        "model": "NVIDIA T4 16GB",
+        "serial": "GPU2d89a9e4",
+        "health": "WARNING",
+        "power_watts": 416.0
+      },
+      {
+        "vendor": "NVIDIA",
+        "model": "NVIDIA T4 16GB",
+        "serial": "GPU2f6e8679",
+        "health": "CRITICAL",
+        "power_watts": 613.0
+      },
+      {
+        "vendor": "NVIDIA",
+        "model": "NVIDIA T4 16GB",
+        "serial": "GPU30d34f42",
+        "health": "WARNING",
+        "power_watts": 652.0
+      }
+    ]
+  },
+  "profile_template": {
+    "name": null,
+    "external_id": null
+  },
+  "openshift": {
+    "lifecycle_state": "AVAILABLE",
+    "cluster_name": null,
+    "mce_name": null,
+    "reported_name": null,
+    "contested_with": null,
+    "claim_changed_at": null
+  },
+  "maintenance": {
+    "enabled": false,
+    "reason": null
+  },
+  "health": {
+    "overall": "CRITICAL"
+  },
+  "reachable": true,
+  "unreachable_since": null,
+  "last_seen_at": "2026-10-28T01:00:09.343570Z",
+  "created_at": "2026-09-17T13:25:39.860686Z",
+  "stale": false
+}

@@ -1,0 +1,74 @@
+{
+  "_meta": {
+    "evidence": "fixture-tested",
+    "synthetic": true,
+    "query": "max by (exported_namespace, exported_pod) (max_over_time(DCGM_FI_PROF_GR_ENGINE_ACTIVE{exported_pod!=\"\"}[21600s]))",
+    "http_status": 200,
+    "note": "PROF ratios. nan-0 is NaN and sentinel-0 is a DCGM blank-like value outside 0-1: both rejected, so UTIL is used for them. orphan-0 lacks a namespace and is skipped. Synthetic values; not lab or production data."
+  },
+  "status": "success",
+  "data": {
+    "resultType": "vector",
+    "result": [
+      {
+        "metric": {
+          "exported_namespace": "ml-train",
+          "exported_pod": "trainer-0"
+        },
+        "value": [
+          1793397600.0,
+          "0.82"
+        ]
+      },
+      {
+        "metric": {
+          "exported_namespace": "ml-train",
+          "exported_pod": "notebook-0"
+        },
+        "value": [
+          1793397600.0,
+          "0.01"
+        ]
+      },
+      {
+        "metric": {
+          "exported_namespace": "serving",
+          "exported_pod": "both-0"
+        },
+        "value": [
+          1793397600.0,
+          "0.4"
+        ]
+      },
+      {
+        "metric": {
+          "exported_namespace": "serving",
+          "exported_pod": "nan-0"
+        },
+        "value": [
+          1793397600.0,
+          "NaN"
+        ]
+      },
+      {
+        "metric": {
+          "exported_namespace": "serving",
+          "exported_pod": "sentinel-0"
+        },
+        "value": [
+          1793397600.0,
+          "140737488355328"
+        ]
+      },
+      {
+        "metric": {
+          "exported_pod": "orphan-0"
+        },
+        "value": [
+          1793397600.0,
+          "0.5"
+        ]
+      }
+    ]
+  }
+}

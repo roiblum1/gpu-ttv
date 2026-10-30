@@ -1,0 +1,72 @@
+{
+ "_meta": {
+  "evidence": "fixture-tested",
+  "source": "OpenShift 4.22.13 workshop cluster (lab, no GPUs; vLLM on CPU), `oc get --raw /apis/serving.kserve.io/v1alpha2`",
+  "captured": "2026-10-31",
+  "sanitised": "none needed (discovery document)"
+ },
+ "kind": "APIResourceList",
+ "apiVersion": "v1",
+ "groupVersion": "serving.kserve.io/v1alpha2",
+ "resources": [
+  {
+   "name": "llminferenceserviceconfigs",
+   "singularName": "llminferenceserviceconfig",
+   "namespaced": true,
+   "kind": "LLMInferenceServiceConfig",
+   "verbs": [
+    "delete",
+    "deletecollection",
+    "get",
+    "list",
+    "patch",
+    "create",
+    "update",
+    "watch"
+   ],
+   "storageVersionHash": "V/KlxRRAw8k="
+  },
+  {
+   "name": "llminferenceserviceconfigs/status",
+   "singularName": "",
+   "namespaced": true,
+   "kind": "LLMInferenceServiceConfig",
+   "verbs": [
+    "get",
+    "patch",
+    "update"
+   ]
+  },
+  {
+   "name": "llminferenceservices",
+   "singularName": "llminferenceservice",
+   "namespaced": true,
+   "kind": "LLMInferenceService",
+   "verbs": [
+    "delete",
+    "deletecollection",
+    "get",
+    "list",
+    "patch",
+    "create",
+    "update",
+    "watch"
+   ],
+   "shortNames": [
+    "llmisvc"
+   ],
+   "storageVersionHash": "HsC5oYBefek="
+  },
+  {
+   "name": "llminferenceservices/status",
+   "singularName": "",
+   "namespaced": true,
+   "kind": "LLMInferenceService",
+   "verbs": [
+    "get",
+    "patch",
+    "update"
+   ]
+  }
+ ]
+}

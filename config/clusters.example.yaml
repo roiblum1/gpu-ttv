@@ -1,0 +1,27 @@
+# Target clusters the engine reads (TTV_CLUSTERS_FILE). Read-only: kube API GETs and Thanos instant queries.
+# Every name must also be in the policy's target_clusters and equal server-scan's openshift.cluster_name.
+# A target cluster missing here is reported as CLUSTER_NOT_OBSERVED (UNKNOWN), never as idle.
+#
+# Access per cluster (approved 2026-10-28, applied by the platform owners):
+#   - a ServiceAccount with get/list on nodes, pods, namespaces, replicasets, deployments, statefulsets,
+#     jobs, leaderworkersets, Kubeflow/Knative kinds, serving.kserve.io and run.ai kinds, and
+#     clusterversions (config.openshift.io) — for the ownerReferences walk (§20.3);
+#   - the cluster role cluster-monitoring-view, for the Thanos querier (D11);
+#   - a long-lived token Secret (type kubernetes.io/service-account-token), mounted as token_file.
+clusters:
+  - name: ocp4-prod-gpu-site1
+    api_url: https://api.ocp4-prod-gpu-site1.example.internal:6443
+    thanos_url: https://thanos-querier-openshift-monitoring.apps.ocp4-prod-gpu-site1.example.internal
+    token_file: /var/run/secrets/ttv/clusters/ocp4-prod-gpu-site1/token
+    ca_bundle: /etc/pki/ttv/ocp4-prod-gpu-site1-api-ca.pem          # API server CA (often the cluster's own signer)
+    thanos_ca_bundle: /etc/pki/ttv/ca-bundle.pem                     # ingress CA for *.apps routes
+    # cluster_id: <clusterversion spec.clusterID>                    # recommended: a wrong URL then fails instead of charging another cluster
+    # Defaults below; change only if Discovery (probes R8/R9) shows otherwise.
+    # gpu_resource: nvidia.com/gpu
+    # reservation_namespaces: [runai-reservation]
+    # dcgm_node_label: Hostname            # D1
+    # dcgm_uuid_label: UUID                # D2
+    # dcgm_pod_label: exported_pod         # D3
+    # dcgm_namespace_label: exported_namespace
+    # serving_pod_label: pod
+    # serving_namespace_label: namespace

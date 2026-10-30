@@ -1,0 +1,17 @@
+{
+  "_meta": {
+    "evidence": "lab-tested",
+    "source": "GET https://thanos-querier-openshift-monitoring.apps.<lab-cluster>/api/v1/query?query=<below>&time=<scan>&partial_response=false",
+    "query": "group by (Hostname, UUID) (DCGM_FI_DEV_POWER_USAGE)",
+    "http_status": 200,
+    "cluster": "Red Hat workshop cluster, OpenShift 4.22, no GPUs, nothing scrapes vLLM/EPP (not production)",
+    "fetched_at_utc": "2026-10-30T22:25:06Z",
+    "note": "DCGM query on a cluster without DCGM: an empty vector, status success"
+  },
+  "status": "success",
+  "data": {
+    "resultType": "vector",
+    "result": [],
+    "analysis": {}
+  }
+}

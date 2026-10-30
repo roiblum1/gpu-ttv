@@ -1,0 +1,103 @@
+{
+  "_meta": {
+    "evidence": "lab-tested",
+    "source": "GET https://server-scan-sandbox.example/api/v1/servers/srv_beec9a7ab8aa4a2a8107625e1ab6bc82",
+    "fetched_at_utc": "2026-10-28T01:10:36Z",
+    "note": "server-scan sandbox (fake/seeded data, auth disabled), version >= v4.43.0/defe172; trimmed to AGENT.md §20.4 fields; API field is `id` (not `_id`)"
+  },
+  "id": "srv_beec9a7ab8aa4a2a8107625e1ab6bc82",
+  "name": "ocp-cisco-m6-bat-yam-192c-512gb-CIS0001830",
+  "model": "UCS B200 M6",
+  "identity": {
+    "vendor": "cisco",
+    "serial": "CIS0001830",
+    "serial_normalized": "cis0001830",
+    "system_uuid": "a087f1f7-362c-4741-adb7-20dfaedabda6"
+  },
+  "site_id": "bat-yam",
+  "source_provider": "UCS_CENTRAL",
+  "hardware": {
+    "gpus": [
+      {
+        "vendor": "NVIDIA",
+        "model": "NVIDIA L40S 48GB",
+        "serial": "GPU5484e47c",
+        "health": "CRITICAL",
+        "power_watts": null
+      },
+      {
+        "vendor": "NVIDIA",
+        "model": "NVIDIA L40S 48GB",
+        "serial": "GPU811e2eee",
+        "health": "HEALTHY",
+        "power_watts": null
+      },
+      {
+        "vendor": "NVIDIA",
+        "model": "NVIDIA L40S 48GB",
+        "serial": "GPU7f85ca95",
+        "health": "HEALTHY",
+        "power_watts": null
+      },
+      {
+        "vendor": "NVIDIA",
+        "model": "NVIDIA L40S 48GB",
+        "serial": "GPUc40c61f9",
+        "health": "HEALTHY",
+        "power_watts": null
+      },
+      {
+        "vendor": "NVIDIA",
+        "model": "NVIDIA L40S 48GB",
+        "serial": "GPUd0d35a19",
+        "health": "HEALTHY",
+        "power_watts": null
+      },
+      {
+        "vendor": "NVIDIA",
+        "model": "NVIDIA L40S 48GB",
+        "serial": "GPU4605ac66",
+        "health": "HEALTHY",
+        "power_watts": null
+      },
+      {
+        "vendor": "NVIDIA",
+        "model": "NVIDIA L40S 48GB",
+        "serial": "GPU3f83a2bc",
+        "health": "HEALTHY",
+        "power_watts": null
+      },
+      {
+        "vendor": "NVIDIA",
+        "model": "NVIDIA L40S 48GB",
+        "serial": "GPU3863a1ee",
+        "health": "HEALTHY",
+        "power_watts": null
+      }
+    ]
+  },
+  "profile_template": {
+    "name": "SPT-OCP-Master-C240",
+    "external_id": "SPT-OCP-Master-C240"
+  },
+  "openshift": {
+    "lifecycle_state": "INSTALLED",
+    "cluster_name": "hc-bat-yam-01",
+    "mce_name": "mce-bat-yam",
+    "reported_name": null,
+    "contested_with": null,
+    "claim_changed_at": null
+  },
+  "maintenance": {
+    "enabled": false,
+    "reason": null
+  },
+  "health": {
+    "overall": "CRITICAL"
+  },
+  "reachable": true,
+  "unreachable_since": null,
+  "last_seen_at": "2026-10-28T01:00:03.008051Z",
+  "created_at": "2026-09-17T13:25:34.332204Z",
+  "stale": false
+}

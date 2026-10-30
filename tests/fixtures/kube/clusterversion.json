@@ -1,0 +1,26 @@
+{
+ "_meta": {
+  "evidence": "fixture-tested",
+  "source": "OpenShift 4.22.13 workshop cluster (lab, no GPUs; vLLM on CPU), `oc get --raw /apis/config.openshift.io/v1/clusterversions/version`",
+  "captured": "2026-10-31",
+  "sanitised": "spec.clusterID replaced by a fake UUID; managedFields, desiredUpdate.image and status except desired.version dropped"
+ },
+ "apiVersion": "config.openshift.io/v1",
+ "kind": "ClusterVersion",
+ "metadata": {
+  "name": "version",
+  "uid": "adf1729d-0617-44a8-9b34-c5040821939f",
+  "resourceVersion": "57678392",
+  "generation": 5,
+  "creationTimestamp": "2026-09-18T07:01:03Z"
+ },
+ "spec": {
+  "channel": "stable-4.22",
+  "clusterID": "00000000-0000-4000-8000-00000000c064"
+ },
+ "status": {
+  "desired": {
+   "version": "4.22.13"
+  }
+ }
+}

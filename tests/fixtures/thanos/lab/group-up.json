@@ -1,0 +1,57 @@
+{
+  "_meta": {
+    "evidence": "lab-tested",
+    "source": "GET https://thanos-querier-openshift-monitoring.apps.<lab-cluster>/api/v1/query?query=<below>&time=<scan>&partial_response=false",
+    "query": "group by (namespace, pod) (up)",
+    "http_status": 200,
+    "cluster": "Red Hat workshop cluster, OpenShift 4.22, no GPUs, nothing scrapes vLLM/EPP (not production)",
+    "fetched_at_utc": "2026-10-30T22:25:06Z",
+    "note": "trimmed from 107 series to 4; the series without `pod` must be skipped"
+  },
+  "status": "success",
+  "data": {
+    "resultType": "vector",
+    "result": [
+      {
+        "metric": {
+          "namespace": "default"
+        },
+        "value": [
+          1793399106.092,
+          "1"
+        ]
+      },
+      {
+        "metric": {
+          "namespace": "openshift-apiserver",
+          "pod": "apiserver-7dfc7df8d9-mt9xc"
+        },
+        "value": [
+          1793399106.092,
+          "1"
+        ]
+      },
+      {
+        "metric": {
+          "namespace": "openshift-oauth-apiserver",
+          "pod": "apiserver-6744d9ffd7-gqt7g"
+        },
+        "value": [
+          1793399106.092,
+          "1"
+        ]
+      },
+      {
+        "metric": {
+          "namespace": "openshift-gitops",
+          "pod": "openshift-gitops-application-controller-0"
+        },
+        "value": [
+          1793399106.092,
+          "1"
+        ]
+      }
+    ],
+    "analysis": {}
+  }
+}

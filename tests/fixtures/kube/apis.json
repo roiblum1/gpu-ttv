@@ -1,0 +1,1618 @@
+{
+ "_meta": {
+  "evidence": "fixture-tested",
+  "source": "OpenShift 4.22.13 workshop cluster (lab, no GPUs; vLLM on CPU), `oc get --raw /apis`",
+  "captured": "2026-10-31",
+  "sanitised": "none needed (discovery document)"
+ },
+ "kind": "APIGroupList",
+ "apiVersion": "v1",
+ "groups": [
+  {
+   "name": "apiregistration.k8s.io",
+   "versions": [
+    {
+     "groupVersion": "apiregistration.k8s.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "apiregistration.k8s.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "apps",
+   "versions": [
+    {
+     "groupVersion": "apps/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "apps/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "events.k8s.io",
+   "versions": [
+    {
+     "groupVersion": "events.k8s.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "events.k8s.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "authentication.k8s.io",
+   "versions": [
+    {
+     "groupVersion": "authentication.k8s.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "authentication.k8s.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "authorization.k8s.io",
+   "versions": [
+    {
+     "groupVersion": "authorization.k8s.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "authorization.k8s.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "autoscaling",
+   "versions": [
+    {
+     "groupVersion": "autoscaling/v2",
+     "version": "v2"
+    },
+    {
+     "groupVersion": "autoscaling/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "autoscaling/v2",
+    "version": "v2"
+   }
+  },
+  {
+   "name": "batch",
+   "versions": [
+    {
+     "groupVersion": "batch/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "batch/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "certificates.k8s.io",
+   "versions": [
+    {
+     "groupVersion": "certificates.k8s.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "certificates.k8s.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "networking.k8s.io",
+   "versions": [
+    {
+     "groupVersion": "networking.k8s.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "networking.k8s.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "policy",
+   "versions": [
+    {
+     "groupVersion": "policy/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "policy/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "rbac.authorization.k8s.io",
+   "versions": [
+    {
+     "groupVersion": "rbac.authorization.k8s.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "rbac.authorization.k8s.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "storage.k8s.io",
+   "versions": [
+    {
+     "groupVersion": "storage.k8s.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "storage.k8s.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "admissionregistration.k8s.io",
+   "versions": [
+    {
+     "groupVersion": "admissionregistration.k8s.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "admissionregistration.k8s.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "apiextensions.k8s.io",
+   "versions": [
+    {
+     "groupVersion": "apiextensions.k8s.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "apiextensions.k8s.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "scheduling.k8s.io",
+   "versions": [
+    {
+     "groupVersion": "scheduling.k8s.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "scheduling.k8s.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "coordination.k8s.io",
+   "versions": [
+    {
+     "groupVersion": "coordination.k8s.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "coordination.k8s.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "node.k8s.io",
+   "versions": [
+    {
+     "groupVersion": "node.k8s.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "node.k8s.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "discovery.k8s.io",
+   "versions": [
+    {
+     "groupVersion": "discovery.k8s.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "discovery.k8s.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "resource.k8s.io",
+   "versions": [
+    {
+     "groupVersion": "resource.k8s.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "resource.k8s.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "flowcontrol.apiserver.k8s.io",
+   "versions": [
+    {
+     "groupVersion": "flowcontrol.apiserver.k8s.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "flowcontrol.apiserver.k8s.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "apps.openshift.io",
+   "versions": [
+    {
+     "groupVersion": "apps.openshift.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "apps.openshift.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "authorization.openshift.io",
+   "versions": [
+    {
+     "groupVersion": "authorization.openshift.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "authorization.openshift.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "build.openshift.io",
+   "versions": [
+    {
+     "groupVersion": "build.openshift.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "build.openshift.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "image.openshift.io",
+   "versions": [
+    {
+     "groupVersion": "image.openshift.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "image.openshift.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "oauth.openshift.io",
+   "versions": [
+    {
+     "groupVersion": "oauth.openshift.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "oauth.openshift.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "project.openshift.io",
+   "versions": [
+    {
+     "groupVersion": "project.openshift.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "project.openshift.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "quota.openshift.io",
+   "versions": [
+    {
+     "groupVersion": "quota.openshift.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "quota.openshift.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "route.openshift.io",
+   "versions": [
+    {
+     "groupVersion": "route.openshift.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "route.openshift.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "security.openshift.io",
+   "versions": [
+    {
+     "groupVersion": "security.openshift.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "security.openshift.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "template.openshift.io",
+   "versions": [
+    {
+     "groupVersion": "template.openshift.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "template.openshift.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "user.openshift.io",
+   "versions": [
+    {
+     "groupVersion": "user.openshift.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "user.openshift.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "packages.operators.coreos.com",
+   "versions": [
+    {
+     "groupVersion": "packages.operators.coreos.com/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "packages.operators.coreos.com/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "config.openshift.io",
+   "versions": [
+    {
+     "groupVersion": "config.openshift.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "config.openshift.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "operator.openshift.io",
+   "versions": [
+    {
+     "groupVersion": "operator.openshift.io/v1",
+     "version": "v1"
+    },
+    {
+     "groupVersion": "operator.openshift.io/v1alpha1",
+     "version": "v1alpha1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "operator.openshift.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "acme.cert-manager.io",
+   "versions": [
+    {
+     "groupVersion": "acme.cert-manager.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "acme.cert-manager.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "apiserver.openshift.io",
+   "versions": [
+    {
+     "groupVersion": "apiserver.openshift.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "apiserver.openshift.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "autoscaling.openshift.io",
+   "versions": [
+    {
+     "groupVersion": "autoscaling.openshift.io/v1",
+     "version": "v1"
+    },
+    {
+     "groupVersion": "autoscaling.openshift.io/v1beta1",
+     "version": "v1beta1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "autoscaling.openshift.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "ceph.rook.io",
+   "versions": [
+    {
+     "groupVersion": "ceph.rook.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "ceph.rook.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "cert-manager.io",
+   "versions": [
+    {
+     "groupVersion": "cert-manager.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "cert-manager.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "cloudcredential.openshift.io",
+   "versions": [
+    {
+     "groupVersion": "cloudcredential.openshift.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "cloudcredential.openshift.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "console.openshift.io",
+   "versions": [
+    {
+     "groupVersion": "console.openshift.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "console.openshift.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "csi.ceph.io",
+   "versions": [
+    {
+     "groupVersion": "csi.ceph.io/v1",
+     "version": "v1"
+    },
+    {
+     "groupVersion": "csi.ceph.io/v1alpha1",
+     "version": "v1alpha1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "csi.ceph.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "disaggregatedset.x-k8s.io",
+   "versions": [
+    {
+     "groupVersion": "disaggregatedset.x-k8s.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "disaggregatedset.x-k8s.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "external-secrets.io",
+   "versions": [
+    {
+     "groupVersion": "external-secrets.io/v1",
+     "version": "v1"
+    },
+    {
+     "groupVersion": "external-secrets.io/v1alpha1",
+     "version": "v1alpha1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "external-secrets.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "gateway.networking.k8s.io",
+   "versions": [
+    {
+     "groupVersion": "gateway.networking.k8s.io/v1",
+     "version": "v1"
+    },
+    {
+     "groupVersion": "gateway.networking.k8s.io/v1beta1",
+     "version": "v1beta1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "gateway.networking.k8s.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "hco.kubevirt.io",
+   "versions": [
+    {
+     "groupVersion": "hco.kubevirt.io/v1",
+     "version": "v1"
+    },
+    {
+     "groupVersion": "hco.kubevirt.io/v1beta1",
+     "version": "v1beta1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "hco.kubevirt.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "imageregistry.operator.openshift.io",
+   "versions": [
+    {
+     "groupVersion": "imageregistry.operator.openshift.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "imageregistry.operator.openshift.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "inference.networking.k8s.io",
+   "versions": [
+    {
+     "groupVersion": "inference.networking.k8s.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "inference.networking.k8s.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "ingress.operator.openshift.io",
+   "versions": [
+    {
+     "groupVersion": "ingress.operator.openshift.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "ingress.operator.openshift.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "insights.openshift.io",
+   "versions": [
+    {
+     "groupVersion": "insights.openshift.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "insights.openshift.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "k8s.cni.cncf.io",
+   "versions": [
+    {
+     "groupVersion": "k8s.cni.cncf.io/v1",
+     "version": "v1"
+    },
+    {
+     "groupVersion": "k8s.cni.cncf.io/v1alpha1",
+     "version": "v1alpha1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "k8s.cni.cncf.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "k8s.ovn.org",
+   "versions": [
+    {
+     "groupVersion": "k8s.ovn.org/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "k8s.ovn.org/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "kubevirt.io",
+   "versions": [
+    {
+     "groupVersion": "kubevirt.io/v1",
+     "version": "v1"
+    },
+    {
+     "groupVersion": "kubevirt.io/v1alpha3",
+     "version": "v1alpha3"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "kubevirt.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "leaderworkerset.x-k8s.io",
+   "versions": [
+    {
+     "groupVersion": "leaderworkerset.x-k8s.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "leaderworkerset.x-k8s.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "machine.openshift.io",
+   "versions": [
+    {
+     "groupVersion": "machine.openshift.io/v1",
+     "version": "v1"
+    },
+    {
+     "groupVersion": "machine.openshift.io/v1beta1",
+     "version": "v1beta1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "machine.openshift.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "machineconfiguration.openshift.io",
+   "versions": [
+    {
+     "groupVersion": "machineconfiguration.openshift.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "machineconfiguration.openshift.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "monitoring.coreos.com",
+   "versions": [
+    {
+     "groupVersion": "monitoring.coreos.com/v1",
+     "version": "v1"
+    },
+    {
+     "groupVersion": "monitoring.coreos.com/v1beta1",
+     "version": "v1beta1"
+    },
+    {
+     "groupVersion": "monitoring.coreos.com/v1alpha1",
+     "version": "v1alpha1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "monitoring.coreos.com/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "monitoring.openshift.io",
+   "versions": [
+    {
+     "groupVersion": "monitoring.openshift.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "monitoring.openshift.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "network.operator.openshift.io",
+   "versions": [
+    {
+     "groupVersion": "network.operator.openshift.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "network.operator.openshift.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "networkaddonsoperator.network.kubevirt.io",
+   "versions": [
+    {
+     "groupVersion": "networkaddonsoperator.network.kubevirt.io/v1",
+     "version": "v1"
+    },
+    {
+     "groupVersion": "networkaddonsoperator.network.kubevirt.io/v1alpha1",
+     "version": "v1alpha1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "networkaddonsoperator.network.kubevirt.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "ocs.openshift.io",
+   "versions": [
+    {
+     "groupVersion": "ocs.openshift.io/v1",
+     "version": "v1"
+    },
+    {
+     "groupVersion": "ocs.openshift.io/v1alpha1",
+     "version": "v1alpha1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "ocs.openshift.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "olm.operatorframework.io",
+   "versions": [
+    {
+     "groupVersion": "olm.operatorframework.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "olm.operatorframework.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "operators.coreos.com",
+   "versions": [
+    {
+     "groupVersion": "operators.coreos.com/v2",
+     "version": "v2"
+    },
+    {
+     "groupVersion": "operators.coreos.com/v1",
+     "version": "v1"
+    },
+    {
+     "groupVersion": "operators.coreos.com/v1alpha2",
+     "version": "v1alpha2"
+    },
+    {
+     "groupVersion": "operators.coreos.com/v1alpha1",
+     "version": "v1alpha1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "operators.coreos.com/v2",
+    "version": "v2"
+   }
+  },
+  {
+   "name": "performance.openshift.io",
+   "versions": [
+    {
+     "groupVersion": "performance.openshift.io/v2",
+     "version": "v2"
+    },
+    {
+     "groupVersion": "performance.openshift.io/v1",
+     "version": "v1"
+    },
+    {
+     "groupVersion": "performance.openshift.io/v1alpha1",
+     "version": "v1alpha1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "performance.openshift.io/v2",
+    "version": "v2"
+   }
+  },
+  {
+   "name": "postgresql.cnpg.noobaa.io",
+   "versions": [
+    {
+     "groupVersion": "postgresql.cnpg.noobaa.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "postgresql.cnpg.noobaa.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "samples.operator.openshift.io",
+   "versions": [
+    {
+     "groupVersion": "samples.operator.openshift.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "samples.operator.openshift.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "security.internal.openshift.io",
+   "versions": [
+    {
+     "groupVersion": "security.internal.openshift.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "security.internal.openshift.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "snapshot.storage.k8s.io",
+   "versions": [
+    {
+     "groupVersion": "snapshot.storage.k8s.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "snapshot.storage.k8s.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "subresources.kubevirt.io",
+   "versions": [
+    {
+     "groupVersion": "subresources.kubevirt.io/v1",
+     "version": "v1"
+    },
+    {
+     "groupVersion": "subresources.kubevirt.io/v1alpha3",
+     "version": "v1alpha3"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "subresources.kubevirt.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "tuned.openshift.io",
+   "versions": [
+    {
+     "groupVersion": "tuned.openshift.io/v1",
+     "version": "v1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "tuned.openshift.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "velero.io",
+   "versions": [
+    {
+     "groupVersion": "velero.io/v1",
+     "version": "v1"
+    },
+    {
+     "groupVersion": "velero.io/v2alpha1",
+     "version": "v2alpha1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "velero.io/v1",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "aaq.kubevirt.io",
+   "versions": [
+    {
+     "groupVersion": "aaq.kubevirt.io/v1alpha1",
+     "version": "v1alpha1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "aaq.kubevirt.io/v1alpha1",
+    "version": "v1alpha1"
+   }
+  },
+  {
+   "name": "aigateway.envoyproxy.io",
+   "versions": [
+    {
+     "groupVersion": "aigateway.envoyproxy.io/v1beta1",
+     "version": "v1beta1"
+    },
+    {
+     "groupVersion": "aigateway.envoyproxy.io/v1alpha1",
+     "version": "v1alpha1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "aigateway.envoyproxy.io/v1beta1",
+    "version": "v1beta1"
+   }
+  },
+  {
+   "name": "argoproj.io",
+   "versions": [
+    {
+     "groupVersion": "argoproj.io/v1beta1",
+     "version": "v1beta1"
+    },
+    {
+     "groupVersion": "argoproj.io/v1alpha1",
+     "version": "v1alpha1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "argoproj.io/v1beta1",
+    "version": "v1beta1"
+   }
+  },
+  {
+   "name": "backup.kubevirt.io",
+   "versions": [
+    {
+     "groupVersion": "backup.kubevirt.io/v1alpha1",
+     "version": "v1alpha1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "backup.kubevirt.io/v1alpha1",
+    "version": "v1alpha1"
+   }
+  },
+  {
+   "name": "bifrost.demo.redhat.com",
+   "versions": [
+    {
+     "groupVersion": "bifrost.demo.redhat.com/v1alpha1",
+     "version": "v1alpha1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "bifrost.demo.redhat.com/v1alpha1",
+    "version": "v1alpha1"
+   }
+  },
+  {
+   "name": "clone.kubevirt.io",
+   "versions": [
+    {
+     "groupVersion": "clone.kubevirt.io/v1beta1",
+     "version": "v1beta1"
+    },
+    {
+     "groupVersion": "clone.kubevirt.io/v1alpha1",
+     "version": "v1alpha1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "clone.kubevirt.io/v1beta1",
+    "version": "v1beta1"
+   }
+  },
+  {
+   "name": "controller.devfile.io",
+   "versions": [
+    {
+     "groupVersion": "controller.devfile.io/v1alpha1",
+     "version": "v1alpha1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "controller.devfile.io/v1alpha1",
+    "version": "v1alpha1"
+   }
+  },
+  {
+   "name": "controlplane.operator.openshift.io",
+   "versions": [
+    {
+     "groupVersion": "controlplane.operator.openshift.io/v1alpha1",
+     "version": "v1alpha1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "controlplane.operator.openshift.io/v1alpha1",
+    "version": "v1alpha1"
+   }
+  },
+  {
+   "name": "csiaddons.openshift.io",
+   "versions": [
+    {
+     "groupVersion": "csiaddons.openshift.io/v1alpha1",
+     "version": "v1alpha1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "csiaddons.openshift.io/v1alpha1",
+    "version": "v1alpha1"
+   }
+  },
+  {
+   "name": "export.kubevirt.io",
+   "versions": [
+    {
+     "groupVersion": "export.kubevirt.io/v1beta1",
+     "version": "v1beta1"
+    },
+    {
+     "groupVersion": "export.kubevirt.io/v1alpha1",
+     "version": "v1alpha1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "export.kubevirt.io/v1beta1",
+    "version": "v1beta1"
+   }
+  },
+  {
+   "name": "gateway.envoyproxy.io",
+   "versions": [
+    {
+     "groupVersion": "gateway.envoyproxy.io/v1alpha1",
+     "version": "v1alpha1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "gateway.envoyproxy.io/v1alpha1",
+    "version": "v1alpha1"
+   }
+  },
+  {
+   "name": "generators.external-secrets.io",
+   "versions": [
+    {
+     "groupVersion": "generators.external-secrets.io/v1alpha1",
+     "version": "v1alpha1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "generators.external-secrets.io/v1alpha1",
+    "version": "v1alpha1"
+   }
+  },
+  {
+   "name": "ipam.cluster.x-k8s.io",
+   "versions": [
+    {
+     "groupVersion": "ipam.cluster.x-k8s.io/v1beta1",
+     "version": "v1beta1"
+    },
+    {
+     "groupVersion": "ipam.cluster.x-k8s.io/v1alpha1",
+     "version": "v1alpha1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "ipam.cluster.x-k8s.io/v1beta1",
+    "version": "v1beta1"
+   }
+  },
+  {
+   "name": "metal3.io",
+   "versions": [
+    {
+     "groupVersion": "metal3.io/v1alpha1",
+     "version": "v1alpha1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "metal3.io/v1alpha1",
+    "version": "v1alpha1"
+   }
+  },
+  {
+   "name": "migration.k8s.io",
+   "versions": [
+    {
+     "groupVersion": "migration.k8s.io/v1alpha1",
+     "version": "v1alpha1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "migration.k8s.io/v1alpha1",
+    "version": "v1alpha1"
+   }
+  },
+  {
+   "name": "migration.openshift.io",
+   "versions": [
+    {
+     "groupVersion": "migration.openshift.io/v1alpha1",
+     "version": "v1alpha1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "migration.openshift.io/v1alpha1",
+    "version": "v1alpha1"
+   }
+  },
+  {
+   "name": "migrations.kubevirt.io",
+   "versions": [
+    {
+     "groupVersion": "migrations.kubevirt.io/v1alpha1",
+     "version": "v1alpha1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "migrations.kubevirt.io/v1alpha1",
+    "version": "v1alpha1"
+   }
+  },
+  {
+   "name": "noobaa.io",
+   "versions": [
+    {
+     "groupVersion": "noobaa.io/v1alpha1",
+     "version": "v1alpha1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "noobaa.io/v1alpha1",
+    "version": "v1alpha1"
+   }
+  },
+  {
+   "name": "oadp.openshift.io",
+   "versions": [
+    {
+     "groupVersion": "oadp.openshift.io/v1alpha1",
+     "version": "v1alpha1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "oadp.openshift.io/v1alpha1",
+    "version": "v1alpha1"
+   }
+  },
+  {
+   "name": "objectbucket.io",
+   "versions": [
+    {
+     "groupVersion": "objectbucket.io/v1alpha1",
+     "version": "v1alpha1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "objectbucket.io/v1alpha1",
+    "version": "v1alpha1"
+   }
+  },
+  {
+   "name": "pipelines.openshift.io",
+   "versions": [
+    {
+     "groupVersion": "pipelines.openshift.io/v1alpha1",
+     "version": "v1alpha1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "pipelines.openshift.io/v1alpha1",
+    "version": "v1alpha1"
+   }
+  },
+  {
+   "name": "policy.networking.k8s.io",
+   "versions": [
+    {
+     "groupVersion": "policy.networking.k8s.io/v1alpha1",
+     "version": "v1alpha1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "policy.networking.k8s.io/v1alpha1",
+    "version": "v1alpha1"
+   }
+  },
+  {
+   "name": "pool.kubevirt.io",
+   "versions": [
+    {
+     "groupVersion": "pool.kubevirt.io/v1beta1",
+     "version": "v1beta1"
+    },
+    {
+     "groupVersion": "pool.kubevirt.io/v1alpha1",
+     "version": "v1alpha1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "pool.kubevirt.io/v1beta1",
+    "version": "v1beta1"
+   }
+  },
+  {
+   "name": "ramendr.openshift.io",
+   "versions": [
+    {
+     "groupVersion": "ramendr.openshift.io/v1alpha1",
+     "version": "v1alpha1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "ramendr.openshift.io/v1alpha1",
+    "version": "v1alpha1"
+   }
+  },
+  {
+   "name": "replication.storage.openshift.io",
+   "versions": [
+    {
+     "groupVersion": "replication.storage.openshift.io/v1alpha1",
+     "version": "v1alpha1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "replication.storage.openshift.io/v1alpha1",
+    "version": "v1alpha1"
+   }
+  },
+  {
+   "name": "serving.kserve.io",
+   "versions": [
+    {
+     "groupVersion": "serving.kserve.io/v1alpha2",
+     "version": "v1alpha2"
+    },
+    {
+     "groupVersion": "serving.kserve.io/v1alpha1",
+     "version": "v1alpha1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "serving.kserve.io/v1alpha2",
+    "version": "v1alpha2"
+   }
+  },
+  {
+   "name": "snapshot.kubevirt.io",
+   "versions": [
+    {
+     "groupVersion": "snapshot.kubevirt.io/v1beta1",
+     "version": "v1beta1"
+    },
+    {
+     "groupVersion": "snapshot.kubevirt.io/v1alpha1",
+     "version": "v1alpha1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "snapshot.kubevirt.io/v1beta1",
+    "version": "v1beta1"
+   }
+  },
+  {
+   "name": "trust.cert-manager.io",
+   "versions": [
+    {
+     "groupVersion": "trust.cert-manager.io/v1alpha1",
+     "version": "v1alpha1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "trust.cert-manager.io/v1alpha1",
+    "version": "v1alpha1"
+   }
+  },
+  {
+   "name": "whereabouts.cni.cncf.io",
+   "versions": [
+    {
+     "groupVersion": "whereabouts.cni.cncf.io/v1alpha1",
+     "version": "v1alpha1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "whereabouts.cni.cncf.io/v1alpha1",
+    "version": "v1alpha1"
+   }
+  },
+  {
+   "name": "workspace.devfile.io",
+   "versions": [
+    {
+     "groupVersion": "workspace.devfile.io/v1alpha2",
+     "version": "v1alpha2"
+    },
+    {
+     "groupVersion": "workspace.devfile.io/v1alpha1",
+     "version": "v1alpha1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "workspace.devfile.io/v1alpha2",
+    "version": "v1alpha2"
+   }
+  },
+  {
+   "name": "inference.networking.x-k8s.io",
+   "versions": [
+    {
+     "groupVersion": "inference.networking.x-k8s.io/v1alpha2",
+     "version": "v1alpha2"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "inference.networking.x-k8s.io/v1alpha2",
+    "version": "v1alpha2"
+   }
+  },
+  {
+   "name": "llm-d.ai",
+   "versions": [
+    {
+     "groupVersion": "llm-d.ai/v1alpha2",
+     "version": "v1alpha2"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "llm-d.ai/v1alpha2",
+    "version": "v1alpha2"
+   }
+  },
+  {
+   "name": "cdi.kubevirt.io",
+   "versions": [
+    {
+     "groupVersion": "cdi.kubevirt.io/v1beta1",
+     "version": "v1beta1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "cdi.kubevirt.io/v1beta1",
+    "version": "v1beta1"
+   }
+  },
+  {
+   "name": "forklift.cdi.kubevirt.io",
+   "versions": [
+    {
+     "groupVersion": "forklift.cdi.kubevirt.io/v1beta1",
+     "version": "v1beta1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "forklift.cdi.kubevirt.io/v1beta1",
+    "version": "v1beta1"
+   }
+  },
+  {
+   "name": "groupsnapshot.storage.openshift.io",
+   "versions": [
+    {
+     "groupVersion": "groupsnapshot.storage.openshift.io/v1beta1",
+     "version": "v1beta1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "groupsnapshot.storage.openshift.io/v1beta1",
+    "version": "v1beta1"
+   }
+  },
+  {
+   "name": "helm.openshift.io",
+   "versions": [
+    {
+     "groupVersion": "helm.openshift.io/v1beta1",
+     "version": "v1beta1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "helm.openshift.io/v1beta1",
+    "version": "v1beta1"
+   }
+  },
+  {
+   "name": "hostpathprovisioner.kubevirt.io",
+   "versions": [
+    {
+     "groupVersion": "hostpathprovisioner.kubevirt.io/v1beta1",
+     "version": "v1beta1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "hostpathprovisioner.kubevirt.io/v1beta1",
+    "version": "v1beta1"
+   }
+  },
+  {
+   "name": "infrastructure.cluster.x-k8s.io",
+   "versions": [
+    {
+     "groupVersion": "infrastructure.cluster.x-k8s.io/v1beta1",
+     "version": "v1beta1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "infrastructure.cluster.x-k8s.io/v1beta1",
+    "version": "v1beta1"
+   }
+  },
+  {
+   "name": "instancetype.kubevirt.io",
+   "versions": [
+    {
+     "groupVersion": "instancetype.kubevirt.io/v1beta1",
+     "version": "v1beta1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "instancetype.kubevirt.io/v1beta1",
+    "version": "v1beta1"
+   }
+  },
+  {
+   "name": "populator.storage.k8s.io",
+   "versions": [
+    {
+     "groupVersion": "populator.storage.k8s.io/v1beta1",
+     "version": "v1beta1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "populator.storage.k8s.io/v1beta1",
+    "version": "v1beta1"
+   }
+  },
+  {
+   "name": "upload.cdi.kubevirt.io",
+   "versions": [
+    {
+     "groupVersion": "upload.cdi.kubevirt.io/v1beta1",
+     "version": "v1beta1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "upload.cdi.kubevirt.io/v1beta1",
+    "version": "v1beta1"
+   }
+  },
+  {
+   "name": "ssp.kubevirt.io",
+   "versions": [
+    {
+     "groupVersion": "ssp.kubevirt.io/v1beta3",
+     "version": "v1beta3"
+    },
+    {
+     "groupVersion": "ssp.kubevirt.io/v1beta2",
+     "version": "v1beta2"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "ssp.kubevirt.io/v1beta3",
+    "version": "v1beta3"
+   }
+  },
+  {
+   "name": "metrics.k8s.io",
+   "versions": [
+    {
+     "groupVersion": "metrics.k8s.io/v1beta1",
+     "version": "v1beta1"
+    }
+   ],
+   "preferredVersion": {
+    "groupVersion": "metrics.k8s.io/v1beta1",
+    "version": "v1beta1"
+   }
+  }
+ ]
+}

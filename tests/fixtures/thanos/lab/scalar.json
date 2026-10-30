@@ -1,0 +1,20 @@
+{
+  "_meta": {
+    "evidence": "lab-tested",
+    "source": "GET https://thanos-querier-openshift-monitoring.apps.<lab-cluster>/api/v1/query?query=<below>&time=<scan>&partial_response=false",
+    "query": "1",
+    "http_status": 200,
+    "cluster": "Red Hat workshop cluster, OpenShift 4.22, no GPUs, nothing scrapes vLLM/EPP (not production)",
+    "fetched_at_utc": "2026-10-30T22:25:06Z",
+    "note": "a scalar result, which the source must refuse"
+  },
+  "status": "success",
+  "data": {
+    "resultType": "scalar",
+    "result": [
+      1793399168.75,
+      "1"
+    ],
+    "analysis": {}
+  }
+}
