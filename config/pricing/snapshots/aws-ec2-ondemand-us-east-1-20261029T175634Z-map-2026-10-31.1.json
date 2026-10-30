@@ -1,0 +1,407 @@
+{
+  "snapshot_id": "aws-ec2-ondemand-us-east-1-20261029T175634Z-map-2026-10-31.1",
+  "provider": "aws",
+  "service": "AmazonEC2",
+  "region": "us-east-1",
+  "currency": "USD",
+  "purchase_option": "OnDemand",
+  "operating_system": "Linux",
+  "tenancy": "Shared",
+  "billing_unit": "Hrs",
+  "publication_date": "2026-10-29T17:56:34Z",
+  "offer_version": "20261029175634",
+  "captured_at": "2026-10-30T23:48:02.125468Z",
+  "source_urls": [
+    "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/us-east-1/index.csv"
+  ],
+  "raw_sha256": "cce748e4a6eaa35e349e2590ef36a957071b1e01b316369aaccaf51d270abe33",
+  "raw_bytes": 302903252,
+  "parser_version": "ttv-aws-ec2-csv/1",
+  "map_version": "2026-10-31.1",
+  "catalog_version": "server-scan@defe172+ttv.1",
+  "filters": {
+    "TermType": "OnDemand",
+    "MarketOption": "OnDemand",
+    "Operating System": "Linux",
+    "Tenancy": "Shared",
+    "Pre Installed S/W": "NA",
+    "CapacityStatus": "Used",
+    "License Model": "No License required",
+    "Unit": "Hrs",
+    "Product Family": "Compute Instance",
+    "Location Type": "AWS Region",
+    "Currency": "USD",
+    "operation": "RunInstances",
+    "Region Code": "us-east-1"
+  },
+  "rates": [
+    {
+      "gpu_model": "NVIDIA A10 24GB",
+      "instance_type": "g5.12xlarge",
+      "sku": "UH59G55UJ94HZTJJ",
+      "rate_code": "UH59G55UJ94HZTJJ.JRTCKXETXF.6YS6EN2CT7",
+      "instance_hourly_usd": "5.672",
+      "instance_gpus": 4,
+      "per_gpu_hour_usd": "1.418",
+      "kind": "proxy",
+      "confidence": "medium",
+      "reason": "AWS: 4 x NVIDIA A10G, 89 GiB (4 x 22 GiB). The A10G is AWS's variant of the A10 and server-scan's catalogue files both under this row, but they are different SKUs.",
+      "effective_date": "2026-10-01",
+      "price_description": "$5.672 per On Demand Linux g5.12xlarge Instance Hour",
+      "gpu_memory": "96 GB",
+      "vcpu": "48",
+      "memory": "192 GiB",
+      "map_sources": [
+        "https://docs.aws.amazon.com/ec2/latest/instancetypes/ac.html"
+      ]
+    },
+    {
+      "gpu_model": "NVIDIA A100 (memory unknown)",
+      "instance_type": "p4d.24xlarge",
+      "sku": "H7NGEAC6UEHNTKSJ",
+      "rate_code": "H7NGEAC6UEHNTKSJ.JRTCKXETXF.6YS6EN2CT7",
+      "instance_hourly_usd": "21.957642",
+      "instance_gpus": 8,
+      "per_gpu_hour_usd": "2.74470525",
+      "kind": "proxy",
+      "confidence": "low",
+      "reason": "The inventory reports a bare A100 without its memory size (40GB and 80GB both exist). Valued at the 40GB (p4d) rate, the lower of the two A100 rates, so the value is a lower bound. Teaching server-scan the model (INVENTORY_GPU_MODELS) removes the need.",
+      "effective_date": "2026-10-01",
+      "price_description": "$21.957642 per On Demand Linux p4d.24xlarge Instance Hour",
+      "gpu_memory": "320 GB HBM2",
+      "vcpu": "96",
+      "memory": "1152 GiB",
+      "map_sources": [
+        "https://docs.aws.amazon.com/ec2/latest/instancetypes/ac.html"
+      ]
+    },
+    {
+      "gpu_model": "NVIDIA A100 40GB",
+      "instance_type": "p4d.24xlarge",
+      "sku": "H7NGEAC6UEHNTKSJ",
+      "rate_code": "H7NGEAC6UEHNTKSJ.JRTCKXETXF.6YS6EN2CT7",
+      "instance_hourly_usd": "21.957642",
+      "instance_gpus": 8,
+      "per_gpu_hour_usd": "2.74470525",
+      "kind": "exact",
+      "confidence": "medium",
+      "reason": "AWS: 8 x NVIDIA A100, 320 GiB (8 x 40 GiB). Same GPU and memory. AWS uses the SXM4 part; a PCIe A100 is valued at the SXM4 rate.",
+      "effective_date": "2026-10-01",
+      "price_description": "$21.957642 per On Demand Linux p4d.24xlarge Instance Hour",
+      "gpu_memory": "320 GB HBM2",
+      "vcpu": "96",
+      "memory": "1152 GiB",
+      "map_sources": [
+        "https://docs.aws.amazon.com/ec2/latest/instancetypes/ac.html"
+      ]
+    },
+    {
+      "gpu_model": "NVIDIA A100 80GB",
+      "instance_type": "p4de.24xlarge",
+      "sku": "9YGSXBKY3DFY79G8",
+      "rate_code": "9YGSXBKY3DFY79G8.JRTCKXETXF.6YS6EN2CT7",
+      "instance_hourly_usd": "27.44705",
+      "instance_gpus": 8,
+      "per_gpu_hour_usd": "3.43088125",
+      "kind": "exact",
+      "confidence": "medium",
+      "reason": "AWS: 8 x NVIDIA A100, 640 GiB (8 x 80 GiB). Same GPU and memory. AWS uses the SXM4 part; a PCIe A100 80GB is valued at the SXM4 rate.",
+      "effective_date": "2026-10-01",
+      "price_description": "$27.44705 per On Demand Linux p4de.24xlarge Instance Hour",
+      "gpu_memory": "640 GB HBM2e",
+      "vcpu": "96",
+      "memory": "1152 GiB",
+      "map_sources": [
+        "https://docs.aws.amazon.com/ec2/latest/instancetypes/ac.html"
+      ]
+    },
+    {
+      "gpu_model": "NVIDIA B200 180GB",
+      "instance_type": "p6-b200.48xlarge",
+      "sku": "JU8KS3Q3UCS3GM6X",
+      "rate_code": "JU8KS3Q3UCS3GM6X.JRTCKXETXF.6YS6EN2CT7",
+      "instance_hourly_usd": "113.9328",
+      "instance_gpus": 8,
+      "per_gpu_hour_usd": "14.2416",
+      "kind": "exact",
+      "confidence": "high",
+      "reason": "AWS 8 x NVIDIA B200, 1432 GiB (8 x 179 GiB). Same GPU; AWS states 179 GiB per GPU.",
+      "effective_date": "2026-10-01",
+      "price_description": "$113.9328 per On Demand Linux p6-b200.48xlarge Instance Hour",
+      "gpu_memory": "1432 GB HBM3e",
+      "vcpu": "192",
+      "memory": "2048 GiB",
+      "map_sources": [
+        "https://docs.aws.amazon.com/ec2/latest/instancetypes/ac.html"
+      ]
+    },
+    {
+      "gpu_model": "NVIDIA H100 80GB",
+      "instance_type": "p5.48xlarge",
+      "sku": "3D4V8UAYEMB38GU2",
+      "rate_code": "3D4V8UAYEMB38GU2.JRTCKXETXF.6YS6EN2CT7",
+      "instance_hourly_usd": "55.04",
+      "instance_gpus": 8,
+      "per_gpu_hour_usd": "6.88",
+      "kind": "exact",
+      "confidence": "medium",
+      "reason": "AWS: 8 x NVIDIA H100, 640 GiB (8 x 80 GiB). Same GPU and memory. AWS uses the SXM part; a PCIe H100 (fewer SMs, lower memory bandwidth) is valued at the SXM rate.",
+      "effective_date": "2026-10-01",
+      "price_description": "$55.04 per On Demand Linux p5.48xlarge Instance Hour",
+      "gpu_memory": "640 GB HBM3",
+      "vcpu": "192",
+      "memory": "2048 GiB",
+      "map_sources": [
+        "https://docs.aws.amazon.com/ec2/latest/instancetypes/ac.html"
+      ]
+    },
+    {
+      "gpu_model": "NVIDIA H200 141GB",
+      "instance_type": "p5en.48xlarge",
+      "sku": "XMKUY5HX43BTVY62",
+      "rate_code": "XMKUY5HX43BTVY62.JRTCKXETXF.6YS6EN2CT7",
+      "instance_hourly_usd": "63.296",
+      "instance_gpus": 8,
+      "per_gpu_hour_usd": "7.912",
+      "kind": "exact",
+      "confidence": "medium",
+      "reason": "AWS: 8 x NVIDIA H200, 1128 GiB (8 x 141 GiB). p5e.48xlarge has the same GPUs but no On-Demand row in the us-east-1 price list of 2026-10-29. The catalogue row also covers H200 NVL (PCIe), valued at the SXM rate.",
+      "effective_date": "2026-10-01",
+      "price_description": "$63.296 per On Demand Linux p5en.48xlarge Instance Hour",
+      "gpu_memory": "141 GB HBM3e",
+      "vcpu": "192",
+      "memory": "2048 GiB",
+      "map_sources": [
+        "https://docs.aws.amazon.com/ec2/latest/instancetypes/ac.html"
+      ]
+    },
+    {
+      "gpu_model": "NVIDIA L4 24GB",
+      "instance_type": "g6.12xlarge",
+      "sku": "5YNAARFWXV5SPBYU",
+      "rate_code": "5YNAARFWXV5SPBYU.JRTCKXETXF.6YS6EN2CT7",
+      "instance_hourly_usd": "4.6016",
+      "instance_gpus": 4,
+      "per_gpu_hour_usd": "1.1504",
+      "kind": "exact",
+      "confidence": "high",
+      "reason": "AWS 4 x NVIDIA L4, 89 GiB (4 x 22 GiB), 48 vCPU, 192 GiB. Same GPU.",
+      "effective_date": "2026-10-01",
+      "price_description": "$4.6016 per On Demand Linux g6.12xlarge Instance Hour",
+      "gpu_memory": "96 GB",
+      "vcpu": "48",
+      "memory": "192 GiB",
+      "map_sources": [
+        "https://docs.aws.amazon.com/ec2/latest/instancetypes/ac.html"
+      ]
+    },
+    {
+      "gpu_model": "NVIDIA L40S 48GB",
+      "instance_type": "g6e.12xlarge",
+      "sku": "WQQS6F2KBBC6SNR8",
+      "rate_code": "WQQS6F2KBBC6SNR8.JRTCKXETXF.6YS6EN2CT7",
+      "instance_hourly_usd": "10.49264",
+      "instance_gpus": 4,
+      "per_gpu_hour_usd": "2.62316",
+      "kind": "exact",
+      "confidence": "high",
+      "reason": "AWS: 4 x NVIDIA L40S, 178 GiB (4 x 44 GiB), 48 vCPU, 384 GiB. Same GPU. The 8-GPU g6e.48xlarge carries a 4x larger host (192 vCPU, 1536 GiB) for 2x the GPUs, so it prices each GPU higher.",
+      "effective_date": "2026-10-01",
+      "price_description": "$10.49264 per On Demand Linux g6e.12xlarge Instance Hour",
+      "gpu_memory": "192 GB",
+      "vcpu": "48",
+      "memory": "384 GiB",
+      "map_sources": [
+        "https://docs.aws.amazon.com/ec2/latest/instancetypes/ac.html"
+      ]
+    },
+    {
+      "gpu_model": "NVIDIA RTX PRO 6000 Blackwell 96GB",
+      "instance_type": "g7e.24xlarge",
+      "sku": "EYPWJUZF9QHZG6GP",
+      "rate_code": "EYPWJUZF9QHZG6GP.JRTCKXETXF.6YS6EN2CT7",
+      "instance_hourly_usd": "16.57216",
+      "instance_gpus": 4,
+      "per_gpu_hour_usd": "4.14304",
+      "kind": "exact",
+      "confidence": "high",
+      "reason": "AWS 4 x NVIDIA RTX PRO Server 6000, 384 GiB (4 x 96 GiB). Same GPU (Server Edition).",
+      "effective_date": "2026-10-01",
+      "price_description": "$16.57216 per On Demand Linux g7e.24xlarge Instance Hour",
+      "gpu_memory": "384 GB",
+      "vcpu": "96",
+      "memory": "1024 GiB",
+      "map_sources": [
+        "https://docs.aws.amazon.com/ec2/latest/instancetypes/ac.html"
+      ]
+    },
+    {
+      "gpu_model": "NVIDIA T4 16GB",
+      "instance_type": "g4dn.12xlarge",
+      "sku": "QR2EDQ8F5VR99VD9",
+      "rate_code": "QR2EDQ8F5VR99VD9.JRTCKXETXF.6YS6EN2CT7",
+      "instance_hourly_usd": "3.912",
+      "instance_gpus": 4,
+      "per_gpu_hour_usd": "0.978",
+      "kind": "exact",
+      "confidence": "high",
+      "reason": "AWS: 4 x NVIDIA T4, 64 GiB (4 x 16 GiB), 48 vCPU, 192 GiB. Same GPU. The 8-GPU g4dn.metal is bare metal, a separate product family in the price list.",
+      "effective_date": "2026-10-01",
+      "price_description": "$3.912 per On Demand Linux g4dn.12xlarge Instance Hour",
+      "gpu_memory": "64 GB",
+      "vcpu": "48",
+      "memory": "192 GiB",
+      "map_sources": [
+        "https://docs.aws.amazon.com/ec2/latest/instancetypes/ac.html"
+      ]
+    },
+    {
+      "gpu_model": "NVIDIA Tesla V100 32GB",
+      "instance_type": "p3dn.24xlarge",
+      "sku": "HRHNQ2H7D23ZK4T6",
+      "rate_code": "HRHNQ2H7D23ZK4T6.JRTCKXETXF.6YS6EN2CT7",
+      "instance_hourly_usd": "31.212",
+      "instance_gpus": 8,
+      "per_gpu_hour_usd": "3.9015",
+      "kind": "exact",
+      "confidence": "medium",
+      "reason": "AWS (previous generation): 8 x NVIDIA V100, 256 GiB (8 x 32 GiB). Same GPU and memory; AWS uses the SXM2 part.",
+      "effective_date": "2026-10-01",
+      "price_description": "$31.212 per On Demand Linux p3dn.24xlarge Instance Hour",
+      "gpu_memory": "256 GiB",
+      "vcpu": "96",
+      "memory": "768 GiB",
+      "map_sources": [
+        "https://docs.aws.amazon.com/ec2/latest/instancetypes/pg.html"
+      ]
+    }
+  ],
+  "unpriced": [
+    {
+      "gpu_model": "AMD Instinct MI100 32GB",
+      "reason": "No EC2 instance has an AMD Instinct GPU (ac.html lists only the Radeon Pro V520).",
+      "instance_type": null
+    },
+    {
+      "gpu_model": "AMD Instinct MI210 64GB",
+      "reason": "No EC2 instance has an AMD Instinct GPU (ac.html lists only the Radeon Pro V520).",
+      "instance_type": null
+    },
+    {
+      "gpu_model": "AMD Instinct MI250 128GB",
+      "reason": "No EC2 instance has an AMD Instinct GPU (ac.html lists only the Radeon Pro V520).",
+      "instance_type": null
+    },
+    {
+      "gpu_model": "AMD Instinct MI250X 128GB",
+      "reason": "No EC2 instance has an AMD Instinct GPU (ac.html lists only the Radeon Pro V520).",
+      "instance_type": null
+    },
+    {
+      "gpu_model": "AMD Instinct MI300A 128GB",
+      "reason": "No EC2 instance has an AMD Instinct GPU (ac.html lists only the Radeon Pro V520).",
+      "instance_type": null
+    },
+    {
+      "gpu_model": "AMD Instinct MI300X 192GB",
+      "reason": "No EC2 instance has an AMD Instinct GPU (ac.html lists only the Radeon Pro V520).",
+      "instance_type": null
+    },
+    {
+      "gpu_model": "AMD Instinct MI325X 256GB",
+      "reason": "No EC2 instance has an AMD Instinct GPU (ac.html lists only the Radeon Pro V520).",
+      "instance_type": null
+    },
+    {
+      "gpu_model": "AMD Instinct MI355X 288GB",
+      "reason": "No EC2 instance has an AMD Instinct GPU (ac.html lists only the Radeon Pro V520).",
+      "instance_type": null
+    },
+    {
+      "gpu_model": "NVIDIA A16 16GB",
+      "reason": "No EC2 instance type with this GPU (a virtual-desktop card; ac.html, pg.html).",
+      "instance_type": null
+    },
+    {
+      "gpu_model": "NVIDIA A2 16GB",
+      "reason": "No EC2 instance type with this GPU (ac.html, pg.html).",
+      "instance_type": null
+    },
+    {
+      "gpu_model": "NVIDIA A30 24GB",
+      "reason": "No EC2 instance type with this GPU (ac.html, pg.html).",
+      "instance_type": null
+    },
+    {
+      "gpu_model": "NVIDIA A40 48GB",
+      "reason": "No EC2 instance type with this GPU (ac.html, pg.html).",
+      "instance_type": null
+    },
+    {
+      "gpu_model": "NVIDIA A800 (memory unknown)",
+      "reason": "China-market A100 variant; no EC2 instance type.",
+      "instance_type": null
+    },
+    {
+      "gpu_model": "NVIDIA A800 40GB",
+      "reason": "China-market A100 variant; no EC2 instance type.",
+      "instance_type": null
+    },
+    {
+      "gpu_model": "NVIDIA A800 80GB",
+      "reason": "China-market A100 variant; no EC2 instance type.",
+      "instance_type": null
+    },
+    {
+      "gpu_model": "NVIDIA H100 NVL 94GB",
+      "reason": "No EC2 instance type with this GPU; P5 uses an 80 GiB H100.",
+      "instance_type": null
+    },
+    {
+      "gpu_model": "NVIDIA H800 80GB",
+      "reason": "China-market H100 variant; no EC2 instance type.",
+      "instance_type": null
+    },
+    {
+      "gpu_model": "NVIDIA L40 48GB",
+      "reason": "No EC2 instance type with this GPU; G6e uses the L40S, a different SKU.",
+      "instance_type": null
+    },
+    {
+      "gpu_model": "NVIDIA Quadro RTX 6000 24GB",
+      "reason": "No EC2 instance type with this GPU (ac.html, pg.html).",
+      "instance_type": null
+    },
+    {
+      "gpu_model": "NVIDIA Quadro RTX 8000 48GB",
+      "reason": "No EC2 instance type with this GPU (ac.html, pg.html).",
+      "instance_type": null
+    },
+    {
+      "gpu_model": "NVIDIA Tesla P100 (memory unknown)",
+      "reason": "No EC2 instance type with this GPU (ac.html, pg.html).",
+      "instance_type": null
+    },
+    {
+      "gpu_model": "NVIDIA Tesla P100 12GB",
+      "reason": "No EC2 instance type with this GPU (ac.html, pg.html).",
+      "instance_type": null
+    },
+    {
+      "gpu_model": "NVIDIA Tesla P100 16GB",
+      "reason": "No EC2 instance type with this GPU (ac.html, pg.html).",
+      "instance_type": null
+    },
+    {
+      "gpu_model": "NVIDIA Tesla V100 (memory unknown)",
+      "reason": "Memory size not reported, and only the 32GB V100 has a documented AWS instance.",
+      "instance_type": null
+    },
+    {
+      "gpu_model": "NVIDIA Tesla V100 16GB",
+      "reason": "AWS's instance-type specifications no longer document a V100 16GB instance (ac.html and pg.html list only p3dn.24xlarge, V100 32GB), although the price list still has p3 sizes.",
+      "instance_type": null
+    }
+  ],
+  "content_sha256": "99b7debd569e4601498437899c5385332c1df2cc095d966e52ea008b635184c3"
+}

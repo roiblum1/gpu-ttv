@@ -33,7 +33,8 @@ Every fact carries one evidence label (AGENT.md §3.6):
 | 2026-10-30 | **Simplified profile-less collector.** Find GPU servers (GPU evidence from inventory) in OpenManage Enterprise and UCS Central. **No profile** → DC (`PROFILE_NONE`). **Profile whose name is not OCP** → `OTHER_INTENDED_USE`: flagged, not charged (I6). **OCP profile** → server-scan's domain. "Has a profile" means a profile is bound to the server, in any state. | `PROFILE_ASSIGNED_NOT_APPLIED` and `PROFILE_APPLY_FAILED` are dropped from R1, along with UCS association/config/FSM state and OME `ProfileState`/deploy jobs. An OCP-profile GPU server that server-scan has not ingested after the grace period stays `HANDOVER_PENDING` (UNKNOWN + data-quality alert). |
 | 2026-10-30 | **Start implementation now**, in parallel with the production probes (overrides §20.10's "no product code until Discovery is reviewed"). Architecture as presented: ttv-collector, ttv-engine, Postgres ledger, Grafana; built in vertical slices, server-scan first. | Slice 1 uses only facts already verified (server-scan at `defe172`, the sandbox). Anything the probes contradict is fixed in the slice it affects. |
 | 2026-10-30 | A GPU server that is AVAILABLE in server-scan is Redbull's; once INSTALLED in a target cluster, the node and GPU rows (§20.2 rows 11–22) decide. | Matches §20.2 rows 8–22 as amended by C3, C6 and C7. |
-| 2026-10-31 | **Money is AWS On-Demand cost in US dollars.** Value idle and productive GPU-hours at the AWS On-Demand per-GPU rate (Linux, shared tenancy; instance price ÷ physical GPUs, from a dated offline snapshot) and display it in **USD**. | Overrides AGENT.md §0.5's ILS display default: dashboards show USD, so no exchange rate is needed to display value. The region stays a configuration input (I3). Pricing is slice 4. |
+| 2026-10-31 | **Money is AWS On-Demand cost in US dollars.** Value idle and productive GPU-hours at the AWS On-Demand per-GPU rate (Linux, shared tenancy; instance price ÷ physical GPUs, from a dated offline snapshot) and display it in **USD**. | Overrides AGENT.md §0.5's ILS display default: dashboards show USD, so no exchange rate is needed to display value. The region stays a configuration input (I3); set to us-east-1 in the next row. Pricing is slice 4. |
+| 2026-10-31 | **Pricing region us-east-1** (resolves I3). Value is computed at query time from a selected, immutable, dated, offline snapshot; intervals never store money. Historical valuation uses the snapshot in force at the time, present-day valuation a selected snapshot; a price refresh never rewrites history. Unpriced or unmapped models are shown as unpriced GPU-hours, never as $0. | Built in slice 4: ADR-0003 and "AWS pricing" below. |
 | 2026-10-31 | Start slice 2 (target clusters). A second lab cluster is provided: OpenShift 4.22 with KServe LLMInferenceService + llm-d and vLLM on a CPU node (no GPUs). | Kube and Thanos adapters are lab-tested against it; GPU rows stay fixture-tested until a GPU cluster is read. Findings below ("Lab cluster observations"). |
 
 ## server-scan
@@ -173,7 +174,7 @@ Every fact carries one evidence label (AGENT.md §3.6):
 - **Canonical names** follow the form `"NVIDIA H100 80GB"`, `"NVIDIA A100 80GB"`, `"NVIDIA L40S 48GB"`, `"AMD Instinct MI300X 192GB"`. There are 30+ rows (`gpu_models.py:20-138`).
 - **Enrichment** at ingest replaces `model` with the canonical name **only on an exact normalised match**: upper-cased, brand words dropped, separators stripped, compared for equality.
   - An unmatched or ambiguous model passes through raw, e.g. bare `NVIDIA A100` or PID `UCSC-GPU-A100-40` (`docs/cisco-collectors.md:784-817`; `ingest.py:1108-1115`).
-  - The pricing map must therefore accept raw strings.
+  - The pricing map must therefore accept raw strings. *(Done: `gpu_model_aliases` maps raw to canonical names with this catalogue's rules; ADR-0003.)*
 - **Unread GPUs:** if a run cannot read the GPU list, the previous list is carried forward and `hardware.gpus` is added to `unread_fields` (`ingest.py:1108-1115`).
 - **`power_watts`** is a point reading taken at collection time, every 3 h by default (`values.yaml` schedules). It is excluded from change detection (`ingest.py:224-227`). It is not telemetry.
 
@@ -558,6 +559,61 @@ Status: **pending production data.** I2 needs at least 7 days of genuine-request
 - If user-workload retention is under 7 days (the default is 24 h), run R10 once a day for 7 days, or ask the platform owners to raise retention (RHOAI recommends 15 d). The sanitised `i2/` folders come back as files and are analysed here.
 - The proposal to the user: per model class, the distribution of genuine requests per GPU-hour (p10/p50/p90), and a threshold for `LOW_USE`. Until approved, `LOW_USE` stays "unverified" and only `NO_REAL_DEMAND` (zero genuine requests) applies (§0.7 I2).
 - Assumption (A1, reversible): `abort` and `error` finished requests count as demand; the success split (`stop`/`length`/`repetition`) is kept in evidence.
+
+## AWS pricing (slice 4, ADR-0003)
+
+Status: **built; snapshot captured 2026-10-31.** Region us-east-1 (I3, user decision 2026-10-31). Proxies and the size rule need the user's approval (ADR-0003, "Needs user approval").
+
+### Price list format
+
+`documented` (read on the real file): `https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/us-east-1/index.csv`, retrieved 2026-10-31. Size 302,903,252 bytes, sha256 `cce748e4a6eaa35e349e2590ef36a957071b1e01b316369aaccaf51d270abe33`, 393,699 data rows.
+
+- Five metadata lines (`FormatVersion` v1.0, `Disclaimer`, `Publication Date` **2026-10-29T17:56:34Z**, `Version` 20261029175634, `OfferCode` AmazonEC2), then a 93-column header starting with `SKU`. Every field is quoted.
+- Column names are as in ADR-0003's filter list. GPU counts are in `GPU`. `GPU Memory` is inconsistent (`640 GB HBM3` total for p5, `141 GB HBM3e` per GPU for p5en), so it is kept verbatim as evidence only.
+- **Capacity Blocks carry `TermType=OnDemand` at $0.00** (`MarketOption=CapacityBlock`, `operation=RunInstances:CB`) for p4d, p5, p5en and p6. Without the `MarketOption=OnDemand` filter these rows would price GPUs at zero, and the duplicate check catches them.
+- `g4dn.metal` is `Product Family=Compute Instance (bare metal)`, not `Compute Instance`.
+- `p5e.48xlarge` (8 x H200) has **no** row of any kind in the us-east-1 file; H200 maps to `p5en.48xlarge`.
+- Every priced row's `EffectiveDate` is 2026-10-01, before the publication date.
+
+### Mapping and snapshot `aws-ec2-ondemand-us-east-1-20261029T175634Z-map-2026-10-31.1`
+
+Instance facts are `documented` from AWS's instance-type specifications, retrieved 2026-10-31: [ac.html](https://docs.aws.amazon.com/ec2/latest/instancetypes/ac.html) (current generation) and [pg.html](https://docs.aws.amazon.com/ec2/latest/instancetypes/pg.html) (previous generation, p3dn only). Prices are `documented` from the price list above. The capture cross-checked every GPU count against the price list's `GPU` column.
+
+| Canonical model | Instance | Kind | GPUs | Instance $/h | $/GPU-h | Notes |
+| --- | --- | --- | --- | --- | --- | --- |
+| NVIDIA H100 80GB | p5.48xlarge | exact | 8 | 55.04 | 6.88 | AWS uses SXM; PCIe H100 is valued at the SXM rate |
+| NVIDIA H200 141GB | p5en.48xlarge | exact | 8 | 63.296 | 7.912 | p5e has no us-east-1 offer |
+| NVIDIA B200 180GB | p6-b200.48xlarge | exact | 8 | 113.9328 | 14.2416 | AWS states 179 GiB per GPU |
+| NVIDIA A100 40GB | p4d.24xlarge | exact | 8 | 21.957642 | 2.74470525 | SXM4 |
+| NVIDIA A100 80GB | p4de.24xlarge | exact | 8 | 27.44705 | 3.43088125 | SXM4 |
+| NVIDIA L40S 48GB | g6e.12xlarge | exact | 4 | 10.49264 | 2.62316 | g6e.48xlarge: 3.7663975 |
+| NVIDIA L4 24GB | g6.12xlarge | exact | 4 | 4.6016 | 1.1504 | g6.48xlarge: 1.6688 |
+| NVIDIA T4 16GB | g4dn.12xlarge | exact | 4 | 3.912 | 0.978 | g4dn.metal: 0.978 |
+| NVIDIA RTX PRO 6000 Blackwell 96GB | g7e.24xlarge | exact | 4 | 16.57216 | 4.14304 | g7e.48xlarge: 4.14304 |
+| NVIDIA Tesla V100 32GB | p3dn.24xlarge | exact | 8 | 31.212 | 3.9015 | previous generation, SXM2 |
+| NVIDIA A10 24GB | g5.12xlarge | **proxy** | 4 | 5.672 | 1.418 | A10G; g5.48xlarge: 2.036 |
+| NVIDIA A100 (memory unknown) | p4d.24xlarge | **proxy** | 8 | 21.957642 | 2.74470525 | lower bound (40GB rate) |
+
+Unpriced, with the reason recorded in the snapshot: every AMD Instinct model (EC2 has none), A16, A30, A40, A2, L40 (G6e is the L40S), H100 NVL 94GB, A800, H800, Quadro RTX 6000/8000, Tesla P100, Tesla V100 16GB (p3 is no longer in AWS's specification pages, although the price list still prices it at $3.06/GPU-h), and the `(memory unknown)` families of P100, V100 and A800. Raw models outside the catalogue (e.g. `NVIDIA RTX A6000`) have no canonical name and are unpriced.
+
+Snapshot file: `config/pricing/snapshots/aws-ec2-ondemand-us-east-1-20261029T175634Z-map-2026-10-31.1.json`, content sha256 `99b7debd569e4601498437899c5385332c1df2cc095d966e52ea008b635184c3`, captured with `ttv-pricing capture --region us-east-1` on 2026-10-31.
+
+### Raw GPU model names
+
+`lab-tested` on the lab ledger (`SELECT DISTINCT gpu_model FROM capacity_intervals`, sandbox server-scan data): `NVIDIA H100 80GB`, `NVIDIA A100 80GB`, `NVIDIA A100 40GB`, `NVIDIA L40S 48GB`, `NVIDIA T4 16GB`, `NVIDIA A16 16GB`, `AMD Instinct MI300X 192GB` (already canonical), `UCSC-GPU-A100-40` → `NVIDIA A100 40GB` (local PID rule), `NVIDIA A100` → `NVIDIA A100 (memory unknown)`, and `NVIDIA RTX A6000` → none. The last three are the cards server-scan's fake generator deliberately leaves uncatalogued (`docs/fake-data.md@defe172:93-95`). Whether `UCSC-GPU-A100-40` is a real Cisco PID is **unverified**; production probe P-SS output will show the real strings.
+
+### Lab result (`lab-tested`, not production evidence)
+
+`ttv_lab_pricing`, 2026-10-30 21:56 → 23:50 UTC (about 1.9 h of scans of the sandbox), after `ttv-pricing import` and the engine's startup alias refresh:
+
+| Stage owner | Idle GPU-h | Idle USD | Unpriced idle GPU-h | Overdue GPU-h | Overdue USD |
+| --- | --- | --- | --- | --- | --- |
+| DC | 1,095.75 | 2,236.71 | 305.44 | 0 | 0 |
+| Redbull | 408.52 | 1,258.42 | 34.36 | 408.52 | 1,258.42 |
+| Serving | 2.85 | 19.62 | 0 | 0 | 0 |
+| POPAI | 1.78 | 12.27 | 0 | 0 | 0 |
+
+Historical equals present-day here: the only snapshot was published before the first interval. Idle now: **$1,865.30 per hour** for 615 priced idle GPUs; **178 idle GPUs unpriced** (104 MI300X, 58 RTX A6000, 16 A16).
 
 ## Contradictions with AGENT.md Section 0
 
