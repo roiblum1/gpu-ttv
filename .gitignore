@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.coverage
+.env
+CLAUDE.local.md
+.claude/settings.local.json
+.claude/lab-clusters.local
+dist/
+build/
+*.egg-info/

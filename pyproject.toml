@@ -1,0 +1,87 @@
+[project]
+name = "gpu-ttv"
+version = "0.1.0"
+description = "GPU Time-to-Value platform: stage ownership, idle GPU-hours and AWS-equivalent value per GPU server"
+readme = "README.md"
+requires-python = ">=3.12,<3.14"
+license = { text = "Proprietary" }
+dependencies = [
+    "fastapi==0.141.1",
+    "httpx==0.28.1",
+    "prometheus-client==0.26.0",
+    "psycopg[binary]==3.3.6",
+    "pydantic==2.13.4",
+    "pydantic-settings==2.15.0",
+    "pyyaml==6.0.3",
+    "structlog==26.1.0",
+    "uvicorn[standard]==0.34.0",
+]
+
+[project.urls]
+Repository = "https://github.com/roiblum1/gpu-ttv"
+
+[project.scripts]
+ttv-engine = "ttv.main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ttv"]
+
+[dependency-groups]
+dev = [
+    "pytest==9.1.1",
+    "pytest-asyncio==1.4.0",
+    "ruff==0.14.0",
+    "ty==0.0.78",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+asyncio_mode = "auto"
+markers = [
+    "unit: pure logic, no I/O",
+    "integration: needs a database or network fixture",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E", "F", "I", "UP", "B", "C4", "SIM", "RUF", "ASYNC", "S", "W605",
+    "ANN001", "ANN002", "ANN003", "ANN201", "ANN202", "ANN204", "ANN205", "ANN206",
+    "PTH", "LOG", "RET", "PERF", "FURB", "TRY004", "TRY300", "TRY400",
+    "D",
+]
+# D203/D212: summary goes on the line after the opening quotes (D213 style).
+ignore = ["S101", "D203", "D212"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Query", "fastapi.Depends"]
+
+[tool.ruff.lint.flake8-annotations]
+allow-star-arg-any = false
+ignore-fully-untyped = false
+mypy-init-return = false
+suppress-dummy-args = false
+suppress-none-returning = false
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106", "S311", "D"]
+
+[tool.ty.environment]
+python-version = "3.12"
+root = ["src", "."]
+
+[tool.ty.rules]
+unused-awaitable = "error"
+blanket-ignore-comment = "error"
