@@ -1,0 +1,55 @@
+# The same gate as `.claude/skills/gate/gate.sh`, plus the Postgres-backed tests (AGENT.md §17, §20.12).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    name: gate (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.13"]
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: ttv
+          POSTGRES_PASSWORD: ttvtest  # throwaway CI database
+          POSTGRES_DB: ttv
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ttv"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      TTV_TEST_DSN: postgresql://ttv:ttvtest@localhost:5432/ttv
+      UV_PYTHON: ${{ matrix.python }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
+        with:
+          version: "0.13.6"
+          python-version: ${{ matrix.python }}
+      - run: uv sync --frozen
+      - name: ruff check
+        run: uv run ruff check .
+      - name: ruff format
+        run: uv run ruff format --check .
+      - name: ty
+        run: uv run ty check src tests
+      - name: pytest (Postgres tests included)
+        run: uv run pytest -q
