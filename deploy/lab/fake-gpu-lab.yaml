@@ -1,0 +1,374 @@
+# LAB ONLY — never apply to a production cluster.
+# Exercises the engine's GPU rows (ADR-0002 rows 14-22) on a cluster without GPUs:
+#   - one worker advertises 8 fake `nvidia.com/gpu` (a node status patch, see deploy/lab/README.md);
+#   - a fake DCGM exporter reports 7 of them, so one GPU is "missing" (row 15);
+#   - small pods hold fake GPUs: busy and idle fake-vLLM Deployments (rows 17/19), one without a
+#     metrics scrape (TRAFFIC_UNOBSERVED), a "notebook" (row 21) and a crash-looping pod (row 20);
+#   - ServiceMonitors for the real qwen-tiny vLLM and its llm-d EPP (discovery.md L5).
+# Remove everything with: oc delete -f deploy/lab/fake-gpu-lab.yaml (and undo the node patch).
+---
+# --- Real model server: scrape vLLM and the llm-d EPP into user-workload monitoring ---------------
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: ttv-lab-qwen-tiny-vllm
+  namespace: vllm-lab
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: qwen-tiny
+      app.kubernetes.io/component: llminferenceservice-workload
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+---
+# The EPP's /metrics needs a bearer token allowed to GET /metrics (discovery.md L3).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ttv-lab-metrics-reader
+  namespace: vllm-lab
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ttv-lab-metrics-reader-token
+  namespace: vllm-lab
+  annotations:
+    kubernetes.io/service-account.name: ttv-lab-metrics-reader
+type: kubernetes.io/service-account-token
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ttv-lab-metrics-reader
+rules:
+  - nonResourceURLs: ["/metrics"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ttv-lab-metrics-reader
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ttv-lab-metrics-reader
+subjects:
+  - kind: ServiceAccount
+    name: ttv-lab-metrics-reader
+    namespace: vllm-lab
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: ttv-lab-qwen-tiny-epp
+  namespace: vllm-lab
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: qwen-tiny
+      app.kubernetes.io/component: llminferenceservice-router-scheduler
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
+      authorization:
+        type: Bearer
+        credentials:
+          name: ttv-lab-metrics-reader-token
+          key: token
+---
+# --- Fake GPU workloads ------------------------------------------------------------------------------
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ttv-lab
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/warn: restricted
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fake-servers
+  namespace: ttv-lab
+data:
+  fake_vllm.py: |
+    """Fake vLLM: counts POST /v1/* as finished requests and exposes vllm:request_success_total."""
+    import json, os, threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    MODEL = os.environ.get("MODEL_NAME", "fake")
+    REASONS = ("stop", "length", "abort", "error", "repetition")
+    COUNTS = dict.fromkeys(REASONS, 0)
+    LOCK = threading.Lock()
+
+    def metrics() -> bytes:
+        lines = ["# HELP vllm:request_success_total Count of successfully processed requests.",
+                 "# TYPE vllm:request_success_total counter"]
+        with LOCK:
+            for reason in REASONS:
+                lines.append(f'vllm:request_success_total{{engine="0",finished_reason="{reason}",'
+                             f'model_name="{MODEL}"}} {float(COUNTS[reason])}')
+        return ("\n".join(lines) + "\n").encode()
+
+    class Handler(BaseHTTPRequestHandler):
+        def _send(self, code, body, ctype):
+            self.send_response(code)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_GET(self):
+            if self.path == "/metrics":
+                self._send(200, metrics(), "text/plain; version=0.0.4; charset=utf-8")
+            elif self.path in ("/health", "/ping"):
+                self._send(200, b"ok\n", "text/plain")
+            else:
+                self._send(404, b"not found\n", "text/plain")
+
+        def do_POST(self):
+            self.rfile.read(int(self.headers.get("Content-Length") or 0))
+            if not self.path.startswith("/v1/"):
+                self._send(404, b"not found\n", "text/plain")
+                return
+            with LOCK:
+                COUNTS["stop"] += 1
+            reply = {"object": "text_completion", "model": MODEL,
+                     "choices": [{"index": 0, "text": " fake", "finish_reason": "stop"}]}
+            self._send(200, json.dumps(reply).encode(), "application/json")
+
+        def log_message(self, *args):
+            pass
+
+    ThreadingHTTPServer(("0.0.0.0", 8000), Handler).serve_forever()
+  fake_dcgm.py: |
+    """Fake DCGM exporter: serves the static exposition in dcgm.prom on :9400/metrics."""
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    BODY = open("/app/dcgm.prom", "rb").read()
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            code, body = (200, BODY) if self.path == "/metrics" else (404, b"not found\n")
+            self.send_response(code)
+            self.send_header("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *args):
+            pass
+
+    ThreadingHTTPServer(("0.0.0.0", 9400), Handler).serve_forever()
+  # 7 GPUs report for an 8-GPU node (GPU 7 is "missing"). `namespace`/`pod` become exported_* when
+  # scraped, exactly like the real exporter (discovery.md D3). The notebook GPU shows no activity.
+  dcgm.prom: |
+    # TYPE DCGM_FI_DEV_POWER_USAGE gauge
+    DCGM_FI_DEV_POWER_USAGE{gpu="0",UUID="GPU-ttvlab-0000",device="nvidia0",modelName="NVIDIA H100 80GB HBM3",Hostname="worker-cluster-64spr-1"} 312.5
+    DCGM_FI_DEV_POWER_USAGE{gpu="1",UUID="GPU-ttvlab-0001",device="nvidia1",modelName="NVIDIA H100 80GB HBM3",Hostname="worker-cluster-64spr-1"} 298.1
+    DCGM_FI_DEV_POWER_USAGE{gpu="2",UUID="GPU-ttvlab-0002",device="nvidia2",modelName="NVIDIA H100 80GB HBM3",Hostname="worker-cluster-64spr-1"} 71.0
+    DCGM_FI_DEV_POWER_USAGE{gpu="3",UUID="GPU-ttvlab-0003",device="nvidia3",modelName="NVIDIA H100 80GB HBM3",Hostname="worker-cluster-64spr-1"} 70.4
+    DCGM_FI_DEV_POWER_USAGE{gpu="4",UUID="GPU-ttvlab-0004",device="nvidia4",modelName="NVIDIA H100 80GB HBM3",Hostname="worker-cluster-64spr-1"} 69.9
+    DCGM_FI_DEV_POWER_USAGE{gpu="5",UUID="GPU-ttvlab-0005",device="nvidia5",modelName="NVIDIA H100 80GB HBM3",Hostname="worker-cluster-64spr-1"} 70.2
+    DCGM_FI_DEV_POWER_USAGE{gpu="6",UUID="GPU-ttvlab-0006",device="nvidia6",modelName="NVIDIA H100 80GB HBM3",Hostname="worker-cluster-64spr-1"} 70.8
+    # TYPE DCGM_FI_DEV_XID_ERRORS gauge
+    DCGM_FI_DEV_XID_ERRORS{gpu="0",UUID="GPU-ttvlab-0000",Hostname="worker-cluster-64spr-1"} 0
+    DCGM_FI_DEV_XID_ERRORS{gpu="6",UUID="GPU-ttvlab-0006",Hostname="worker-cluster-64spr-1"} 79
+    # TYPE DCGM_FI_PROF_GR_ENGINE_ACTIVE gauge
+    DCGM_FI_PROF_GR_ENGINE_ACTIVE{gpu="4",UUID="GPU-ttvlab-0004",Hostname="worker-cluster-64spr-1",namespace="ttv-lab",pod="notebook",container="notebook"} 0
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fake-dcgm-exporter
+  namespace: ttv-lab
+  labels: {app: fake-dcgm-exporter}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: fake-dcgm-exporter}}
+  template:
+    metadata:
+      labels: {app: fake-dcgm-exporter}
+    spec:
+      containers:
+        - name: exporter
+          image: registry.access.redhat.com/ubi9/python-312:latest
+          command: ["python3", "/app/fake_dcgm.py"]
+          ports: [{name: gpu-metrics, containerPort: 9400}]
+          resources: {requests: {cpu: 10m, memory: 32Mi}, limits: {memory: 64Mi}}
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}, runAsNonRoot: true, seccompProfile: {type: RuntimeDefault}}
+          volumeMounts: [{name: app, mountPath: /app}]
+      volumes: [{name: app, configMap: {name: fake-servers}}]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fake-dcgm-exporter
+  namespace: ttv-lab
+  labels: {app: fake-dcgm-exporter}
+spec:
+  selector: {app: fake-dcgm-exporter}
+  ports: [{name: gpu-metrics, port: 9400, targetPort: gpu-metrics}]
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: fake-dcgm-exporter
+  namespace: ttv-lab
+spec:
+  selector: {matchLabels: {app: fake-dcgm-exporter}}
+  endpoints: [{port: gpu-metrics, path: /metrics, interval: 30s}]
+---
+# Fake vLLM Deployments. The lab policy maps apps/Deployment pods with the ubi9/python-312 image to
+# the vLLM counter of record, standing in for a real vLLM image.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chat-busy
+  namespace: ttv-lab
+  labels: {app: chat-busy, ttv-lab/fake-vllm: "true"}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: chat-busy}}
+  template:
+    metadata:
+      labels: {app: chat-busy, ttv-lab/fake-vllm: "true"}
+    spec:
+      nodeSelector: {kubernetes.io/hostname: worker-cluster-64spr-1}
+      containers:
+        - name: vllm
+          image: registry.access.redhat.com/ubi9/python-312:latest
+          command: ["python3", "/app/fake_vllm.py"]
+          env: [{name: MODEL_NAME, value: chat-busy}]
+          ports: [{name: http, containerPort: 8000}]
+          readinessProbe: {httpGet: {path: /health, port: http}, periodSeconds: 10}
+          resources:
+            requests: {cpu: 10m, memory: 32Mi, nvidia.com/gpu: "2"}
+            limits: {memory: 64Mi, nvidia.com/gpu: "2"}
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}, runAsNonRoot: true, seccompProfile: {type: RuntimeDefault}}
+          volumeMounts: [{name: app, mountPath: /app}]
+      volumes: [{name: app, configMap: {name: fake-servers}}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chat-idle
+  namespace: ttv-lab
+  labels: {app: chat-idle, ttv-lab/fake-vllm: "true"}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: chat-idle}}
+  template:
+    metadata:
+      labels: {app: chat-idle, ttv-lab/fake-vllm: "true"}
+    spec:
+      nodeSelector: {kubernetes.io/hostname: worker-cluster-64spr-1}
+      containers:
+        - name: vllm
+          image: registry.access.redhat.com/ubi9/python-312:latest
+          command: ["python3", "/app/fake_vllm.py"]
+          env: [{name: MODEL_NAME, value: chat-idle}]
+          ports: [{name: http, containerPort: 8000}]
+          readinessProbe: {httpGet: {path: /health, port: http}, periodSeconds: 10}
+          resources:
+            requests: {cpu: 10m, memory: 32Mi, nvidia.com/gpu: "1"}
+            limits: {memory: 64Mi, nvidia.com/gpu: "1"}
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}, runAsNonRoot: true, seccompProfile: {type: RuntimeDefault}}
+          volumeMounts: [{name: app, mountPath: /app}]
+      volumes: [{name: app, configMap: {name: fake-servers}}]
+---
+# Same as chat-idle, but no Service/ServiceMonitor: the engine must say TRAFFIC_UNOBSERVED, not idle.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chat-unmonitored
+  namespace: ttv-lab
+  labels: {app: chat-unmonitored}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: chat-unmonitored}}
+  template:
+    metadata:
+      labels: {app: chat-unmonitored}
+    spec:
+      nodeSelector: {kubernetes.io/hostname: worker-cluster-64spr-1}
+      containers:
+        - name: vllm
+          image: registry.access.redhat.com/ubi9/python-312:latest
+          command: ["python3", "/app/fake_vllm.py"]
+          ports: [{name: http, containerPort: 8000}]
+          readinessProbe: {httpGet: {path: /health, port: http}, periodSeconds: 10}
+          resources:
+            requests: {cpu: 10m, memory: 32Mi, nvidia.com/gpu: "1"}
+            limits: {memory: 64Mi, nvidia.com/gpu: "1"}
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}, runAsNonRoot: true, seccompProfile: {type: RuntimeDefault}}
+          volumeMounts: [{name: app, mountPath: /app}]
+      volumes: [{name: app, configMap: {name: fake-servers}}]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: chat-busy
+  namespace: ttv-lab
+  labels: {ttv-lab/fake-vllm: "true"}
+spec:
+  selector: {app: chat-busy}
+  ports: [{name: http, port: 8000, targetPort: http}]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: chat-idle
+  namespace: ttv-lab
+  labels: {ttv-lab/fake-vllm: "true"}
+spec:
+  selector: {app: chat-idle}
+  ports: [{name: http, port: 8000, targetPort: http}]
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: fake-vllm
+  namespace: ttv-lab
+spec:
+  selector: {matchLabels: {ttv-lab/fake-vllm: "true"}}
+  endpoints: [{port: http, path: /metrics, interval: 30s}]
+---
+# A "notebook" holding a GPU and doing nothing: OTHER_WORKLOAD (row 21). Bare pods get an explicit
+# non-root UID: created directly they are admitted without a namespace-assigned UID.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: notebook
+  namespace: ttv-lab
+spec:
+  nodeSelector: {kubernetes.io/hostname: worker-cluster-64spr-1}
+  containers:
+    - name: notebook
+      image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+      command: ["sleep", "infinity"]
+      resources:
+        requests: {cpu: 10m, memory: 16Mi, nvidia.com/gpu: "1"}
+        limits: {memory: 32Mi, nvidia.com/gpu: "1"}
+      securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}, runAsNonRoot: true, runAsUser: 65532, seccompProfile: {type: RuntimeDefault}}
+---
+# A crash-looping pod holding a GPU: WORKLOAD_NOT_READY once past warmup_grace (row 20).
+apiVersion: v1
+kind: Pod
+metadata:
+  name: crashloop
+  namespace: ttv-lab
+spec:
+  nodeSelector: {kubernetes.io/hostname: worker-cluster-64spr-1}
+  containers:
+    - name: app
+      image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+      command: ["sh", "-c", "echo 'CUDA error: no device found (lab)'; exit 1"]
+      resources:
+        requests: {cpu: 10m, memory: 16Mi, nvidia.com/gpu: "1"}
+        limits: {memory: 32Mi, nvidia.com/gpu: "1"}
+      securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}, runAsNonRoot: true, runAsUser: 65532, seccompProfile: {type: RuntimeDefault}}
