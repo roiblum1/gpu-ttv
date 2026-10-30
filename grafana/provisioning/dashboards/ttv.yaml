@@ -1,0 +1,15 @@
+# Loads grafana/dashboards/*.json into one folder. Mount grafana/dashboards/ at options.path.
+apiVersion: 1
+
+providers:
+  - name: gpu-ttv
+    orgId: 1
+    type: file
+    folder: GPU Time-to-Value
+    folderUid: gpu-ttv
+    disableDeletion: true
+    allowUiUpdates: false
+    updateIntervalSeconds: 60
+    options:
+      path: /var/lib/grafana/dashboards/gpu-ttv
+      foldersFromFilesStructure: false

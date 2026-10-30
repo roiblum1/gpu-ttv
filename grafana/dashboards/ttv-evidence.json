@@ -1,0 +1,1363 @@
+{
+  "uid": "ttv-evidence",
+  "title": "Evidence & monitoring health",
+  "description": "E18 slice 1: can I trust these numbers? Scan history and freshness, source health, identity conflicts, UNKNOWN GPUs by reason, assets by source.",
+  "tags": [
+    "gpu-ttv",
+    "E18",
+    "evidence"
+  ],
+  "id": null,
+  "version": 1,
+  "editable": false,
+  "graphTooltip": 1,
+  "timezone": "",
+  "fiscalYearStartMonth": 0,
+  "liveNow": false,
+  "weekStart": "",
+  "refresh": "5m",
+  "schemaVersion": 39,
+  "time": {
+    "from": "now-2d",
+    "to": "now"
+  },
+  "timepicker": {},
+  "templating": {
+    "list": [
+      {
+        "name": "site",
+        "label": "Site",
+        "description": "Site from assets.site; assets with no site appear as '(none)'. All = no site filter.",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "ttv-postgres"
+        },
+        "query": "SELECT DISTINCT coalesce(site, '(none)') FROM assets ORDER BY 1",
+        "definition": "SELECT DISTINCT coalesce(site, '(none)') FROM assets ORDER BY 1",
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": "'__all__'",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "options": [],
+        "sort": 1,
+        "hide": 0,
+        "regex": "",
+        "skipUrlSync": false
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "links": [
+    {
+      "title": "GPU Time-to-Value",
+      "type": "dashboards",
+      "tags": [
+        "gpu-ttv"
+      ],
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "icon": "external link",
+      "tooltip": "",
+      "url": ""
+    }
+  ],
+  "panels": [
+    {
+      "type": "row",
+      "id": 16,
+      "title": "Scans",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 17,
+      "title": "Scan runs over time, by kind and status",
+      "description": "Definition: count of scan_runs by start time bucket, split by kind and status (ok, partial, failed, dry_run, running).\nUnits: scan runs per bucket (bucket = Grafana's interval for the range, at least 5 min).\nFilters: time range.\nUnknown vs zero: a gap means no scan ran (monitoring was blind), which is different from a scan that ran and found nothing. Only 'ok' scans update the ledger as complete; partial listings never close intervals.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 13,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT $__timeGroupAlias(started_at, $__interval),\n       kind || ' · ' || status AS metric,\n       count(*) AS runs\nFROM scan_runs\nWHERE $__timeFilter(started_at)\nGROUP BY 1, 2\nORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "barAlignment": 0,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "axisLabel": "scan runs",
+            "axisPlacement": "auto",
+            "spanNulls": false,
+            "gradientMode": "none",
+            "pointSize": 4,
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*· ok$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*· partial$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*· failed$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*· dry_run$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*· running$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "interval": "5m"
+    },
+    {
+      "type": "table",
+      "id": 18,
+      "title": "Last success per scan kind",
+      "description": "Definition: per scan kind, finish time of the newest 'ok' run, its age, the status of the newest run of any status, and the number of ok and partial/failed runs started in the time range.\nUnits: timestamps in the dashboard timezone; age as duration; runs as counts.\nFilters: time range (run counts only).\nUnknown vs zero: 'never' = no 'ok' run recorded, shown in purple; an age is never shown as 0 for a kind that has not succeeded.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 13,
+        "y": 1,
+        "w": 11,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT k.kind AS \"Kind\",\n       ok.last_ok AS \"Last ok scan\",\n       extract(epoch FROM now() - ok.last_ok) AS \"Age\",\n       lr.status AS \"Newest run\",\n       r.ok_runs AS \"ok runs\",\n       r.bad_runs AS \"partial/failed runs\"\nFROM (SELECT DISTINCT kind FROM scan_runs) k\nLEFT JOIN LATERAL (\n  SELECT max(s.finished_at) AS last_ok FROM scan_runs s\n  WHERE s.kind = k.kind AND s.status = 'ok'\n) ok ON true\nLEFT JOIN LATERAL (\n  SELECT s.status FROM scan_runs s\n  WHERE s.kind = k.kind ORDER BY s.started_at DESC, s.id DESC LIMIT 1\n) lr ON true\nLEFT JOIN LATERAL (\n  SELECT count(*) FILTER (WHERE s.status = 'ok') AS ok_runs,\n         count(*) FILTER (WHERE s.status IN ('partial', 'failed')) AS bad_runs\n  FROM scan_runs s\n  WHERE s.kind = k.kind AND $__timeFilter(s.started_at)\n) r ON true\nORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Last ok scan"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsIso"
+              },
+              {
+                "id": "noValue",
+                "value": "never"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Age"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "noValue",
+                "value": "never"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "purple",
+                      "value": null
+                    },
+                    {
+                      "color": "green",
+                      "value": 0
+                    },
+                    {
+                      "color": "orange",
+                      "value": 1200
+                    },
+                    {
+                      "color": "red",
+                      "value": 3600
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Newest run"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "ok": {
+                        "color": "green",
+                        "index": 0
+                      },
+                      "partial": {
+                        "color": "orange",
+                        "index": 1
+                      },
+                      "failed": {
+                        "color": "red",
+                        "index": 2
+                      },
+                      "dry_run": {
+                        "color": "blue",
+                        "index": 3
+                      },
+                      "running": {
+                        "color": "text",
+                        "index": 4
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Kind"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 90
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Last ok scan"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 165
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Age"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 80
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Newest run"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 95
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ok runs"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 75
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "partial/failed runs"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "text",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        },
+        "sortBy": []
+      }
+    },
+    {
+      "type": "table",
+      "id": 19,
+      "title": "Recent partial or failed scans",
+      "description": "Definition: newest 20 scan_runs in the time range whose status is partial or failed, with their recorded errors and coverage.\nUnits: timestamps in the dashboard timezone.\nFilters: time range.\nUnknown vs zero: an empty table means no partial or failed scan started in the range; check 'Scan runs over time' for gaps where no scan ran at all.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 9,
+        "w": 24,
+        "h": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT started_at AS \"Started\",\n       kind AS \"Kind\",\n       status AS \"Status\",\n       errors::text AS \"Errors\",\n       coverage::text AS \"Coverage\"\nFROM scan_runs\nWHERE status IN ('partial', 'failed') AND $__timeFilter(started_at)\nORDER BY started_at DESC, id DESC\nLIMIT 20"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Status"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "ok": {
+                        "color": "green",
+                        "index": 0
+                      },
+                      "partial": {
+                        "color": "orange",
+                        "index": 1
+                      },
+                      "failed": {
+                        "color": "red",
+                        "index": 2
+                      },
+                      "dry_run": {
+                        "color": "blue",
+                        "index": 3
+                      },
+                      "running": {
+                        "color": "text",
+                        "index": 4
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Started"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsIso"
+              },
+              {
+                "id": "custom.width",
+                "value": 180
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Kind"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 110
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Status"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 90
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        },
+        "sortBy": []
+      }
+    },
+    {
+      "type": "row",
+      "id": 20,
+      "title": "Sources and identity",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 15
+      }
+    },
+    {
+      "type": "table",
+      "id": 21,
+      "title": "Source health (source_state)",
+      "description": "Definition: engine-side health per source (server-scan, each target cluster, collector targets): consecutive failed scans, last success, last attempt and last error.\nUnits: counts; timestamps in the dashboard timezone; time since success as duration.\nState: 'ok' (green) = last fetch succeeded; 'failing, within grace' (orange) = 1-2 consecutive failures; 'beyond grace: assets UNKNOWN' (red) = 3+ failures, beyond the default unknown_grace_scans of 2, so the source's assets are UNKNOWN; 'never succeeded' (purple) = no complete fetch yet. Thresholds assume the default grace; change the SQL if the policy changes it.\nFilters: none.\nUnknown vs zero: 'never' = the source has not completed a fetch since the engine started tracking it; its assets are UNKNOWN, not empty.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 24,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT name AS \"Source\",\n       CASE WHEN last_success_at IS NULL THEN 'never succeeded'\n            WHEN failed_scans = 0 THEN 'ok'\n            WHEN failed_scans <= 2 THEN 'failing, within grace'\n            ELSE 'beyond grace: assets UNKNOWN' END AS \"State\",\n       failed_scans AS \"Consecutive failed scans\",\n       last_success_at AS \"Last success\",\n       extract(epoch FROM now() - last_success_at) AS \"Since last success\",\n       last_attempt_at AS \"Last attempt\",\n       last_error AS \"Last error\"\nFROM source_state\nORDER BY (last_success_at IS NULL) DESC, failed_scans DESC, name"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "State"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 250
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "ok": {
+                        "color": "green",
+                        "index": 0
+                      },
+                      "failing, within grace": {
+                        "color": "orange",
+                        "index": 1
+                      },
+                      "beyond grace: assets UNKNOWN": {
+                        "color": "red",
+                        "index": 2
+                      },
+                      "never succeeded": {
+                        "color": "purple",
+                        "index": 3
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Consecutive failed scans"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 190
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Last success"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsIso"
+              },
+              {
+                "id": "noValue",
+                "value": "never"
+              },
+              {
+                "id": "custom.width",
+                "value": 180
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Last attempt"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsIso"
+              },
+              {
+                "id": "custom.width",
+                "value": 180
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Since last success"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "noValue",
+                "value": "never"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "purple",
+                      "value": null
+                    },
+                    {
+                      "color": "green",
+                      "value": 0
+                    },
+                    {
+                      "color": "orange",
+                      "value": 1200
+                    },
+                    {
+                      "color": "red",
+                      "value": 3600
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 150
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Last error"
+            },
+            "properties": [
+              {
+                "id": "noValue",
+                "value": "—"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        },
+        "sortBy": []
+      }
+    },
+    {
+      "type": "stat",
+      "id": 22,
+      "title": "Open identity conflicts",
+      "description": "Definition: identity_conflicts rows with resolved_at IS NULL (two source records claim one asset id, or a join is ambiguous); and GPUs in open UNKNOWN intervals with reason IDENTITY_CONFLICT.\nUnits: conflicts; GPUs.\nFilters: none.\nUnknown vs zero: 0 conflicts = none recorded. Conflicting assets are never merged silently; their GPUs stay UNKNOWN until resolved.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 23,
+        "w": 6,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT (SELECT count(*) FROM identity_conflicts WHERE resolved_at IS NULL) AS \"Open conflicts\",\n       (SELECT coalesce(sum(gpus), 0) FROM capacity_intervals\n         WHERE ended_at IS NULL AND category = 'UNKNOWN' AND reason_code = 'IDENTITY_CONFLICT') AS \"GPUs affected\""
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "purple",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "GPUs affected"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "purple"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "textMode": "value_and_name",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      }
+    },
+    {
+      "type": "table",
+      "id": 23,
+      "title": "Open identity conflicts",
+      "description": "Definition: unresolved identity_conflicts, oldest first: conflict kind, contested key, candidate source records, first and last seen.\nUnits: timestamps in the dashboard timezone; open-for as duration.\nFilters: none.\nUnknown vs zero: an empty table means no open conflict; resolved conflicts keep their history in the ledger but are not shown.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 23,
+        "w": 18,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT kind AS \"Kind\",\n       key AS \"Key\",\n       jsonb_array_length(CASE WHEN jsonb_typeof(candidates) = 'array' THEN candidates ELSE '[]'::jsonb END) AS \"Candidates (n)\",\n       candidates::text AS \"Candidates\",\n       first_seen AS \"First seen\",\n       last_seen AS \"Last seen\",\n       extract(epoch FROM now() - first_seen) AS \"Open for\"\nFROM identity_conflicts\nWHERE resolved_at IS NULL\nORDER BY first_seen, id"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "First seen"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsIso"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Last seen"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsIso"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Candidates"
+            },
+            "properties": [
+              {
+                "id": "custom.inspect",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Open for"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        },
+        "sortBy": []
+      }
+    },
+    {
+      "type": "row",
+      "id": 24,
+      "title": "Coverage",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 30
+      }
+    },
+    {
+      "type": "table",
+      "id": 25,
+      "title": "UNKNOWN GPUs now, by reason",
+      "description": "Definition: sum(gpus) and distinct assets of open UNKNOWN intervals, by reason_code (SOURCE_STALE, IDENTITY_CONFLICT, CONTESTED, CLUSTER_NOT_OBSERVED, ...).\nUnits: physical GPUs; assets.\nFilters: site.\nUnknown vs zero: '(none)' with 0 = the latest scan has no UNKNOWN GPUs in scope; 'No ledger data yet' = no open intervals at all. UNKNOWN GPUs are never counted as idle, productive or zero. Current state = intervals still open in the ledger (ended_at IS NULL), i.e. the result of the latest engine scan; check 'Data as of' for its age.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 31,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH u AS (\n  SELECT i.reason_code, sum(i.gpus) AS gpus, count(DISTINCT i.asset_id) AS assets\n  FROM capacity_intervals i\n  JOIN assets a ON a.asset_id = i.asset_id\n  WHERE i.ended_at IS NULL AND i.category = 'UNKNOWN'\n    AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))\n  GROUP BY i.reason_code\n)\nSELECT reason_code AS \"Reason\", gpus AS \"UNKNOWN GPUs\", assets AS \"Assets\" FROM u\nUNION ALL\nSELECT '(none)', 0, 0\nWHERE NOT EXISTS (SELECT 1 FROM u)\n  AND EXISTS (SELECT 1 FROM capacity_intervals i JOIN assets a ON a.asset_id = i.asset_id\n              WHERE i.ended_at IS NULL AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site)))\nORDER BY 2 DESC, 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          },
+          "unit": "none",
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "UNKNOWN GPUs"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "purple"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        },
+        "sortBy": []
+      }
+    },
+    {
+      "type": "table",
+      "id": 26,
+      "title": "Assets by source",
+      "description": "Definition: assets in the ledger by the source that first registered them (server-scan, profile-less collector, ...): asset count, GPUs per inventory (assets.gpu_count), assets whose GPU count is unread, newest observation and assets not observed in the last hour.\nUnits: assets; GPUs; timestamps in the dashboard timezone.\nFilters: site.\nUnknown vs zero: assets with an unread GPU count are excluded from 'GPUs (inventory)' and counted in their own column, never as 0 GPUs. 'Not seen > 1 h' may be listing lag or a removed asset; a partial listing never closes intervals.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 31,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT coalesce(a.source, '(none)') AS \"Source\",\n       count(*) AS \"Assets\",\n       sum(a.gpu_count) AS \"GPUs (inventory)\",\n       count(*) FILTER (WHERE a.gpu_count IS NULL) AS \"GPU count unread\",\n       max(a.last_observed_at) AS \"Last observed\",\n       count(*) FILTER (WHERE a.last_observed_at < now() - interval '1 hour') AS \"Not seen > 1 h\"\nFROM assets a\nWHERE ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))\nGROUP BY 1\nORDER BY 2 DESC, 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          },
+          "unit": "none",
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Last observed"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsIso"
+              },
+              {
+                "id": "custom.width",
+                "value": 165
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Source"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 110
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Assets"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 70
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "GPUs (inventory)"
+            },
+            "properties": [
+              {
+                "id": "noValue",
+                "value": "unread"
+              },
+              {
+                "id": "custom.width",
+                "value": 125
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "GPU count unread"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "text",
+                      "value": null
+                    },
+                    {
+                      "color": "purple",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Not seen > 1 h"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "text",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        },
+        "sortBy": []
+      }
+    }
+  ]
+}
