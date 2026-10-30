@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -16,8 +16,10 @@ from ttv.config import Policy
 from ttv.identity import IdentityConflict
 from ttv.ledger import BucketKey, LastStage, LedgerPlan, OpenInterval
 from ttv.models import SourceStatus
+from ttv.pricing.catalog import CATALOG_VERSION
 from ttv.sources.serverscan import CachedDetail
 
+MIGRATIONS = Path(__file__).resolve().parents[2] / "migrations"
 # One active engine: a session-level advisory lock on this key (AGENT.md §20.1).
 LEADER_LOCK_KEY = 7_211_042_301
 _DICT_ROWS: Any = dict_row  # Any: ty mis-resolves psycopg's row-factory overloads
@@ -88,6 +90,15 @@ WHERE resolved_at IS NULL AND NOT (kind || chr(31) || key = ANY(%s::text[]))
 """
 _INTERVALS_FOR = """
 SELECT * FROM capacity_intervals WHERE asset_id = %s ORDER BY started_at DESC, id DESC LIMIT %s
+"""
+_UPSERT_ALIAS = """
+INSERT INTO gpu_model_aliases (raw_model, canonical, catalog_version, updated_at)
+VALUES (%s, %s, %s, %s)
+ON CONFLICT (raw_model) DO UPDATE SET
+    canonical = EXCLUDED.canonical, catalog_version = EXCLUDED.catalog_version,
+    updated_at = EXCLUDED.updated_at
+WHERE (gpu_model_aliases.canonical, gpu_model_aliases.catalog_version)
+      IS DISTINCT FROM (EXCLUDED.canonical, EXCLUDED.catalog_version)
 """
 _UPSERT_DETAIL = """
 INSERT INTO serverscan_cache (id, row_hash, fetched_at, payload) VALUES (%s, %s, %s, %s)
@@ -383,6 +394,7 @@ class PostgresStore:
         conflicts: Sequence[IdentityConflict],
         resolve_missing_conflicts: bool,
         now: datetime,
+        gpu_aliases: Mapping[str, str | None] | None = None,
     ) -> None:
         """
         Write one scan's changes atomically, so a crash leaves the ledger as it was.
@@ -395,8 +407,10 @@ class PostgresStore:
             conflicts (Sequence[IdentityConflict]): Conflicts seen this scan.
             resolve_missing_conflicts (bool): Resolve open conflicts not seen (complete listings).
             now (datetime): Scan time.
+            gpu_aliases (Mapping[str, str | None] | None): Raw GPU models seen → canonical name.
         """
         async with self.conn.transaction():
+            await self._upsert_aliases(gpu_aliases or {}, now)
             for a in assets:
                 await self.conn.execute(_UPSERT_ASSET, _asset_params(a, now))
             for c in ledger_plan.closes:
@@ -445,6 +459,38 @@ class PostgresStore:
                 await self.conn.execute(
                     _RESOLVE_MISSING_CONFLICTS, (now, Jsonb({"auto": "no longer observed"}), seen)
                 )
+
+    async def _upsert_aliases(self, aliases: Mapping[str, str | None], now: datetime) -> None:
+        """
+        Record raw GPU model → canonical name under the current catalogue version.
+
+        Args:
+            aliases (Mapping[str, str | None]): Raw model → canonical name (None: unidentified).
+            now (datetime): Time of a change; unchanged rows keep their `updated_at`.
+        """
+        for raw, canonical in sorted(aliases.items()):
+            await self.conn.execute(_UPSERT_ALIAS, (raw, canonical, CATALOG_VERSION, now))
+
+    async def refresh_gpu_aliases(
+        self, canonicalize: Callable[[str], str | None], now: datetime
+    ) -> int:
+        """
+        Re-canonicalise every raw GPU model in the ledger (startup; catalogue upgrades).
+
+        Args:
+            canonicalize (Callable[[str], str | None]): Raw model → canonical name.
+            now (datetime): Time of a change.
+
+        Returns:
+            int: Raw models seen.
+        """
+        rows = await self._all(
+            "SELECT DISTINCT gpu_model FROM capacity_intervals WHERE gpu_model IS NOT NULL"
+        )
+        aliases = {r["gpu_model"]: canonicalize(r["gpu_model"]) for r in rows}
+        async with self.conn.transaction():
+            await self._upsert_aliases(aliases, now)
+        return len(aliases)
 
     async def intervals_for(self, asset_id: str, limit: int = 50) -> list[dict[str, Any]]:
         """
