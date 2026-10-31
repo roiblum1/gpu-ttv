@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Synthetic UCS Manager inventory of dc1-dom-b (192.0.2.22): no real hosts or serials.
+  Each element is one configResolveClass outConfigs row with ucsmsdk 0.9.18 wire attribute names;
+  DNs are domain-local (sys/...). chassis-2/blade-1 holds a different serial than UCS Central's
+  replica says (a swapped blade), so its GPUs must not be attributed to Central's serial.
+-->
+<fixture>
+  <computeRackUnit dn="sys/rack-unit-1" id="1" serial="WZP27090CC1" model="UCSC-C845A-M8"
+      vendor="Cisco Systems Inc" presence="equipped"
+      assignedToDn="org-root/org-ocp/ls-ocp4-prod-gpu-site1-w02" association="associated"/>
+  <computeRackUnit dn="sys/rack-unit-2" id="2" serial="WZP27090CC2" model="UCSC-C220-M7"
+      vendor="Cisco Systems Inc" presence="equipped" assignedToDn="" association="none"/>
+  <computeBlade dn="sys/chassis-2/blade-1" chassisId="2" slotId="1" serial="FCH2650B0C9"
+      model="UCSB-B200-M6" vendor="Cisco Systems Inc" presence="equipped" assignedToDn=""
+      association="none"/>
+
+  <graphicsCard dn="sys/rack-unit-1/board/graphics-card-1" id="1" model="UCSC-GPU-H100-80"
+      vendor="NVIDIA Corporation" presence="equipped" operState="operable"/>
+  <graphicsCard dn="sys/rack-unit-1/board/graphics-card-2" id="2" model="UCSC-GPU-H100-80"
+      vendor="NVIDIA Corporation" presence="equipped" operState="operable"/>
+  <graphicsCard dn="sys/rack-unit-1/board/graphics-card-3" id="3" model="UCSC-GPU-H100-80"
+      vendor="NVIDIA Corporation" presence="equipped" operState="operable"/>
+  <graphicsCard dn="sys/rack-unit-1/board/graphics-card-4" id="4" model="UCSC-GPU-H100-80"
+      vendor="NVIDIA Corporation" presence="equipped" operState="operable"/>
+  <graphicsCard dn="sys/rack-unit-1/board/graphics-card-5" id="5" model="UCSC-GPU-H100-80"
+      vendor="NVIDIA Corporation" presence="equipped" operState="operable"/>
+  <graphicsCard dn="sys/rack-unit-1/board/graphics-card-6" id="6" model="UCSC-GPU-H100-80"
+      vendor="NVIDIA Corporation" presence="equipped" operState="operable"/>
+  <graphicsCard dn="sys/rack-unit-1/board/graphics-card-7" id="7" model="UCSC-GPU-H100-80"
+      vendor="NVIDIA Corporation" presence="equipped" operState="operable"/>
+  <graphicsCard dn="sys/rack-unit-1/board/graphics-card-8" id="8" model="UCSC-GPU-H100-80"
+      vendor="NVIDIA Corporation" presence="equipped" operState="operable"/>
+  <graphicsCard dn="sys/chassis-2/blade-1/board/graphics-card-1" id="1" model="UCSC-GPU-T4-16"
+      vendor="NVIDIA Corporation" presence="equipped" operState="operable"/>
+  <graphicsCard dn="sys/chassis-2/blade-1/board/graphics-card-2" id="2" model="UCSC-GPU-T4-16"
+      vendor="NVIDIA Corporation" presence="equipped" operState="operable"/>
+</fixture>
