@@ -1,0 +1,635 @@
+# Panel contracts for grafana/dashboards/ttv-home.json (schema: README.md in this folder).
+dashboard: ttv-home
+panels:
+- id: 2
+  title: Idle GPUs
+  question: E03
+  status: built
+  audience: CEO, stage owners
+  decision: How much GPU capacity is waiting in a stage queue right now.
+  definition: GPUs in open IDLE intervals (the latest engine scan), all stage owners together; the queue
+    table splits them by owner.
+  unit: GPUs
+  numerator: sum(gpus) of open IDLE intervals
+  denominator: null
+  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
+    knows.'
+  window: now
+  filters:
+  - stage_owner
+  - site
+  exclusions: PRODUCTIVE, NOT_CHARGED and UNKNOWN GPUs.
+  query: grafana/dashboards/ttv-home.json#2
+  lineage:
+  - capacity_intervals
+  - assets
+  - scan_runs
+  freshness: Latest engine scan (every 5 min); the Data age card shows its age.
+  baseline: null
+  direction: lower_is_better
+  thresholds: null
+  uncertainty: null
+  missing_data: Shows 'no scan yet' before the first engine scan; afterwards an empty result is a real
+    0. UNKNOWN GPUs are never counted as idle or productive.
+  value_kind: observed
+  gate: core
+  privileges: SELECT on capacity_intervals, assets, scan_runs
+  cardinality: 1 value
+  drilldown: ttv-queues
+  action: Open Queues to see which owner holds them.
+  fixture: tests/test_dashboards_sql.py
+  expected: Sum of the idle GPUs in the fixture.
+- id: 3
+  title: Idle value / hour (AWS)
+  question: E03
+  status: built
+  audience: CEO, stage owners
+  decision: What the idle capacity would cost at AWS On-Demand, to size the urgency.
+  definition: what the idle GPUs now would cost per hour at AWS On-Demand rates (Linux, shared tenancy)
+    from the selected price snapshot, shown under the value. A comparison, not a bill, not our cost and
+    not a loss (ADR-0003).
+  unit: USD per hour
+  numerator: sum(gpus × per_gpu_hour_usd) of open IDLE intervals at the selected snapshot
+  denominator: null
+  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
+    knows.'
+  window: now
+  filters:
+  - stage_owner
+  - site
+  - snapshot
+  exclusions: Unpriced GPUs (named in the label).
+  query: grafana/dashboards/ttv-home.json#3
+  lineage:
+  - capacity_intervals
+  - assets
+  - pricing_rates
+  - pricing_snapshots
+  - gpu_model_aliases
+  - scan_runs
+  freshness: Latest engine scan (every 5 min); the Data age card shows its age.
+  baseline: null
+  direction: lower_is_better
+  thresholds: null
+  uncertainty: AWS-equivalent comparison, not a bill, our cost or a loss (ADR-0003); a per-GPU rate allocates
+    the whole instance price. GPUs whose model has no rate are left out and the label says 'at least'.
+  missing_data: '''unpriced or no snapshot'' when nothing is priced or no snapshot is imported; $0 when
+    no GPU is idle.'
+  value_kind: derived
+  gate: core
+  privileges: SELECT on capacity_intervals, assets, pricing_rates, pricing_snapshots, gpu_model_aliases,
+    scan_runs
+  cardinality: 1 value
+  drilldown: ttv-queues#19
+  action: null
+  fixture: null
+  expected: null
+- id: 4
+  title: Productive share
+  question: E12
+  status: built
+  audience: CEO, stage owners
+  decision: Whether eligible capacity is doing useful work.
+  definition: PRODUCTIVE GPUs ÷ (PRODUCTIVE + IDLE GPUs) now. NOT_CHARGED (approved exclusions, clusters
+    outside the target list) and UNKNOWN GPUs are outside the denominator, so check 'Unknown GPUs' before
+    reading this.
+  unit: percent
+  numerator: PRODUCTIVE GPUs now
+  denominator: PRODUCTIVE + IDLE GPUs now
+  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
+    knows.'
+  window: now
+  filters:
+  - site
+  exclusions: NOT_CHARGED and UNKNOWN GPUs (outside the denominator).
+  query: grafana/dashboards/ttv-home.json#4
+  lineage:
+  - capacity_intervals
+  - assets
+  freshness: Latest engine scan (every 5 min); the Data age card shows its age.
+  baseline: null
+  direction: higher_is_better
+  thresholds: null
+  uncertainty: With many UNKNOWN GPUs the share describes only the measured part of the fleet.
+  missing_data: '''no eligible GPUs'' when the denominator is 0.'
+  value_kind: derived
+  gate: core
+  privileges: SELECT on capacity_intervals, assets
+  cardinality: 1 value
+  drilldown: ttv-gpu-use
+  action: null
+  fixture: null
+  expected: null
+- id: 5
+  title: Unknown GPUs
+  question: E18
+  status: built
+  audience: CEO, stage owners
+  decision: How much of the fleet the numbers cannot describe.
+  definition: 'GPUs in open UNKNOWN intervals: a stale or failing source, an identity conflict, a cluster
+    not observed, a node not found, missing telemetry. Never counted as idle or productive; Evidence explains
+    each reason.'
+  unit: GPUs
+  numerator: sum(gpus) of open UNKNOWN intervals
+  denominator: null
+  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
+    knows.'
+  window: now
+  filters:
+  - site
+  exclusions: null
+  query: grafana/dashboards/ttv-home.json#5
+  lineage:
+  - capacity_intervals
+  - assets
+  - scan_runs
+  freshness: Latest engine scan (every 5 min); the Data age card shows its age.
+  baseline: null
+  direction: lower_is_better
+  thresholds: null
+  uncertainty: null
+  missing_data: Shows 'no scan yet' before the first engine scan; afterwards an empty result is a real
+    0. UNKNOWN GPUs are never counted as idle or productive.
+  value_kind: observed
+  gate: core
+  privileges: SELECT on capacity_intervals, assets, scan_runs
+  cardinality: 1 value
+  drilldown: ttv-evidence#25
+  action: Open Evidence to see why.
+  fixture: null
+  expected: null
+- id: 6
+  title: Not measured
+  question: E18
+  status: built
+  audience: CEO, stage owners
+  decision: How much capacity sits in clusters outside the target list (I7).
+  definition: 'GPUs installed in clusters outside the target list (OUTSIDE_TARGET_CLUSTERS, input I7):
+    visible, not charged to anyone, and not measured for use.'
+  unit: GPUs
+  numerator: sum(gpus) of open OUTSIDE_TARGET_CLUSTERS intervals
+  denominator: null
+  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
+    knows.'
+  window: now
+  filters:
+  - site
+  exclusions: null
+  query: grafana/dashboards/ttv-home.json#6
+  lineage:
+  - capacity_intervals
+  - assets
+  - scan_runs
+  freshness: Latest engine scan (every 5 min); the Data age card shows its age.
+  baseline: null
+  direction: neutral
+  thresholds: null
+  uncertainty: null
+  missing_data: Shows 'no scan yet' before the first engine scan; afterwards an empty result is a real
+    0. UNKNOWN GPUs are never counted as idle or productive.
+  value_kind: observed
+  gate: core
+  privileges: SELECT on capacity_intervals, assets, scan_runs
+  cardinality: 1 value
+  drilldown: null
+  action: null
+  fixture: null
+  expected: null
+- id: 7
+  title: Data age
+  question: E18
+  status: built
+  audience: CEO, stage owners
+  decision: Whether the 'now' numbers are current.
+  definition: time since the newest engine scan that finished ok or partial. Every 'now' number on this
+    page is as of that scan. Green within 15 min (3 scans), orange within 1 h, red beyond.
+  unit: seconds
+  numerator: now() − max(scan_runs.finished_at) of ok/partial scans
+  denominator: null
+  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
+    knows.'
+  window: now
+  filters: []
+  exclusions: null
+  query: grafana/dashboards/ttv-home.json#7
+  lineage:
+  - scan_runs
+  freshness: Itself.
+  baseline: null
+  direction: lower_is_better
+  thresholds: green < 15 min, orange < 1 h, red ≥ 1 h
+  uncertainty: null
+  missing_data: '''no scan yet'' before the first scan.'
+  value_kind: observed
+  gate: core
+  privileges: SELECT on scan_runs
+  cardinality: 1 value
+  drilldown: ttv-evidence
+  action: null
+  fixture: null
+  expected: null
+- id: 8
+  title: Stage queues now (pipeline order)
+  question: E03
+  status: built
+  audience: CEO, stage owners
+  decision: Which handoff queue is the bottleneck and how long its oldest server has waited.
+  definition: 'the four handoff queues in pipeline order. Per stage owner: idle GPUs now; overdue GPUs
+    (idle past the stage objective of the interval''s own policy version); servers waiting; the oldest
+    wait among their current stage episodes; the objective; the idle value per hour at the selected snapshot;
+    and the reason holding the most GPUs.'
+  unit: GPUs, days, USD/h
+  numerator: null
+  denominator: null
+  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
+    knows.'
+  window: now
+  filters:
+  - site
+  - snapshot
+  exclusions: null
+  query: grafana/dashboards/ttv-home.json#8
+  lineage:
+  - capacity_intervals
+  - assets
+  - stage_objectives
+  - pricing_rates
+  - gpu_model_aliases
+  - scan_runs
+  freshness: Latest engine scan (every 5 min); the Data age card shows its age.
+  baseline: null
+  direction: lower_is_better
+  thresholds: null
+  uncertainty: Stage clocks that began before observation are lower bounds (≥); waits and GPU-hours derived
+    from them are minimums. AWS-equivalent comparison, not a bill, our cost or a loss (ADR-0003); a per-GPU
+    rate allocates the whole instance price. GPUs whose model has no rate are left out and the label says
+    'at least'.
+  missing_data: All four owners always show; an owner with no idle GPUs shows 0 and '—'.
+  value_kind: observed
+  gate: core
+  privileges: SELECT on capacity_intervals, assets, stage_objectives, pricing_rates, gpu_model_aliases,
+    scan_runs
+  cardinality: 4 rows
+  drilldown: ttv-queues
+  action: Ask the owner with the most overdue GPUs to clear its longest waits.
+  fixture: null
+  expected: null
+- id: 9
+  title: Every GPU by category now
+  question: E01
+  status: built
+  audience: CEO, stage owners
+  decision: Where every GPU is now, as a mutually exclusive partition.
+  definition: all GPUs in the ledger now, split into the four mutually exclusive categories (each GPU
+    counts once). Productive = doing useful work; Idle = waiting in a stage queue; Not charged = approved
+    exclusion or outside the target clusters; Unknown = not enough evidence.
+  unit: GPUs
+  numerator: sum(gpus) of open intervals per category
+  denominator: null
+  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
+    knows.'
+  window: now
+  filters:
+  - site
+  exclusions: null
+  query: grafana/dashboards/ttv-home.json#9
+  lineage:
+  - capacity_intervals
+  - assets
+  - scan_runs
+  freshness: Latest engine scan (every 5 min); the Data age card shows its age.
+  baseline: null
+  direction: neutral
+  thresholds: null
+  uncertainty: null
+  missing_data: Shows 'no scan yet' before the first engine scan; afterwards an empty result is a real
+    0. UNKNOWN GPUs are never counted as idle or productive.
+  value_kind: observed
+  gate: core
+  privileges: SELECT on capacity_intervals, assets, scan_runs
+  cardinality: 4 bars
+  drilldown: null
+  action: null
+  fixture: null
+  expected: null
+- id: 10
+  title: Longest waits now
+  question: E03
+  status: built
+  audience: CEO, stage owners
+  decision: Which servers to unblock first.
+  definition: the 10 current idle stage episodes that have waited longest (one row per asset and stage
+    episode). 'Idle GPU-h' sums the episode's idle intervals from their start to now; 'Value' prices them
+    at the selected snapshot (present-day rates).
+  unit: GPUs, days, GPU-h, USD
+  numerator: null
+  denominator: null
+  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
+    knows.'
+  window: now
+  filters:
+  - stage_owner
+  - site
+  - snapshot
+  exclusions: null
+  query: grafana/dashboards/ttv-home.json#10
+  lineage:
+  - capacity_intervals
+  - assets
+  - pricing_rates
+  - gpu_model_aliases
+  - next_action_annotations
+  freshness: Latest engine scan (every 5 min); the Data age card shows its age.
+  baseline: null
+  direction: lower_is_better
+  thresholds: null
+  uncertainty: Stage clocks that began before observation are lower bounds (≥); waits and GPU-hours derived
+    from them are minimums. AWS-equivalent comparison, not a bill, our cost or a loss (ADR-0003); a per-GPU
+    rate allocates the whole instance price. GPUs whose model has no rate are left out and the label says
+    'at least'.
+  missing_data: '''no idle GPUs'' when no stage episode is open. Next-action owner is display only.'
+  value_kind: observed
+  gate: core
+  privileges: SELECT on capacity_intervals, assets, pricing_rates, gpu_model_aliases, next_action_annotations
+  cardinality: ≤ 10 rows
+  drilldown: ttv-asset
+  action: Open the asset and follow its reason.
+  fixture: null
+  expected: null
+- id: 11
+  title: 'Installed GPUs by model: in service or waiting (E01, partial)'
+  question: E01
+  status: built
+  audience: CEO, stage owners
+  decision: Which installed GPU classes are delivering and which wait.
+  definition: every GPU in the ledger now, by GPU model (canonical name when the pricing catalogue recognises
+    it, else as reported), split by category. Answers the inventory half of E01; purchase and receipt
+    dates need procurement records, which R1 does not have ('input missing').
+  unit: GPUs
+  numerator: null
+  denominator: null
+  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
+    knows.'
+  window: now
+  filters:
+  - site
+  exclusions: null
+  query: grafana/dashboards/ttv-home.json#11
+  lineage:
+  - capacity_intervals
+  - assets
+  - gpu_model_aliases
+  freshness: Latest engine scan (every 5 min); the Data age card shows its age.
+  baseline: null
+  direction: neutral
+  thresholds: null
+  uncertainty: null
+  missing_data: Procurement fields show 'input missing' until purchase records are supplied (R3).
+  value_kind: observed
+  gate: core
+  privileges: SELECT on capacity_intervals, assets, gpu_model_aliases
+  cardinality: one row per GPU model
+  drilldown: null
+  action: null
+  fixture: null
+  expected: null
+- id: 21
+  title: Idle GPU-hours in period
+  question: E03
+  status: built
+  audience: CEO, stage owners
+  decision: How much idle capacity accumulated in the period.
+  definition: 'Σ GPUs × hours of IDLE intervals clipped to the selected time range (open intervals end
+    at now). AGENT.md §17: 6 idle GPUs for 2 h = 12 GPU-h.'
+  unit: GPU-hours
+  numerator: Σ gpus × hours of IDLE intervals clipped to the range
+  denominator: null
+  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
+    knows.'
+  window: selected range
+  filters:
+  - stage_owner
+  - site
+  - snapshot
+  - time range
+  exclusions: null
+  query: grafana/dashboards/ttv-home.json#21
+  lineage:
+  - capacity_intervals
+  - assets
+  - stage_objectives
+  - pricing_rates
+  - gpu_model_aliases
+  - scan_runs
+  freshness: Latest engine scan (every 5 min); the Data age card shows its age.
+  baseline: null
+  direction: lower_is_better
+  thresholds: null
+  uncertainty: null
+  missing_data: Shows 'no scan yet' before the first engine scan; afterwards an empty result is a real
+    0. UNKNOWN GPUs are never counted as idle or productive.
+  value_kind: observed
+  gate: core
+  privileges: SELECT on capacity_intervals, assets, stage_objectives, pricing_rates, gpu_model_aliases,
+    scan_runs
+  cardinality: 1 value
+  drilldown: null
+  action: null
+  fixture: tests/test_dashboards_sql.py
+  expected: 'AGENT.md §17: 6 idle GPUs for 2 h = 12 GPU-h.'
+- id: 22
+  title: Overdue GPU-hours in period
+  question: E03
+  status: built
+  audience: CEO, stage owners
+  decision: How much idle time broke the stage objectives in the period.
+  definition: 'the part of each IDLE interval after stage_entered_at + the stage objective (of the interval''s
+    own policy version), clipped to the time range. AGENT.md §17: 8 GPUs idle 3 h with a 1 h objective
+    = 24 idle, 16 overdue GPU-h. Intervals with no objective are excluded here (Queues shows them).'
+  unit: GPU-hours
+  numerator: Σ gpus × hours after stage_entered_at + objective, clipped to the range
+  denominator: null
+  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
+    knows.'
+  window: selected range
+  filters:
+  - stage_owner
+  - site
+  - snapshot
+  - time range
+  exclusions: Intervals with no objective (shown on Queues).
+  query: grafana/dashboards/ttv-home.json#22
+  lineage:
+  - capacity_intervals
+  - assets
+  - stage_objectives
+  - pricing_rates
+  - gpu_model_aliases
+  - scan_runs
+  freshness: Latest engine scan (every 5 min); the Data age card shows its age.
+  baseline: null
+  direction: lower_is_better
+  thresholds: null
+  uncertainty: null
+  missing_data: Shows 'no scan yet' before the first engine scan; afterwards an empty result is a real
+    0. UNKNOWN GPUs are never counted as idle or productive.
+  value_kind: observed
+  gate: core
+  privileges: SELECT on capacity_intervals, assets, stage_objectives, pricing_rates, gpu_model_aliases,
+    scan_runs
+  cardinality: 1 value
+  drilldown: null
+  action: null
+  fixture: tests/test_dashboards_sql.py
+  expected: 'AGENT.md §17: 8 GPUs idle 3 h with a 1 h objective = 16 overdue GPU-h.'
+- id: 23
+  title: Idle value in period (AWS)
+  question: E03
+  status: built
+  audience: CEO, stage owners
+  decision: The AWS-equivalent value of the period's idle time.
+  definition: idle GPU-hours in the time range × the per-GPU hourly rate of each GPU's model at the selected
+    snapshot (present-day prices). 'at least' = some idle GPU-hours are unpriced and left out. A comparison,
+    not a bill or a loss (ADR-0003). Queues also shows historical prices.
+  unit: USD
+  numerator: null
+  denominator: null
+  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
+    knows.'
+  window: selected range
+  filters:
+  - stage_owner
+  - site
+  - snapshot
+  - time range
+  exclusions: null
+  query: grafana/dashboards/ttv-home.json#23
+  lineage:
+  - capacity_intervals
+  - assets
+  - stage_objectives
+  - pricing_rates
+  - pricing_snapshots
+  - gpu_model_aliases
+  - scan_runs
+  freshness: Latest engine scan (every 5 min); the Data age card shows its age.
+  baseline: null
+  direction: lower_is_better
+  thresholds: null
+  uncertainty: AWS-equivalent comparison, not a bill, our cost or a loss (ADR-0003); a per-GPU rate allocates
+    the whole instance price. GPUs whose model has no rate are left out and the label says 'at least'.
+  missing_data: '''unpriced or no snapshot'' when nothing is priced; $0 with no idle time.'
+  value_kind: derived
+  gate: core
+  privileges: SELECT on capacity_intervals, assets, stage_objectives, pricing_rates, pricing_snapshots,
+    gpu_model_aliases, scan_runs
+  cardinality: 1 value
+  drilldown: ttv-queues#20
+  action: null
+  fixture: null
+  expected: null
+- id: 25
+  title: Idle GPUs over time, by stage owner
+  question: E03
+  status: built
+  audience: CEO, stage owners
+  decision: Whether the queues are growing or shrinking.
+  definition: 'idle GPUs at each point in the time range, sampled from the ledger (an interval counts
+    while it is open), stacked by stage owner in pipeline order; the red line is the overdue part (idle
+    past the stage objective). Rising = queues growing. The chart starts at the first engine scan: there
+    is no evidence before it.'
+  unit: GPUs
+  numerator: null
+  denominator: null
+  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
+    knows.'
+  window: selected range
+  filters:
+  - stage_owner
+  - site
+  - time range
+  exclusions: null
+  query: grafana/dashboards/ttv-home.json#25
+  lineage:
+  - capacity_intervals
+  - assets
+  - stage_objectives
+  - scan_runs
+  freshness: Latest engine scan (every 5 min); the Data age card shows its age.
+  baseline: null
+  direction: lower_is_better
+  thresholds: null
+  uncertainty: null
+  missing_data: The chart starts at the first engine scan; no evidence exists before it.
+  value_kind: observed
+  gate: core
+  privileges: SELECT on capacity_intervals, assets, stage_objectives, scan_runs
+  cardinality: 5 series × time points
+  drilldown: null
+  action: null
+  fixture: null
+  expected: null
+- id: 31
+  title: E04 · What changed since our last review?
+  question: E04
+  status: missing_input
+  audience: CEO
+  decision: Focus the review on what changed.
+  definition: 'Movement since the previous review: newly received, useful, recovered, regressed, decommissioned,
+    newly unobserved.'
+  unit: none
+  numerator: null
+  denominator: null
+  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
+    knows.'
+  window: now
+  filters: []
+  exclusions: null
+  query: grafana/dashboards/ttv-home.json#31
+  lineage: []
+  freshness: Latest engine scan (every 5 min); the Data age card shows its age.
+  baseline: null
+  direction: neutral
+  thresholds: null
+  uncertainty: null
+  missing_data: Needs frozen review snapshots (R2); the panel names the input and points to Queues and
+    Delivery.
+  value_kind: observed
+  gate: history
+  privileges: null
+  cardinality: null
+  drilldown: null
+  action: null
+  fixture: null
+  expected: null
+- id: 32
+  title: Where the other questions live
+  question: support
+  status: built
+  audience: CEO
+  decision: Find the page for a question R1 does not answer yet.
+  definition: Where the R2/R3 questions live.
+  unit: none
+  numerator: null
+  denominator: null
+  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
+    knows.'
+  window: now
+  filters: []
+  exclusions: null
+  query: grafana/dashboards/ttv-home.json#32
+  lineage: []
+  freshness: Latest engine scan (every 5 min); the Data age card shows its age.
+  baseline: null
+  direction: neutral
+  thresholds: null
+  uncertainty: null
+  missing_data: Static navigation text.
+  value_kind: observed
+  gate: core
+  privileges: null
+  cardinality: null
+  drilldown: null
+  action: null
+  fixture: null
+  expected: null
