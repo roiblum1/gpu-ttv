@@ -1,0 +1,2471 @@
+{
+  "uid": "ttv-gpu-use",
+  "title": "GPU use: are GPUs doing useful work?",
+  "description": "E12: allocation, activity and genuine demand of GPUs in measured clusters, from the TTV ledger. Healthy use, waste candidates, constrained or failed work and unknown use are kept apart; GPUs outside measured clusters are shown as not measured. A loaded model or busy hardware is not delivered value (AGENT.md §13, §20.11).",
+  "tags": [
+    "gpu-ttv",
+    "E12",
+    "gpu-use"
+  ],
+  "id": null,
+  "version": 1,
+  "editable": false,
+  "graphTooltip": 1,
+  "timezone": "",
+  "fiscalYearStartMonth": 0,
+  "liveNow": false,
+  "weekStart": "",
+  "refresh": "5m",
+  "schemaVersion": 39,
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "timepicker": {},
+  "annotations": {
+    "list": []
+  },
+  "links": [
+    {
+      "title": "Home",
+      "type": "link",
+      "url": "/d/ttv-home",
+      "tooltip": "Executive summary (E01, E02, E03, E12, E18)",
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": []
+    },
+    {
+      "title": "Queues",
+      "type": "link",
+      "url": "/d/ttv-queues",
+      "tooltip": "E03: where GPUs are stuck",
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": []
+    },
+    {
+      "title": "Delivery",
+      "type": "link",
+      "url": "/d/ttv-delivery",
+      "tooltip": "E02: are we getting faster?",
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": []
+    },
+    {
+      "title": "GPU use",
+      "type": "link",
+      "url": "/d/ttv-gpu-use",
+      "tooltip": "E12: are GPUs doing useful work?",
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": []
+    },
+    {
+      "title": "Asset",
+      "type": "link",
+      "url": "/d/ttv-asset",
+      "tooltip": "One server's GPUs and evidence",
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": []
+    },
+    {
+      "title": "Evidence",
+      "type": "link",
+      "url": "/d/ttv-evidence",
+      "tooltip": "E18: can I trust these numbers?",
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": []
+    },
+    {
+      "title": "Actions",
+      "type": "link",
+      "url": "/d/ttv-actions",
+      "tooltip": "E05, E16 (R2/R3)",
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": []
+    },
+    {
+      "title": "Capacity",
+      "type": "link",
+      "url": "/d/ttv-capacity",
+      "tooltip": "E06, E08, E09, E14, E17 (R3)",
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": []
+    },
+    {
+      "title": "Service",
+      "type": "link",
+      "url": "/d/ttv-service",
+      "tooltip": "E10, E11 (R2)",
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": []
+    },
+    {
+      "title": "Economics",
+      "type": "link",
+      "url": "/d/ttv-economics",
+      "tooltip": "E13, E15 (R2/R3)",
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": []
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "site",
+        "label": "Site",
+        "description": "Site from assets.site; assets with no site appear as '(none)'. All = no site filter.",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "ttv-postgres"
+        },
+        "query": "SELECT DISTINCT coalesce(site, '(none)') FROM assets ORDER BY 1",
+        "definition": "SELECT DISTINCT coalesce(site, '(none)') FROM assets ORDER BY 1",
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": "'__all__'",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "options": [],
+        "sort": 1,
+        "hide": 0,
+        "regex": "",
+        "skipUrlSync": false
+      },
+      {
+        "name": "cluster",
+        "label": "Cluster",
+        "description": "Cluster of the interval (set once the node is matched), else the cluster named in its evidence; '(none)' = not in a cluster. All = no cluster filter (also keeps GPUs not in any cluster).",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "ttv-postgres"
+        },
+        "query": "SELECT DISTINCT coalesce(cluster, evidence->>'cluster', evidence->>'cluster_name', '(none)')\nFROM capacity_intervals\nWHERE ended_at IS NULL OR ended_at > now() - interval '30 days'\nORDER BY 1",
+        "definition": "SELECT DISTINCT coalesce(cluster, evidence->>'cluster', evidence->>'cluster_name', '(none)')\nFROM capacity_intervals\nWHERE ended_at IS NULL OR ended_at > now() - interval '30 days'\nORDER BY 1",
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": "'__all__'",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "options": [],
+        "sort": 1,
+        "hide": 0,
+        "regex": "",
+        "skipUrlSync": false
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "row",
+      "id": 1,
+      "title": "Now: are GPUs in measured clusters doing useful work?",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "id": 2,
+      "title": "Useful work (% of measured GPUs)",
+      "description": "Definition: GPUs doing useful work now (PRODUCTIVE and not flagged allocated_idle) divided by GPUs in measured clusters (use classes 1-5; 'Not measured' is excluded from the denominator).\nUnits: share of physical GPUs.\nFilters: site, cluster (cluster = the interval's cluster, else the cluster named in its evidence or NODE_CLAIM conflict; '(none)' when there is none).\nUnknown vs zero: no value = no GPU in a measured cluster for this scope, never 0%. A loaded model or busy hardware is not useful work (§13): serving GPUs count only with genuine requests. Current state = intervals still open in the ledger (ended_at IS NULL), i.e. the result of the latest engine scan; 'Data age' shows how old it is.\nUse classes (E12, AGENT.md §13): Useful work = PRODUCTIVE (Run:ai workload, or serving with genuine requests); Allocated, inactive = PRODUCTIVE but flagged allocated_idle (activity under the policy threshold for the policy window); Waste candidate = NO_REAL_DEMAND, LOW_USE, OTHER_WORKLOAD, NO_WORKLOAD; Constrained or failed = any other IDLE GPU on a matched node (WORKLOAD_NOT_READY, GPU_MISSING, GPU_PLATFORM_NOT_READY, NODE_NOT_READY, ...); Use unknown = in a measured cluster but the evidence is missing (TRAFFIC_UNOBSERVED, HOLDER_UNRESOLVED, NODE_NOT_FOUND, CLUSTER_UNREACHABLE, a NODE_CLAIM identity conflict); Not measured = everything else (not in a cluster yet, outside the target clusters, target cluster not configured, stale source).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 4,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH cur AS (\n  SELECT i.asset_id, i.category, i.reason_code, i.stage_owner, i.gpus, i.flags, i.holder_ref,\n         i.team, i.gpu_model, i.started_at, i.evidence,\n         coalesce(i.cluster, i.evidence->>'cluster', nc.cluster, i.evidence->>'cluster_name') AS cluster,\n         CASE\n           WHEN i.category = 'PRODUCTIVE' AND 'allocated_idle' = ANY (i.flags) THEN 2\n           WHEN i.category = 'PRODUCTIVE' THEN 1\n           WHEN i.reason_code IN ('NO_REAL_DEMAND', 'LOW_USE', 'NO_WORKLOAD', 'OTHER_WORKLOAD') THEN 3\n           WHEN i.cluster IS NOT NULL AND i.category = 'IDLE' THEN 4\n           WHEN i.cluster IS NOT NULL OR nc.cluster IS NOT NULL\n             OR i.reason_code IN ('CLUSTER_UNREACHABLE', 'NODE_NOT_FOUND') THEN 5\n           ELSE 6\n         END AS use_rank\n  FROM capacity_intervals i\n  JOIN assets a ON a.asset_id = i.asset_id\n  LEFT JOIN LATERAL (\n    SELECT split_part(c.key, '/', 1) AS cluster\n    FROM identity_conflicts c\n    WHERE i.reason_code = 'IDENTITY_CONFLICT' AND c.kind = 'NODE_CLAIM'\n      AND c.candidates @> jsonb_build_array(i.asset_id)\n    ORDER BY c.resolved_at IS NULL DESC, c.last_seen DESC\n    LIMIT 1\n  ) nc ON true\n  WHERE i.ended_at IS NULL\n    AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))\n), scope AS (\n  SELECT * FROM cur WHERE ('__all__' IN ($cluster) OR coalesce(cluster, '(none)') IN ($cluster))\n)\nSELECT CASE WHEN coalesce(sum(gpus) FILTER (WHERE use_rank <= 5), 0) = 0 THEN NULL\n            ELSE coalesce(sum(gpus) FILTER (WHERE use_rank = 1), 0)::float\n                 / sum(gpus) FILTER (WHERE use_rank <= 5) END AS useful_share\nFROM scope"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 1,
+          "noValue": "No GPU in a measured cluster",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "text": {
+          "titleSize": 14,
+          "valueSize": 40
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "id": 3,
+      "title": "Waste candidates (GPUs)",
+      "description": "Definition: GPUs now in 'Waste candidate' (NO_REAL_DEMAND, LOW_USE, OTHER_WORKLOAD, NO_WORKLOAD) plus 'Allocated, inactive' (PRODUCTIVE with the allocated_idle flag; the ledger still counts those as PRODUCTIVE).\nUnits: physical GPUs.\nFilters: site, cluster (cluster = the interval's cluster, else the cluster named in its evidence or NODE_CLAIM conflict; '(none)' when there is none).\nUnknown vs zero: 0 = measured clusters have no waste candidate now; no value = no GPU in a measured cluster. Candidates, not verdicts: headroom, failover and batch schedules need review before reclaiming (§8). Current state = intervals still open in the ledger (ended_at IS NULL), i.e. the result of the latest engine scan; 'Data age' shows how old it is.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 4,
+        "y": 1,
+        "w": 4,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH cur AS (\n  SELECT i.asset_id, i.category, i.reason_code, i.stage_owner, i.gpus, i.flags, i.holder_ref,\n         i.team, i.gpu_model, i.started_at, i.evidence,\n         coalesce(i.cluster, i.evidence->>'cluster', nc.cluster, i.evidence->>'cluster_name') AS cluster,\n         CASE\n           WHEN i.category = 'PRODUCTIVE' AND 'allocated_idle' = ANY (i.flags) THEN 2\n           WHEN i.category = 'PRODUCTIVE' THEN 1\n           WHEN i.reason_code IN ('NO_REAL_DEMAND', 'LOW_USE', 'NO_WORKLOAD', 'OTHER_WORKLOAD') THEN 3\n           WHEN i.cluster IS NOT NULL AND i.category = 'IDLE' THEN 4\n           WHEN i.cluster IS NOT NULL OR nc.cluster IS NOT NULL\n             OR i.reason_code IN ('CLUSTER_UNREACHABLE', 'NODE_NOT_FOUND') THEN 5\n           ELSE 6\n         END AS use_rank\n  FROM capacity_intervals i\n  JOIN assets a ON a.asset_id = i.asset_id\n  LEFT JOIN LATERAL (\n    SELECT split_part(c.key, '/', 1) AS cluster\n    FROM identity_conflicts c\n    WHERE i.reason_code = 'IDENTITY_CONFLICT' AND c.kind = 'NODE_CLAIM'\n      AND c.candidates @> jsonb_build_array(i.asset_id)\n    ORDER BY c.resolved_at IS NULL DESC, c.last_seen DESC\n    LIMIT 1\n  ) nc ON true\n  WHERE i.ended_at IS NULL\n    AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))\n), scope AS (\n  SELECT * FROM cur WHERE ('__all__' IN ($cluster) OR coalesce(cluster, '(none)') IN ($cluster))\n)\nSELECT CASE WHEN coalesce(sum(gpus) FILTER (WHERE use_rank <= 5), 0) = 0 THEN NULL\n            ELSE coalesce(sum(gpus) FILTER (WHERE use_rank IN (2, 3)), 0) END AS waste_gpus\nFROM scope"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "noValue": "No GPU in a measured cluster",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "orange"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "text": {
+          "titleSize": 14,
+          "valueSize": 40
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "id": 4,
+      "title": "Constrained or failed (GPUs)",
+      "description": "Definition: GPUs now on a matched node of a measured cluster that cannot do work: WORKLOAD_NOT_READY, GPU_MISSING, GPU_PLATFORM_NOT_READY, NODE_NOT_READY, NODE_UNSCHEDULABLE, or hardware critical on a not-Ready node.\nUnits: physical GPUs.\nFilters: site, cluster (cluster = the interval's cluster, else the cluster named in its evidence or NODE_CLAIM conflict; '(none)' when there is none).\nUnknown vs zero: 0 = none in measured clusters now; no value = no GPU in a measured cluster. Current state = intervals still open in the ledger (ended_at IS NULL), i.e. the result of the latest engine scan; 'Data age' shows how old it is.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 1,
+        "w": 4,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH cur AS (\n  SELECT i.asset_id, i.category, i.reason_code, i.stage_owner, i.gpus, i.flags, i.holder_ref,\n         i.team, i.gpu_model, i.started_at, i.evidence,\n         coalesce(i.cluster, i.evidence->>'cluster', nc.cluster, i.evidence->>'cluster_name') AS cluster,\n         CASE\n           WHEN i.category = 'PRODUCTIVE' AND 'allocated_idle' = ANY (i.flags) THEN 2\n           WHEN i.category = 'PRODUCTIVE' THEN 1\n           WHEN i.reason_code IN ('NO_REAL_DEMAND', 'LOW_USE', 'NO_WORKLOAD', 'OTHER_WORKLOAD') THEN 3\n           WHEN i.cluster IS NOT NULL AND i.category = 'IDLE' THEN 4\n           WHEN i.cluster IS NOT NULL OR nc.cluster IS NOT NULL\n             OR i.reason_code IN ('CLUSTER_UNREACHABLE', 'NODE_NOT_FOUND') THEN 5\n           ELSE 6\n         END AS use_rank\n  FROM capacity_intervals i\n  JOIN assets a ON a.asset_id = i.asset_id\n  LEFT JOIN LATERAL (\n    SELECT split_part(c.key, '/', 1) AS cluster\n    FROM identity_conflicts c\n    WHERE i.reason_code = 'IDENTITY_CONFLICT' AND c.kind = 'NODE_CLAIM'\n      AND c.candidates @> jsonb_build_array(i.asset_id)\n    ORDER BY c.resolved_at IS NULL DESC, c.last_seen DESC\n    LIMIT 1\n  ) nc ON true\n  WHERE i.ended_at IS NULL\n    AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))\n), scope AS (\n  SELECT * FROM cur WHERE ('__all__' IN ($cluster) OR coalesce(cluster, '(none)') IN ($cluster))\n)\nSELECT CASE WHEN coalesce(sum(gpus) FILTER (WHERE use_rank <= 5), 0) = 0 THEN NULL\n            ELSE coalesce(sum(gpus) FILTER (WHERE use_rank = 4), 0) END AS constrained_gpus\nFROM scope"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "noValue": "No GPU in a measured cluster",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "red"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "text": {
+          "titleSize": 14,
+          "valueSize": 40
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "id": 5,
+      "title": "Use unknown (GPUs)",
+      "description": "Definition: GPUs now in a measured cluster whose use cannot be determined: serving workloads with no request-counter series (TRAFFIC_UNOBSERVED), holders whose owner chain is unreadable (HOLDER_UNRESOLVED), servers with no matching node (NODE_NOT_FOUND), several servers claiming one node (NODE_CLAIM conflict) or a cluster read that failed (CLUSTER_UNREACHABLE).\nUnits: physical GPUs.\nFilters: site, cluster (cluster = the interval's cluster, else the cluster named in its evidence or NODE_CLAIM conflict; '(none)' when there is none).\nUnknown vs zero: these GPUs are never counted as useful or as waste. Current state = intervals still open in the ledger (ended_at IS NULL), i.e. the result of the latest engine scan; 'Data age' shows how old it is.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 1,
+        "w": 4,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH cur AS (\n  SELECT i.asset_id, i.category, i.reason_code, i.stage_owner, i.gpus, i.flags, i.holder_ref,\n         i.team, i.gpu_model, i.started_at, i.evidence,\n         coalesce(i.cluster, i.evidence->>'cluster', nc.cluster, i.evidence->>'cluster_name') AS cluster,\n         CASE\n           WHEN i.category = 'PRODUCTIVE' AND 'allocated_idle' = ANY (i.flags) THEN 2\n           WHEN i.category = 'PRODUCTIVE' THEN 1\n           WHEN i.reason_code IN ('NO_REAL_DEMAND', 'LOW_USE', 'NO_WORKLOAD', 'OTHER_WORKLOAD') THEN 3\n           WHEN i.cluster IS NOT NULL AND i.category = 'IDLE' THEN 4\n           WHEN i.cluster IS NOT NULL OR nc.cluster IS NOT NULL\n             OR i.reason_code IN ('CLUSTER_UNREACHABLE', 'NODE_NOT_FOUND') THEN 5\n           ELSE 6\n         END AS use_rank\n  FROM capacity_intervals i\n  JOIN assets a ON a.asset_id = i.asset_id\n  LEFT JOIN LATERAL (\n    SELECT split_part(c.key, '/', 1) AS cluster\n    FROM identity_conflicts c\n    WHERE i.reason_code = 'IDENTITY_CONFLICT' AND c.kind = 'NODE_CLAIM'\n      AND c.candidates @> jsonb_build_array(i.asset_id)\n    ORDER BY c.resolved_at IS NULL DESC, c.last_seen DESC\n    LIMIT 1\n  ) nc ON true\n  WHERE i.ended_at IS NULL\n    AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))\n), scope AS (\n  SELECT * FROM cur WHERE ('__all__' IN ($cluster) OR coalesce(cluster, '(none)') IN ($cluster))\n)\nSELECT CASE WHEN coalesce(sum(gpus) FILTER (WHERE use_rank <= 5), 0) = 0 THEN NULL\n            ELSE coalesce(sum(gpus) FILTER (WHERE use_rank = 5), 0) END AS unknown_gpus\nFROM scope"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "noValue": "No GPU in a measured cluster",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "purple"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "text": {
+          "titleSize": 14,
+          "valueSize": 40
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "id": 6,
+      "title": "Not measured (% of all GPUs)",
+      "description": "Definition: GPUs outside measured clusters divided by all GPUs in open intervals. Not measured = not in a cluster yet (DC/Redbull queue), installed in a cluster outside the target list (I7), in a target cluster with no clusters-file entry (CLUSTER_NOT_OBSERVED), excluded, or in an unknown state before cluster matching (stale source, identity, contested). 'Why GPUs are not measured' splits it.\nUnits: share of physical GPUs.\nFilters: site, cluster (cluster = the interval's cluster, else the cluster named in its evidence or NODE_CLAIM conflict; '(none)' when there is none).\nUnknown vs zero: GPU use is unmeasured for these GPUs, not zero; no value = no ledger data for this scope. Current state = intervals still open in the ledger (ended_at IS NULL), i.e. the result of the latest engine scan; 'Data age' shows how old it is.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 1,
+        "w": 4,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH cur AS (\n  SELECT i.asset_id, i.category, i.reason_code, i.stage_owner, i.gpus, i.flags, i.holder_ref,\n         i.team, i.gpu_model, i.started_at, i.evidence,\n         coalesce(i.cluster, i.evidence->>'cluster', nc.cluster, i.evidence->>'cluster_name') AS cluster,\n         CASE\n           WHEN i.category = 'PRODUCTIVE' AND 'allocated_idle' = ANY (i.flags) THEN 2\n           WHEN i.category = 'PRODUCTIVE' THEN 1\n           WHEN i.reason_code IN ('NO_REAL_DEMAND', 'LOW_USE', 'NO_WORKLOAD', 'OTHER_WORKLOAD') THEN 3\n           WHEN i.cluster IS NOT NULL AND i.category = 'IDLE' THEN 4\n           WHEN i.cluster IS NOT NULL OR nc.cluster IS NOT NULL\n             OR i.reason_code IN ('CLUSTER_UNREACHABLE', 'NODE_NOT_FOUND') THEN 5\n           ELSE 6\n         END AS use_rank\n  FROM capacity_intervals i\n  JOIN assets a ON a.asset_id = i.asset_id\n  LEFT JOIN LATERAL (\n    SELECT split_part(c.key, '/', 1) AS cluster\n    FROM identity_conflicts c\n    WHERE i.reason_code = 'IDENTITY_CONFLICT' AND c.kind = 'NODE_CLAIM'\n      AND c.candidates @> jsonb_build_array(i.asset_id)\n    ORDER BY c.resolved_at IS NULL DESC, c.last_seen DESC\n    LIMIT 1\n  ) nc ON true\n  WHERE i.ended_at IS NULL\n    AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))\n), scope AS (\n  SELECT * FROM cur WHERE ('__all__' IN ($cluster) OR coalesce(cluster, '(none)') IN ($cluster))\n)\nSELECT CASE WHEN count(*) = 0 THEN NULL\n            ELSE coalesce(sum(gpus) FILTER (WHERE use_rank = 6), 0)::float / sum(gpus) END AS not_measured_share\nFROM scope"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 1,
+          "noValue": "No ledger data for this scope",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "purple"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "text": {
+          "titleSize": 14,
+          "valueSize": 40
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "id": 7,
+      "title": "Data age (engine scan)",
+      "description": "Definition: now minus the finish time of the most recent 'ok' engine scan (scan_runs.kind = 'engine').\nUnits: duration. Colour: green under 20 min, orange from 20 min, red from 60 min; purple = never succeeded.\nFilters: none.\nUnknown vs zero: no successful engine scan shows no value, never an age of 0.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 20,
+        "y": 1,
+        "w": 4,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT extract(epoch FROM now() - max(finished_at)) AS age_s\nFROM scan_runs\nWHERE kind = 'engine' AND status = 'ok' AND finished_at IS NOT NULL"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 0,
+          "noValue": "No successful engine scan",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "purple",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "orange",
+                "value": 1200
+              },
+              {
+                "color": "red",
+                "value": 3600
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "text": {
+          "titleSize": 14,
+          "valueSize": 40
+        }
+      }
+    },
+    {
+      "type": "bargauge",
+      "id": 8,
+      "title": "Measured GPUs now, by use class",
+      "description": "Definition: GPUs in measured clusters split into mutually exclusive use classes (each GPU in exactly one). This is a current-state partition, not a funnel.\nUnits: physical GPUs.\nFilters: site, cluster (cluster = the interval's cluster, else the cluster named in its evidence or NODE_CLAIM conflict; '(none)' when there is none).\nUnknown vs zero: a 0 bar is a measured zero; the panel says 'No GPU in a measured cluster' when nothing is measured, and 'Use unknown' is never folded into the other classes. Current state = intervals still open in the ledger (ended_at IS NULL), i.e. the result of the latest engine scan; 'Data age' shows how old it is.\nUse classes (E12, AGENT.md §13): Useful work = PRODUCTIVE (Run:ai workload, or serving with genuine requests); Allocated, inactive = PRODUCTIVE but flagged allocated_idle (activity under the policy threshold for the policy window); Waste candidate = NO_REAL_DEMAND, LOW_USE, OTHER_WORKLOAD, NO_WORKLOAD; Constrained or failed = any other IDLE GPU on a matched node (WORKLOAD_NOT_READY, GPU_MISSING, GPU_PLATFORM_NOT_READY, NODE_NOT_READY, ...); Use unknown = in a measured cluster but the evidence is missing (TRAFFIC_UNOBSERVED, HOLDER_UNRESOLVED, NODE_NOT_FOUND, CLUSTER_UNREACHABLE, a NODE_CLAIM identity conflict); Not measured = everything else (not in a cluster yet, outside the target clusters, target cluster not configured, stale source).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 6,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH cur AS (\n  SELECT i.asset_id, i.category, i.reason_code, i.stage_owner, i.gpus, i.flags, i.holder_ref,\n         i.team, i.gpu_model, i.started_at, i.evidence,\n         coalesce(i.cluster, i.evidence->>'cluster', nc.cluster, i.evidence->>'cluster_name') AS cluster,\n         CASE\n           WHEN i.category = 'PRODUCTIVE' AND 'allocated_idle' = ANY (i.flags) THEN 2\n           WHEN i.category = 'PRODUCTIVE' THEN 1\n           WHEN i.reason_code IN ('NO_REAL_DEMAND', 'LOW_USE', 'NO_WORKLOAD', 'OTHER_WORKLOAD') THEN 3\n           WHEN i.cluster IS NOT NULL AND i.category = 'IDLE' THEN 4\n           WHEN i.cluster IS NOT NULL OR nc.cluster IS NOT NULL\n             OR i.reason_code IN ('CLUSTER_UNREACHABLE', 'NODE_NOT_FOUND') THEN 5\n           ELSE 6\n         END AS use_rank\n  FROM capacity_intervals i\n  JOIN assets a ON a.asset_id = i.asset_id\n  LEFT JOIN LATERAL (\n    SELECT split_part(c.key, '/', 1) AS cluster\n    FROM identity_conflicts c\n    WHERE i.reason_code = 'IDENTITY_CONFLICT' AND c.kind = 'NODE_CLAIM'\n      AND c.candidates @> jsonb_build_array(i.asset_id)\n    ORDER BY c.resolved_at IS NULL DESC, c.last_seen DESC\n    LIMIT 1\n  ) nc ON true\n  WHERE i.ended_at IS NULL\n    AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))\n), scope AS (\n  SELECT * FROM cur WHERE ('__all__' IN ($cluster) OR coalesce(cluster, '(none)') IN ($cluster))\n)\nSELECT coalesce(sum(gpus) FILTER (WHERE use_rank = 1), 0) AS \"Useful work\",\n       coalesce(sum(gpus) FILTER (WHERE use_rank = 2), 0) AS \"Allocated, inactive\",\n       coalesce(sum(gpus) FILTER (WHERE use_rank = 3), 0) AS \"Waste candidate\",\n       coalesce(sum(gpus) FILTER (WHERE use_rank = 4), 0) AS \"Constrained or failed\",\n       coalesce(sum(gpus) FILTER (WHERE use_rank = 5), 0) AS \"Use unknown\"\nFROM scope\nHAVING coalesce(sum(gpus) FILTER (WHERE use_rank <= 5), 0) > 0"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "min": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "noValue": "No GPU in a measured cluster"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Useful work"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Allocated, inactive"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Waste candidate"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Constrained or failed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Use unknown"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "purple"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "displayMode": "basic",
+        "orientation": "horizontal",
+        "valueMode": "color",
+        "namePlacement": "left",
+        "showUnfilled": true,
+        "sizing": "auto",
+        "minVizHeight": 16,
+        "minVizWidth": 8,
+        "maxVizHeight": 300,
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "legend": {
+          "showLegend": false,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "text": {
+          "titleSize": 13,
+          "valueSize": 16
+        }
+      }
+    },
+    {
+      "type": "bargauge",
+      "id": 9,
+      "title": "From allocation to useful work, GPUs now",
+      "description": "Definition: on Ready, GPU-ready nodes (GPU-level rows 15-22 of ADR-0002), how many GPUs pass each successive condition: healthy (not GPU_MISSING), held by a pod (not NO_WORKLOAD), held by a Ready pod (not WORKLOAD_NOT_READY), doing useful work (PRODUCTIVE: Run:ai workload, or serving with genuine requests), and useful without the allocated_idle flag. Each bar is a subset of the one above. The drop between 'Held by a Ready workload' and 'Useful work' is loaded models with no or low demand, other workloads and unknown traffic: a loaded model or busy hardware is not delivered value (§13).\nUnits: physical GPUs.\nFilters: site, cluster (cluster = the interval's cluster, else the cluster named in its evidence or NODE_CLAIM conflict; '(none)' when there is none).\nUnknown vs zero: TRAFFIC_UNOBSERVED and HOLDER_UNRESOLVED GPUs stay in 'Held' bars but never in 'Useful work'; 'No GPU on a GPU-ready node' when there is none. Per-GPU activity, memory pressure and SLO compliance are not in R1 (see the missing-input panels). Current state = intervals still open in the ledger (ended_at IS NULL), i.e. the result of the latest engine scan; 'Data age' shows how old it is.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 6,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH cur AS (\n  SELECT i.asset_id, i.category, i.reason_code, i.stage_owner, i.gpus, i.flags, i.holder_ref,\n         i.team, i.gpu_model, i.started_at, i.evidence,\n         coalesce(i.cluster, i.evidence->>'cluster', nc.cluster, i.evidence->>'cluster_name') AS cluster,\n         CASE\n           WHEN i.category = 'PRODUCTIVE' AND 'allocated_idle' = ANY (i.flags) THEN 2\n           WHEN i.category = 'PRODUCTIVE' THEN 1\n           WHEN i.reason_code IN ('NO_REAL_DEMAND', 'LOW_USE', 'NO_WORKLOAD', 'OTHER_WORKLOAD') THEN 3\n           WHEN i.cluster IS NOT NULL AND i.category = 'IDLE' THEN 4\n           WHEN i.cluster IS NOT NULL OR nc.cluster IS NOT NULL\n             OR i.reason_code IN ('CLUSTER_UNREACHABLE', 'NODE_NOT_FOUND') THEN 5\n           ELSE 6\n         END AS use_rank\n  FROM capacity_intervals i\n  JOIN assets a ON a.asset_id = i.asset_id\n  LEFT JOIN LATERAL (\n    SELECT split_part(c.key, '/', 1) AS cluster\n    FROM identity_conflicts c\n    WHERE i.reason_code = 'IDENTITY_CONFLICT' AND c.kind = 'NODE_CLAIM'\n      AND c.candidates @> jsonb_build_array(i.asset_id)\n    ORDER BY c.resolved_at IS NULL DESC, c.last_seen DESC\n    LIMIT 1\n  ) nc ON true\n  WHERE i.ended_at IS NULL\n    AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))\n), scope AS (\n  SELECT * FROM cur WHERE ('__all__' IN ($cluster) OR coalesce(cluster, '(none)') IN ($cluster))\n), g AS (\n  SELECT * FROM scope WHERE reason_code IN ('GPU_MISSING', 'HOLDER_UNRESOLVED', 'RUNAI_WORKLOAD', 'TRAFFIC_UNOBSERVED', 'SERVING_IN_USE', 'LOW_USE', 'NO_REAL_DEMAND', 'WORKLOAD_NOT_READY', 'OTHER_WORKLOAD', 'NO_WORKLOAD')\n)\nSELECT sum(gpus) AS \"On GPU-ready nodes\",\n       coalesce(sum(gpus) FILTER (WHERE reason_code <> 'GPU_MISSING'), 0) AS \"Healthy (allocatable, reporting)\",\n       coalesce(sum(gpus) FILTER (WHERE reason_code NOT IN ('GPU_MISSING', 'NO_WORKLOAD')), 0) AS \"Held by a workload\",\n       coalesce(sum(gpus) FILTER (WHERE reason_code NOT IN ('GPU_MISSING', 'NO_WORKLOAD', 'WORKLOAD_NOT_READY')), 0) AS \"Held by a Ready workload\",\n       coalesce(sum(gpus) FILTER (WHERE category = 'PRODUCTIVE'), 0) AS \"Useful work (Run:ai or genuine requests)\",\n       coalesce(sum(gpus) FILTER (WHERE use_rank = 1), 0) AS \"Useful, not flagged inactive\"\nFROM g\nHAVING count(*) > 0"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "min": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "noValue": "No GPU on a GPU-ready node"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Useful work (Run:ai or genuine requests)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Useful, not flagged inactive"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "displayMode": "basic",
+        "orientation": "horizontal",
+        "valueMode": "color",
+        "namePlacement": "left",
+        "showUnfilled": true,
+        "sizing": "auto",
+        "minVizHeight": 16,
+        "minVizWidth": 8,
+        "maxVizHeight": 300,
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "legend": {
+          "showLegend": false,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "text": {
+          "titleSize": 13,
+          "valueSize": 16
+        }
+      }
+    },
+    {
+      "type": "table",
+      "id": 10,
+      "title": "Why GPUs are not measured, now",
+      "description": "Definition: GPUs in the 'Not measured' class, grouped by why their use cannot be measured: not in a cluster yet (IDLE in the DC/Redbull queue: see Queues), installed in a cluster outside the target list (I7, NOT_CHARGED), a target cluster with no clusters-file entry (CLUSTER_NOT_OBSERVED), excluded or other intended use, or an unknown state before cluster matching (stale source, identity conflict, contested: see Evidence). 'See' opens Queues (pipeline waits, NOT_CHARGED count) or Evidence (unknown state).\nUnits: physical GPUs; share = GPUs / all GPUs in scope.\nFilters: site, cluster (cluster = the interval's cluster, else the cluster named in its evidence or NODE_CLAIM conflict; '(none)' when there is none).\nUnknown vs zero: not measured is not zero use; an empty table means every GPU in scope is in a measured cluster. Current state = intervals still open in the ledger (ended_at IS NULL), i.e. the result of the latest engine scan; 'Data age' shows how old it is.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 6,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH cur AS (\n  SELECT i.asset_id, i.category, i.reason_code, i.stage_owner, i.gpus, i.flags, i.holder_ref,\n         i.team, i.gpu_model, i.started_at, i.evidence,\n         coalesce(i.cluster, i.evidence->>'cluster', nc.cluster, i.evidence->>'cluster_name') AS cluster,\n         CASE\n           WHEN i.category = 'PRODUCTIVE' AND 'allocated_idle' = ANY (i.flags) THEN 2\n           WHEN i.category = 'PRODUCTIVE' THEN 1\n           WHEN i.reason_code IN ('NO_REAL_DEMAND', 'LOW_USE', 'NO_WORKLOAD', 'OTHER_WORKLOAD') THEN 3\n           WHEN i.cluster IS NOT NULL AND i.category = 'IDLE' THEN 4\n           WHEN i.cluster IS NOT NULL OR nc.cluster IS NOT NULL\n             OR i.reason_code IN ('CLUSTER_UNREACHABLE', 'NODE_NOT_FOUND') THEN 5\n           ELSE 6\n         END AS use_rank\n  FROM capacity_intervals i\n  JOIN assets a ON a.asset_id = i.asset_id\n  LEFT JOIN LATERAL (\n    SELECT split_part(c.key, '/', 1) AS cluster\n    FROM identity_conflicts c\n    WHERE i.reason_code = 'IDENTITY_CONFLICT' AND c.kind = 'NODE_CLAIM'\n      AND c.candidates @> jsonb_build_array(i.asset_id)\n    ORDER BY c.resolved_at IS NULL DESC, c.last_seen DESC\n    LIMIT 1\n  ) nc ON true\n  WHERE i.ended_at IS NULL\n    AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))\n), scope AS (\n  SELECT * FROM cur WHERE ('__all__' IN ($cluster) OR coalesce(cluster, '(none)') IN ($cluster))\n), nm AS (\n  SELECT CASE\n           WHEN reason_code = 'OUTSIDE_TARGET_CLUSTERS' THEN 'In a cluster outside the target list (I7)'\n           WHEN reason_code = 'CLUSTER_NOT_OBSERVED' THEN 'Target cluster not configured for reading'\n           WHEN category = 'IDLE' THEN 'Not in a cluster yet (pipeline queue)'\n           WHEN category = 'NOT_CHARGED' THEN 'Excluded or other intended use'\n           ELSE 'State unknown before cluster matching'\n         END AS why,\n         CASE WHEN category = 'UNKNOWN' THEN 'ttv-evidence' ELSE 'ttv-queues' END AS page,\n         gpus, asset_id\n  FROM scope\n  WHERE use_rank = 6\n)\nSELECT why AS \"Why not measured\",\n       sum(gpus) AS \"GPUs\",\n       sum(gpus)::float / (SELECT sum(gpus) FROM scope) AS \"Share of all GPUs\",\n       min(page) AS \"See\"\nFROM nm\nGROUP BY why\nORDER BY sum(gpus) DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          },
+          "noValue": "Every GPU in scope is in a measured cluster"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Why not measured"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto",
+                  "wrapText": true
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "GPUs"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "custom.width",
+                "value": 70
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Share of all GPUs"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "custom.width",
+                "value": 90
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "See"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 95
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "ttv-queues": {
+                        "text": "Queues →",
+                        "index": 0
+                      },
+                      "ttv-evidence": {
+                        "text": "Evidence →",
+                        "index": 1
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Open ${__value.text}",
+                    "url": "/d/${__value.raw}?${__url_time_range}",
+                    "targetBlank": false
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        },
+        "sortBy": []
+      }
+    },
+    {
+      "type": "table",
+      "id": 11,
+      "title": "Measured GPUs now, by use class and reason",
+      "description": "Definition: GPUs in measured clusters (use classes 1-5) grouped by use class, reason code and stage owner, with what each reason means. Classes are mutually exclusive per GPU, so GPUs add up to the measured total.\nUnits: physical GPUs; share = GPUs / measured GPUs.\nFilters: site, cluster (cluster = the interval's cluster, else the cluster named in its evidence or NODE_CLAIM conflict; '(none)' when there is none).\nUnknown vs zero: a reason absent from the table has 0 GPUs in measured clusters now; 'Use unknown' rows are kept visible, never folded into waste or useful work. Current state = intervals still open in the ledger (ended_at IS NULL), i.e. the result of the latest engine scan; 'Data age' shows how old it is.\nUse classes (E12, AGENT.md §13): Useful work = PRODUCTIVE (Run:ai workload, or serving with genuine requests); Allocated, inactive = PRODUCTIVE but flagged allocated_idle (activity under the policy threshold for the policy window); Waste candidate = NO_REAL_DEMAND, LOW_USE, OTHER_WORKLOAD, NO_WORKLOAD; Constrained or failed = any other IDLE GPU on a matched node (WORKLOAD_NOT_READY, GPU_MISSING, GPU_PLATFORM_NOT_READY, NODE_NOT_READY, ...); Use unknown = in a measured cluster but the evidence is missing (TRAFFIC_UNOBSERVED, HOLDER_UNRESOLVED, NODE_NOT_FOUND, CLUSTER_UNREACHABLE, a NODE_CLAIM identity conflict); Not measured = everything else (not in a cluster yet, outside the target clusters, target cluster not configured, stale source).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 14,
+        "w": 24,
+        "h": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH cur AS (\n  SELECT i.asset_id, i.category, i.reason_code, i.stage_owner, i.gpus, i.flags, i.holder_ref,\n         i.team, i.gpu_model, i.started_at, i.evidence,\n         coalesce(i.cluster, i.evidence->>'cluster', nc.cluster, i.evidence->>'cluster_name') AS cluster,\n         CASE\n           WHEN i.category = 'PRODUCTIVE' AND 'allocated_idle' = ANY (i.flags) THEN 2\n           WHEN i.category = 'PRODUCTIVE' THEN 1\n           WHEN i.reason_code IN ('NO_REAL_DEMAND', 'LOW_USE', 'NO_WORKLOAD', 'OTHER_WORKLOAD') THEN 3\n           WHEN i.cluster IS NOT NULL AND i.category = 'IDLE' THEN 4\n           WHEN i.cluster IS NOT NULL OR nc.cluster IS NOT NULL\n             OR i.reason_code IN ('CLUSTER_UNREACHABLE', 'NODE_NOT_FOUND') THEN 5\n           ELSE 6\n         END AS use_rank\n  FROM capacity_intervals i\n  JOIN assets a ON a.asset_id = i.asset_id\n  LEFT JOIN LATERAL (\n    SELECT split_part(c.key, '/', 1) AS cluster\n    FROM identity_conflicts c\n    WHERE i.reason_code = 'IDENTITY_CONFLICT' AND c.kind = 'NODE_CLAIM'\n      AND c.candidates @> jsonb_build_array(i.asset_id)\n    ORDER BY c.resolved_at IS NULL DESC, c.last_seen DESC\n    LIMIT 1\n  ) nc ON true\n  WHERE i.ended_at IS NULL\n    AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))\n), scope AS (\n  SELECT * FROM cur WHERE ('__all__' IN ($cluster) OR coalesce(cluster, '(none)') IN ($cluster))\n)\nSELECT CASE use_rank WHEN 1 THEN 'Useful work' WHEN 2 THEN 'Allocated, inactive' WHEN 3 THEN 'Waste candidate' WHEN 4 THEN 'Constrained or failed' WHEN 5 THEN 'Use unknown' ELSE 'Not measured' END AS \"Use class\",\n       reason_code AS \"Reason\",\n       CASE reason_code\n  WHEN 'SERVING_IN_USE' THEN 'Serving workload with genuine requests in the demand window'\n  WHEN 'RUNAI_WORKLOAD' THEN 'Run:ai training, inference or deployment workload (productive by presence)'\n  WHEN 'LOW_USE' THEN 'Genuine requests below the approved useful-use threshold (I2)'\n  WHEN 'NO_REAL_DEMAND' THEN 'Model loaded and Ready, zero genuine requests'\n  WHEN 'OTHER_WORKLOAD' THEN 'Held by a pod that is neither Run:ai nor serving'\n  WHEN 'NO_WORKLOAD' THEN 'Healthy GPUs that no pod holds'\n  WHEN 'WORKLOAD_NOT_READY' THEN 'Holding pod not Ready beyond warm-up (crash loop, stuck load)'\n  WHEN 'GPU_MISSING' THEN 'GPUs in inventory but not allocatable or not reporting DCGM'\n  WHEN 'GPU_PLATFORM_NOT_READY' THEN 'Node Ready, GPU platform not (no allocatable GPU or no DCGM)'\n  WHEN 'NODE_NOT_READY' THEN 'Node not Ready'\n  WHEN 'NODE_UNSCHEDULABLE' THEN 'Node cordoned'\n  WHEN 'HARDWARE_CRITICAL' THEN 'Hardware critical'\n  WHEN 'BMC_UNREACHABLE' THEN 'BMC unreachable'\n  WHEN 'TRAFFIC_UNOBSERVED' THEN 'Serving workload whose request counter has no series'\n  WHEN 'HOLDER_UNRESOLVED' THEN 'Holding pod whose owner chain could not be read'\n  WHEN 'NODE_NOT_FOUND' THEN 'No cluster node matches the server'\n  WHEN 'CLUSTER_UNREACHABLE' THEN 'Cluster read failed beyond grace'\n  WHEN 'IDENTITY_CONFLICT' THEN 'Several assets claim the same node'\n  ELSE reason_code\nEND AS \"What it means\",\n       coalesce(stage_owner, '—') AS \"Stage owner\",\n       sum(gpus) AS \"GPUs\",\n       count(DISTINCT asset_id) AS \"Assets\",\n       sum(gpus)::float / sum(sum(gpus)) OVER () AS \"Share of measured GPUs\"\nFROM scope\nWHERE use_rank <= 5\nGROUP BY use_rank, reason_code, stage_owner\nORDER BY use_rank, sum(gpus) DESC, array_position(ARRAY['DC', 'Redbull', 'POPAI', 'Serving'], stage_owner), reason_code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          },
+          "noValue": "No GPU in a measured cluster"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Use class"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "Useful work": {
+                        "color": "green",
+                        "index": 0
+                      },
+                      "Allocated, inactive": {
+                        "color": "orange",
+                        "index": 1
+                      },
+                      "Waste candidate": {
+                        "color": "orange",
+                        "index": 2
+                      },
+                      "Constrained or failed": {
+                        "color": "red",
+                        "index": 3
+                      },
+                      "Use unknown": {
+                        "color": "purple",
+                        "index": 4
+                      },
+                      "Not measured": {
+                        "color": "purple",
+                        "index": 5
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.width",
+                "value": 170
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Reason"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 200
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Stage owner"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 105
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "GPUs"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "custom.width",
+                "value": 80
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Assets"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "custom.width",
+                "value": 80
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Share of measured GPUs"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "custom.width",
+                "value": 170
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        },
+        "sortBy": []
+      }
+    },
+    {
+      "type": "row",
+      "id": 12,
+      "title": "Now: by cluster, team and workload",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 24
+      },
+      "panels": []
+    },
+    {
+      "type": "table",
+      "id": 13,
+      "title": "Clusters: is GPU use measured there?",
+      "description": "Definition: GPUs now per cluster. A target cluster the engine reads is 'Measured' (its GPUs are split into use classes); 'Read failed' = its kube API or Thanos failed beyond grace; 'Target, not configured' = a target cluster with no clusters-file entry (CLUSTER_NOT_OBSERVED); clusters outside the target list (I7) are summed into one row. GPUs not in any cluster are not listed (see 'Why GPUs are not measured').\nUnits: physical GPUs; useful share = useful work / GPUs in measured classes.\nFilters: site, cluster (cluster = the interval's cluster, else the cluster named in its evidence or NODE_CLAIM conflict; '(none)' when there is none).\nUnknown vs zero: '—' = not measured there, never 0. Current state = intervals still open in the ledger (ended_at IS NULL), i.e. the result of the latest engine scan; 'Data age' shows how old it is.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 25,
+        "w": 16,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH cur AS (\n  SELECT i.asset_id, i.category, i.reason_code, i.stage_owner, i.gpus, i.flags, i.holder_ref,\n         i.team, i.gpu_model, i.started_at, i.evidence,\n         coalesce(i.cluster, i.evidence->>'cluster', nc.cluster, i.evidence->>'cluster_name') AS cluster,\n         CASE\n           WHEN i.category = 'PRODUCTIVE' AND 'allocated_idle' = ANY (i.flags) THEN 2\n           WHEN i.category = 'PRODUCTIVE' THEN 1\n           WHEN i.reason_code IN ('NO_REAL_DEMAND', 'LOW_USE', 'NO_WORKLOAD', 'OTHER_WORKLOAD') THEN 3\n           WHEN i.cluster IS NOT NULL AND i.category = 'IDLE' THEN 4\n           WHEN i.cluster IS NOT NULL OR nc.cluster IS NOT NULL\n             OR i.reason_code IN ('CLUSTER_UNREACHABLE', 'NODE_NOT_FOUND') THEN 5\n           ELSE 6\n         END AS use_rank\n  FROM capacity_intervals i\n  JOIN assets a ON a.asset_id = i.asset_id\n  LEFT JOIN LATERAL (\n    SELECT split_part(c.key, '/', 1) AS cluster\n    FROM identity_conflicts c\n    WHERE i.reason_code = 'IDENTITY_CONFLICT' AND c.kind = 'NODE_CLAIM'\n      AND c.candidates @> jsonb_build_array(i.asset_id)\n    ORDER BY c.resolved_at IS NULL DESC, c.last_seen DESC\n    LIMIT 1\n  ) nc ON true\n  WHERE i.ended_at IS NULL\n    AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))\n), scope AS (\n  SELECT * FROM cur WHERE ('__all__' IN ($cluster) OR coalesce(cluster, '(none)') IN ($cluster))\n), c AS (\n  SELECT CASE WHEN bool_or(use_rank <= 5) OR bool_or(reason_code = 'CLUSTER_NOT_OBSERVED') THEN cluster\n         END AS grp,\n         cluster,\n         bool_or(reason_code = 'CLUSTER_UNREACHABLE') AS unreachable,\n         bool_or(use_rank <= 5) AS measured,\n         bool_or(reason_code = 'CLUSTER_NOT_OBSERVED') AS not_configured,\n         sum(gpus) AS gpus,\n         sum(gpus) FILTER (WHERE use_rank = 1) AS useful,\n         sum(gpus) FILTER (WHERE use_rank IN (2, 3)) AS waste,\n         sum(gpus) FILTER (WHERE use_rank = 4) AS constrained,\n         sum(gpus) FILTER (WHERE use_rank = 5) AS unknown,\n         sum(gpus) FILTER (WHERE use_rank <= 5) AS measured_gpus\n  FROM scope\n  WHERE cluster IS NOT NULL\n    AND (use_rank <= 5 OR reason_code IN ('CLUSTER_NOT_OBSERVED', 'OUTSIDE_TARGET_CLUSTERS'))\n  GROUP BY cluster\n)\nSELECT CASE WHEN grp IS NULL\n            THEN count(*) || CASE WHEN count(*) = 1 THEN ' cluster' ELSE ' clusters' END || ' outside the target list'\n            ELSE min(cluster) END AS \"Cluster\",\n       CASE WHEN bool_or(unreachable) THEN 'Read failed: use unknown'\n            WHEN bool_or(measured) THEN 'Measured'\n            WHEN bool_or(not_configured) THEN 'Target, not configured'\n            ELSE 'Outside target list (I7)' END AS \"Use measured?\",\n       sum(gpus) AS \"GPUs\",\n       CASE WHEN bool_or(measured) THEN coalesce(sum(useful), 0) END AS \"Useful work\",\n       CASE WHEN bool_or(measured) THEN coalesce(sum(waste), 0) END AS \"Waste candidates\",\n       CASE WHEN bool_or(measured) THEN coalesce(sum(constrained), 0) END AS \"Constrained\",\n       CASE WHEN bool_or(measured) THEN coalesce(sum(unknown), 0) END AS \"Use unknown\",\n       CASE WHEN bool_or(measured) THEN coalesce(sum(useful), 0)::float / sum(measured_gpus) END AS \"Useful share\"\nFROM c\nGROUP BY grp\nORDER BY CASE WHEN bool_or(unreachable) THEN 2 WHEN bool_or(measured) THEN 1 WHEN bool_or(not_configured) THEN 3 ELSE 4 END,\n         sum(gpus) DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          },
+          "noValue": "No GPU is in a cluster for this scope"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Cluster"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 200
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Use measured?"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "Measured": {
+                        "color": "green",
+                        "index": 0
+                      },
+                      "Read failed: use unknown": {
+                        "color": "purple",
+                        "index": 1
+                      },
+                      "Target, not configured": {
+                        "color": "purple",
+                        "index": 2
+                      },
+                      "Outside target list (I7)": {
+                        "color": "blue",
+                        "index": 3
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.width",
+                "value": 175
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "GPUs"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "custom.width",
+                "value": 70
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Useful work"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "noValue",
+                "value": "—"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Waste candidates"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "noValue",
+                "value": "—"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Constrained"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "noValue",
+                "value": "—"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Use unknown"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "noValue",
+                "value": "—"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Useful share"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "noValue",
+                "value": "—"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        },
+        "sortBy": []
+      }
+    },
+    {
+      "type": "barchart",
+      "id": 14,
+      "title": "GPUs on GPU-ready nodes, by team or namespace",
+      "description": "Definition: GPUs now on Ready, GPU-ready nodes (rows 15-22), stacked by use class, per consuming team. The team comes from team_map and is set on productive GPUs only (unmapped = 'unassigned'); idle holders show their namespace ('ns: ...'); GPUs nobody holds show as '(no workload)'. Top 15, most waste first.\nUnits: physical GPUs.\nFilters: site, cluster (cluster = the interval's cluster, else the cluster named in its evidence or NODE_CLAIM conflict; '(none)' when there is none).\nUnknown vs zero: 'Use unknown' segments are GPUs whose demand or holder could not be read, never waste or useful work. Current state = intervals still open in the ledger (ended_at IS NULL), i.e. the result of the latest engine scan; 'Data age' shows how old it is.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 25,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH cur AS (\n  SELECT i.asset_id, i.category, i.reason_code, i.stage_owner, i.gpus, i.flags, i.holder_ref,\n         i.team, i.gpu_model, i.started_at, i.evidence,\n         coalesce(i.cluster, i.evidence->>'cluster', nc.cluster, i.evidence->>'cluster_name') AS cluster,\n         CASE\n           WHEN i.category = 'PRODUCTIVE' AND 'allocated_idle' = ANY (i.flags) THEN 2\n           WHEN i.category = 'PRODUCTIVE' THEN 1\n           WHEN i.reason_code IN ('NO_REAL_DEMAND', 'LOW_USE', 'NO_WORKLOAD', 'OTHER_WORKLOAD') THEN 3\n           WHEN i.cluster IS NOT NULL AND i.category = 'IDLE' THEN 4\n           WHEN i.cluster IS NOT NULL OR nc.cluster IS NOT NULL\n             OR i.reason_code IN ('CLUSTER_UNREACHABLE', 'NODE_NOT_FOUND') THEN 5\n           ELSE 6\n         END AS use_rank\n  FROM capacity_intervals i\n  JOIN assets a ON a.asset_id = i.asset_id\n  LEFT JOIN LATERAL (\n    SELECT split_part(c.key, '/', 1) AS cluster\n    FROM identity_conflicts c\n    WHERE i.reason_code = 'IDENTITY_CONFLICT' AND c.kind = 'NODE_CLAIM'\n      AND c.candidates @> jsonb_build_array(i.asset_id)\n    ORDER BY c.resolved_at IS NULL DESC, c.last_seen DESC\n    LIMIT 1\n  ) nc ON true\n  WHERE i.ended_at IS NULL\n    AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))\n), scope AS (\n  SELECT * FROM cur WHERE ('__all__' IN ($cluster) OR coalesce(cluster, '(none)') IN ($cluster))\n)\nSELECT coalesce(team, 'ns: ' || nullif(split_part(holder_ref, '/', 1), ''), '(no workload)') AS \"Team or namespace\",\n       coalesce(sum(gpus) FILTER (WHERE use_rank = 1), 0) AS \"Useful work\",\n       coalesce(sum(gpus) FILTER (WHERE use_rank = 2), 0) AS \"Allocated, inactive\",\n       coalesce(sum(gpus) FILTER (WHERE use_rank = 3), 0) AS \"Waste candidate\",\n       coalesce(sum(gpus) FILTER (WHERE use_rank = 4), 0) AS \"Constrained or failed\",\n       coalesce(sum(gpus) FILTER (WHERE use_rank = 5), 0) AS \"Use unknown\"\nFROM scope\nWHERE reason_code IN ('GPU_MISSING', 'HOLDER_UNRESOLVED', 'RUNAI_WORKLOAD', 'TRAFFIC_UNOBSERVED', 'SERVING_IN_USE', 'LOW_USE', 'NO_REAL_DEMAND', 'WORKLOAD_NOT_READY', 'OTHER_WORKLOAD', 'NO_WORKLOAD')\nGROUP BY 1\nORDER BY sum(gpus) FILTER (WHERE use_rank IN (2, 3)) DESC NULLS LAST, sum(gpus) DESC, 1\nLIMIT 15"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "min": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "noValue": "No GPU on a GPU-ready node",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "axisPlacement": "auto",
+            "axisLabel": "",
+            "axisCenteredZero": false,
+            "axisSoftMin": 0,
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Useful work"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Allocated, inactive"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Waste candidate"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Constrained or failed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Use unknown"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "purple"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "orientation": "horizontal",
+        "xField": "Team or namespace",
+        "stacking": "normal",
+        "showValue": "auto",
+        "groupWidth": 0.7,
+        "barWidth": 0.9,
+        "barRadius": 0,
+        "fullHighlight": false,
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0,
+        "colorByField": null,
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "type": "table",
+      "id": 15,
+      "title": "Workloads holding GPUs now",
+      "description": "Definition: one row per open interval held by a workload (holder_ref = the pod's top owner, namespace/Kind/name) in measured clusters, with its use class, the genuine-request rate of its counter of record and the evidence behind the reason. Sorted: waste candidates, allocated-inactive, constrained, unknown, then useful work; top 100.\nUnits: GPUs; requests per GPU-hour = increase(counter of record over the demand window) / (GPUs the deployment holds x window hours), one counter per logical deployment (never summed across gateway, frontend and workers).\nFilters: site, cluster (cluster = the interval's cluster, else the cluster named in its evidence or NODE_CLAIM conflict; '(none)' when there is none).\nUnknown vs zero: '—' requests = not a serving reason or demand not observed (TRAFFIC_UNOBSERVED says so in the evidence), never 0. Flag 'synthetic traffic not excluded' = requests may include probes (user attribution unverified, §7). Current state = intervals still open in the ledger (ended_at IS NULL), i.e. the result of the latest engine scan; 'Data age' shows how old it is.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 33,
+        "w": 24,
+        "h": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH cur AS (\n  SELECT i.asset_id, i.category, i.reason_code, i.stage_owner, i.gpus, i.flags, i.holder_ref,\n         i.team, i.gpu_model, i.started_at, i.evidence,\n         coalesce(i.cluster, i.evidence->>'cluster', nc.cluster, i.evidence->>'cluster_name') AS cluster,\n         CASE\n           WHEN i.category = 'PRODUCTIVE' AND 'allocated_idle' = ANY (i.flags) THEN 2\n           WHEN i.category = 'PRODUCTIVE' THEN 1\n           WHEN i.reason_code IN ('NO_REAL_DEMAND', 'LOW_USE', 'NO_WORKLOAD', 'OTHER_WORKLOAD') THEN 3\n           WHEN i.cluster IS NOT NULL AND i.category = 'IDLE' THEN 4\n           WHEN i.cluster IS NOT NULL OR nc.cluster IS NOT NULL\n             OR i.reason_code IN ('CLUSTER_UNREACHABLE', 'NODE_NOT_FOUND') THEN 5\n           ELSE 6\n         END AS use_rank\n  FROM capacity_intervals i\n  JOIN assets a ON a.asset_id = i.asset_id\n  LEFT JOIN LATERAL (\n    SELECT split_part(c.key, '/', 1) AS cluster\n    FROM identity_conflicts c\n    WHERE i.reason_code = 'IDENTITY_CONFLICT' AND c.kind = 'NODE_CLAIM'\n      AND c.candidates @> jsonb_build_array(i.asset_id)\n    ORDER BY c.resolved_at IS NULL DESC, c.last_seen DESC\n    LIMIT 1\n  ) nc ON true\n  WHERE i.ended_at IS NULL\n    AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))\n), scope AS (\n  SELECT * FROM cur WHERE ('__all__' IN ($cluster) OR coalesce(cluster, '(none)') IN ($cluster))\n)\nSELECT i.holder_ref AS \"Workload\",\n       i.cluster AS \"Cluster\",\n       i.asset_id AS \"Asset\",\n       CASE i.use_rank WHEN 1 THEN 'Useful work' WHEN 2 THEN 'Allocated, inactive' WHEN 3 THEN 'Waste candidate' WHEN 4 THEN 'Constrained or failed' WHEN 5 THEN 'Use unknown' ELSE 'Not measured' END AS \"Use class\",\n       i.reason_code AS \"Reason\",\n       i.gpus AS \"GPUs\",\n       CASE WHEN i.reason_code IN ('SERVING_IN_USE', 'LOW_USE', 'NO_REAL_DEMAND')\n            THEN (i.evidence->>'requests_per_gpu_hour')::float END AS \"Requests / GPU-h\",\n       CASE i.reason_code\n  WHEN 'SERVING_IN_USE' THEN format('%s genuine requests in %s h = %s per GPU-hour (counter %s)',\n       trim_scale(round((i.evidence->>'requests')::numeric, 1)), trim_scale((i.evidence->>'window_hours')::numeric),\n       trim_scale(round((i.evidence->>'requests_per_gpu_hour')::numeric, 1)), i.evidence->>'counter')\n  WHEN 'LOW_USE' THEN format('%s requests per GPU-hour, below the approved threshold %s (counter %s)',\n       trim_scale(round((i.evidence->>'requests_per_gpu_hour')::numeric, 1)), i.evidence->>'threshold', i.evidence->>'counter')\n  WHEN 'NO_REAL_DEMAND' THEN format('Loaded and Ready, 0 genuine requests in %s h (counter %s)',\n       trim_scale((i.evidence->>'window_hours')::numeric), i.evidence->>'counter')\n  WHEN 'TRAFFIC_UNOBSERVED' THEN 'Serving workload with no series for its request counter ('\n       || coalesce(translate((i.evidence->'tried')::text, '[]\"', ''), 'none') || '): demand unknown'\n  WHEN 'RUNAI_WORKLOAD' THEN 'Run:ai ' || coalesce(i.evidence->>'runai_kind', '') || ' workload: productive by presence'\n  WHEN 'WORKLOAD_NOT_READY' THEN 'Pod not Ready beyond warm-up'\n       || coalesce(': ' || translate((i.evidence->'waiting')::text, '[]\"', ''), '')\n  WHEN 'OTHER_WORKLOAD' THEN 'Held by a pod that is neither Run:ai nor serving (notebook, benchmark, debug ...)'\n  WHEN 'NO_WORKLOAD' THEN 'Healthy GPUs that no pod holds'\n  WHEN 'HOLDER_UNRESOLVED' THEN 'Held by a pod whose owner chain could not be read'\n  WHEN 'GPU_MISSING' THEN format('Inventory %s GPUs, allocatable %s, reporting DCGM %s', i.evidence->>'E', i.evidence->>'A', i.evidence->>'R')\n       || coalesce('; last XID ' || nullif(replace(translate((i.evidence->'last_xid')::text, '{}\"', ''), '.0', ''), ''), '')\n  WHEN 'GPU_PLATFORM_NOT_READY' THEN format('Node %s: allocatable %s, reporting DCGM %s', i.evidence->>'node', i.evidence->>'A', i.evidence->>'R')\n  WHEN 'NODE_NOT_READY' THEN 'Node ' || coalesce(i.evidence->>'node', '?') || ' is not Ready'\n  WHEN 'NODE_UNSCHEDULABLE' THEN 'Node ' || coalesce(i.evidence->>'node', '?') || ' is cordoned (unschedulable)'\n  WHEN 'NODE_NOT_FOUND' THEN format('No node named %s in cluster %s', i.evidence->>'node_name', i.evidence->>'cluster')\n  WHEN 'CLUSTER_UNREACHABLE' THEN 'Cluster ' || coalesce(i.evidence->>'cluster_name', '?') || ': kube API or Thanos unreachable beyond grace'\n  WHEN 'CLUSTER_NOT_OBSERVED' THEN 'Target cluster ' || coalesce(i.evidence->>'cluster_name', '?') || ' is not configured for reading'\n  WHEN 'OUTSIDE_TARGET_CLUSTERS' THEN 'Installed in ' || coalesce(i.evidence->>'cluster_name', '?') || ', not a target cluster'\n  WHEN 'NOT_IN_CLUSTER' THEN 'Not installed in a cluster yet (server-scan lifecycle AVAILABLE)'\n  WHEN 'IN_MCE_INVENTORY' THEN 'In MCE inventory ' || coalesce(i.evidence->>'mce_name', '') || ', not installed yet'\n  WHEN 'MEMBERSHIP_UNKNOWN' THEN 'OpenShift membership unknown (lifecycle ' || coalesce(i.evidence->>'lifecycle_state', 'missing') || ')'\n  WHEN 'IDENTITY_CONFLICT' THEN coalesce(i.evidence->>'conflict', 'Identity conflict')\n  WHEN 'CONTESTED' THEN 'Cluster claim contested with ' || coalesce(i.evidence->>'contested_with', '?')\n  WHEN 'SOURCE_STALE' THEN 'Inventory source stale or failing'\n       || CASE WHEN (i.evidence->>'record_stale')::boolean THEN ' (server-scan marks the record stale)' ELSE '' END\n  WHEN 'HARDWARE_CRITICAL' THEN 'Hardware health ' || coalesce(i.evidence->>'health_overall', '?')\n       || CASE WHEN i.evidence->>'reachable' = 'false' THEN ', BMC unreachable' ELSE '' END\n  WHEN 'BMC_UNREACHABLE' THEN 'BMC unreachable'\n  WHEN 'MAINTENANCE' THEN 'In maintenance' || coalesce(': ' || (i.evidence->>'maintenance_reason'), '')\n  WHEN 'PROFILE_NONE' THEN 'No server profile bound (manager ' || coalesce(i.evidence->>'manager', '?') || ')'\n  WHEN 'OTHER_INTENDED_USE' THEN 'Profile ' || coalesce(i.evidence->>'profile_name', '?') || ' is not an OCP profile'\n  WHEN 'HANDOVER_PENDING' THEN 'OCP profile ' || coalesce(i.evidence->>'profile_name', '?') || ' applied, not in server-scan yet'\n  WHEN 'EXCLUDED' THEN 'Excluded by configuration'\n  ELSE i.reason_code\nEND AS \"Demand and readiness evidence\",\n       nullif(array_to_string(ARRAY(\n  SELECT CASE f\n    WHEN 'allocated_idle' THEN 'allocated, inactive (activity under the policy threshold)'\n    WHEN 'low_use_unverified' THEN 'useful-use threshold (I2) not approved'\n    WHEN 'user_attribution_unverified' THEN 'synthetic traffic not excluded'\n    WHEN 'hardware_critical' THEN 'hardware critical'\n    WHEN 'bmc_unreachable' THEN 'BMC unreachable'\n    WHEN 'handover_overdue' THEN 'handover overdue'\n    ELSE f END\n  FROM unnest(i.flags) AS f), '; '), '') AS \"Flags\",\n       i.started_at AS \"In this state since\"\nFROM scope i\nWHERE i.holder_ref IS NOT NULL\nORDER BY array_position(ARRAY[3, 2, 4, 5, 1], i.use_rank), i.gpus DESC, i.holder_ref, i.asset_id\nLIMIT 100"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          },
+          "noValue": "No workload holds a GPU in a measured cluster"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Workload"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 230
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Cluster"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 80
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Asset"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 150
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Open asset ${__value.raw}",
+                    "url": "/d/ttv-asset?var-asset_id=${__value.raw}&${__url_time_range}",
+                    "targetBlank": false
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Use class"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "Useful work": {
+                        "color": "green",
+                        "index": 0
+                      },
+                      "Allocated, inactive": {
+                        "color": "orange",
+                        "index": 1
+                      },
+                      "Waste candidate": {
+                        "color": "orange",
+                        "index": 2
+                      },
+                      "Constrained or failed": {
+                        "color": "red",
+                        "index": 3
+                      },
+                      "Use unknown": {
+                        "color": "purple",
+                        "index": 4
+                      },
+                      "Not measured": {
+                        "color": "purple",
+                        "index": 5
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.width",
+                "value": 140
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Reason"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 165
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "GPUs"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "custom.width",
+                "value": 55
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Requests / GPU-h"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "custom.width",
+                "value": 105
+              },
+              {
+                "id": "noValue",
+                "value": "—"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Demand and readiness evidence"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto",
+                  "wrapText": true
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Flags"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 165
+              },
+              {
+                "id": "noValue",
+                "value": "—"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto",
+                  "wrapText": true
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "In this state since"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsIso"
+              },
+              {
+                "id": "custom.width",
+                "value": 150
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        },
+        "sortBy": []
+      }
+    },
+    {
+      "type": "row",
+      "id": 16,
+      "title": "Selected period: use over time and GPU-hours",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 43
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "id": 17,
+      "title": "Measured GPUs by use class over time",
+      "description": "Definition: GPUs in each use class at each sample time, for measured clusters (classes as in 'Measured GPUs now, by use class').\nUnits: physical GPUs.\nFilters: site, cluster (cluster = the interval's cluster, else the cluster named in its evidence or NODE_CLAIM conflict; '(none)' when there is none).\nSampling: the ledger's intervals are sampled on a grid of max($__interval, 1 min) across the range (an interval counts at time t when started_at <= t < ended_at), never by summing interval rows. A state shorter than the grid step can fall between samples.\nUnknown vs zero: a gap = no GPU in a measured cluster at that time (or no ledger data yet), never 0. Time before the first engine observation is not drawn.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 44,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "WITH iv AS (\n  SELECT i.asset_id, i.category, i.reason_code, i.stage_owner, i.gpus, i.started_at, i.ended_at,\n         coalesce(i.cluster, i.evidence->>'cluster', nc.cluster, i.evidence->>'cluster_name') AS cluster,\n         CASE\n           WHEN i.category = 'PRODUCTIVE' AND 'allocated_idle' = ANY (i.flags) THEN 2\n           WHEN i.category = 'PRODUCTIVE' THEN 1\n           WHEN i.reason_code IN ('NO_REAL_DEMAND', 'LOW_USE', 'NO_WORKLOAD', 'OTHER_WORKLOAD') THEN 3\n           WHEN i.cluster IS NOT NULL AND i.category = 'IDLE' THEN 4\n           WHEN i.cluster IS NOT NULL OR nc.cluster IS NOT NULL\n             OR i.reason_code IN ('CLUSTER_UNREACHABLE', 'NODE_NOT_FOUND') THEN 5\n           ELSE 6\n         END AS use_rank\n  FROM capacity_intervals i\n  JOIN assets a ON a.asset_id = i.asset_id\n  LEFT JOIN LATERAL (\n    SELECT split_part(c.key, '/', 1) AS cluster\n    FROM identity_conflicts c\n    WHERE i.reason_code = 'IDENTITY_CONFLICT' AND c.kind = 'NODE_CLAIM'\n      AND c.candidates @> jsonb_build_array(i.asset_id)\n    ORDER BY c.resolved_at IS NULL DESC, c.last_seen DESC\n    LIMIT 1\n  ) nc ON true\n  WHERE i.started_at < $__timeTo()\n    AND (i.ended_at IS NULL OR i.ended_at > $__timeFrom())\n    AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))\n), scope AS (\n  SELECT * FROM iv WHERE ('__all__' IN ($cluster) OR coalesce(cluster, '(none)') IN ($cluster))\n), s AS (\n  SELECT t, i.use_rank, i.gpus\n  FROM generate_series($__timeFrom()::timestamptz, $__timeTo()::timestamptz, make_interval(secs => greatest($__interval_ms, 60000) / 1000.0)) AS t\n  JOIN scope i ON i.started_at <= t AND (i.ended_at IS NULL OR i.ended_at > t)\n)\nSELECT t AS time,\n       CASE WHEN sum(gpus) FILTER (WHERE use_rank <= 5) IS NULL THEN NULL ELSE coalesce(sum(gpus) FILTER (WHERE use_rank = 1), 0) END AS \"Useful work\", CASE WHEN sum(gpus) FILTER (WHERE use_rank <= 5) IS NULL THEN NULL ELSE coalesce(sum(gpus) FILTER (WHERE use_rank = 2), 0) END AS \"Allocated, inactive\", CASE WHEN sum(gpus) FILTER (WHERE use_rank <= 5) IS NULL THEN NULL ELSE coalesce(sum(gpus) FILTER (WHERE use_rank = 3), 0) END AS \"Waste candidate\", CASE WHEN sum(gpus) FILTER (WHERE use_rank <= 5) IS NULL THEN NULL ELSE coalesce(sum(gpus) FILTER (WHERE use_rank = 4), 0) END AS \"Constrained or failed\", CASE WHEN sum(gpus) FILTER (WHERE use_rank <= 5) IS NULL THEN NULL ELSE coalesce(sum(gpus) FILTER (WHERE use_rank = 5), 0) END AS \"Use unknown\"\nFROM s\nGROUP BY t\nORDER BY t"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "noValue": "No ledger data in the time range",
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "stepAfter",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "showPoints": "never",
+            "pointSize": 4,
+            "spanNulls": false,
+            "insertNulls": false,
+            "axisPlacement": "auto",
+            "axisLabel": "",
+            "axisSoftMin": 0,
+            "axisCenteredZero": false,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "barAlignment": 0
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Useful work"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Allocated, inactive"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Waste candidate"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Constrained or failed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Use unknown"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "purple"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 18,
+      "title": "Useful-work share and not-measured share over time",
+      "description": "Definition: at each sample time, Useful work / GPUs in measured clusters (green), and Not measured / all GPUs (purple). The two shares have different denominators and are never added.\nUnits: share of physical GPUs.\nFilters: site, cluster (cluster = the interval's cluster, else the cluster named in its evidence or NODE_CLAIM conflict; '(none)' when there is none).\nSampling: the ledger's intervals are sampled on a grid of max($__interval, 1 min) across the range (an interval counts at time t when started_at <= t < ended_at), never by summing interval rows. A state shorter than the grid step can fall between samples.\nUnknown vs zero: the green line has a gap where no GPU is measured, never 0%.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 44,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "WITH iv AS (\n  SELECT i.asset_id, i.category, i.reason_code, i.stage_owner, i.gpus, i.started_at, i.ended_at,\n         coalesce(i.cluster, i.evidence->>'cluster', nc.cluster, i.evidence->>'cluster_name') AS cluster,\n         CASE\n           WHEN i.category = 'PRODUCTIVE' AND 'allocated_idle' = ANY (i.flags) THEN 2\n           WHEN i.category = 'PRODUCTIVE' THEN 1\n           WHEN i.reason_code IN ('NO_REAL_DEMAND', 'LOW_USE', 'NO_WORKLOAD', 'OTHER_WORKLOAD') THEN 3\n           WHEN i.cluster IS NOT NULL AND i.category = 'IDLE' THEN 4\n           WHEN i.cluster IS NOT NULL OR nc.cluster IS NOT NULL\n             OR i.reason_code IN ('CLUSTER_UNREACHABLE', 'NODE_NOT_FOUND') THEN 5\n           ELSE 6\n         END AS use_rank\n  FROM capacity_intervals i\n  JOIN assets a ON a.asset_id = i.asset_id\n  LEFT JOIN LATERAL (\n    SELECT split_part(c.key, '/', 1) AS cluster\n    FROM identity_conflicts c\n    WHERE i.reason_code = 'IDENTITY_CONFLICT' AND c.kind = 'NODE_CLAIM'\n      AND c.candidates @> jsonb_build_array(i.asset_id)\n    ORDER BY c.resolved_at IS NULL DESC, c.last_seen DESC\n    LIMIT 1\n  ) nc ON true\n  WHERE i.started_at < $__timeTo()\n    AND (i.ended_at IS NULL OR i.ended_at > $__timeFrom())\n    AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))\n), scope AS (\n  SELECT * FROM iv WHERE ('__all__' IN ($cluster) OR coalesce(cluster, '(none)') IN ($cluster))\n), s AS (\n  SELECT t, i.use_rank, i.gpus\n  FROM generate_series($__timeFrom()::timestamptz, $__timeTo()::timestamptz, make_interval(secs => greatest($__interval_ms, 60000) / 1000.0)) AS t\n  JOIN scope i ON i.started_at <= t AND (i.ended_at IS NULL OR i.ended_at > t)\n)\nSELECT t AS time,\n       CASE WHEN coalesce(sum(gpus) FILTER (WHERE use_rank <= 5), 0) = 0 THEN NULL\n            ELSE coalesce(sum(gpus) FILTER (WHERE use_rank = 1), 0)::float / sum(gpus) FILTER (WHERE use_rank <= 5)\n       END AS \"Useful work (% of measured GPUs)\",\n       coalesce(sum(gpus) FILTER (WHERE use_rank = 6), 0)::float / sum(gpus) AS \"Not measured (% of all GPUs)\"\nFROM s\nGROUP BY t\nORDER BY t"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 1,
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "noValue": "No ledger data in the time range",
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "stepAfter",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "showPoints": "never",
+            "pointSize": 4,
+            "spanNulls": false,
+            "insertNulls": false,
+            "axisPlacement": "auto",
+            "axisLabel": "",
+            "axisSoftMin": 0,
+            "axisCenteredZero": false,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "barAlignment": 0
+          },
+          "max": 1
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Useful work (% of measured GPUs)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Not measured (% of all GPUs)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "purple"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "type": "table",
+      "id": 19,
+      "title": "GPU-hours in the selected range, by use class and reason",
+      "description": "Definition: GPU-hours of every interval clipped to the time range (open intervals end at now), by use class and reason for measured clusters, and one total row for GPUs that were not measured.\nUnits: GPU-hours; share = of GPU-hours in measured classes.\nFilters: site, cluster (cluster = the interval's cluster, else the cluster named in its evidence or NODE_CLAIM conflict; '(none)' when there is none).\nUnknown vs zero: time before the ledger first observed an asset is not counted (unknown, not zero); 'Use unknown' and 'Not measured' hours are kept separate and never valued or counted as waste. AWS-equivalent value of idle hours is on Queues.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 53,
+        "w": 24,
+        "h": 11
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH iv AS (\n  SELECT i.asset_id, i.category, i.reason_code, i.stage_owner, i.gpus, i.started_at, i.ended_at,\n         coalesce(i.cluster, i.evidence->>'cluster', nc.cluster, i.evidence->>'cluster_name') AS cluster,\n         CASE\n           WHEN i.category = 'PRODUCTIVE' AND 'allocated_idle' = ANY (i.flags) THEN 2\n           WHEN i.category = 'PRODUCTIVE' THEN 1\n           WHEN i.reason_code IN ('NO_REAL_DEMAND', 'LOW_USE', 'NO_WORKLOAD', 'OTHER_WORKLOAD') THEN 3\n           WHEN i.cluster IS NOT NULL AND i.category = 'IDLE' THEN 4\n           WHEN i.cluster IS NOT NULL OR nc.cluster IS NOT NULL\n             OR i.reason_code IN ('CLUSTER_UNREACHABLE', 'NODE_NOT_FOUND') THEN 5\n           ELSE 6\n         END AS use_rank\n  FROM capacity_intervals i\n  JOIN assets a ON a.asset_id = i.asset_id\n  LEFT JOIN LATERAL (\n    SELECT split_part(c.key, '/', 1) AS cluster\n    FROM identity_conflicts c\n    WHERE i.reason_code = 'IDENTITY_CONFLICT' AND c.kind = 'NODE_CLAIM'\n      AND c.candidates @> jsonb_build_array(i.asset_id)\n    ORDER BY c.resolved_at IS NULL DESC, c.last_seen DESC\n    LIMIT 1\n  ) nc ON true\n  WHERE i.started_at < $__timeTo()\n    AND (i.ended_at IS NULL OR i.ended_at > $__timeFrom())\n    AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))\n), scope AS (\n  SELECT * FROM iv WHERE ('__all__' IN ($cluster) OR coalesce(cluster, '(none)') IN ($cluster))\n), h AS (\n  SELECT use_rank,\n         CASE WHEN use_rank <= 5 THEN reason_code ELSE '(all reasons)' END AS reason,\n         CASE WHEN use_rank <= 5 THEN stage_owner END AS owner,\n         gpus * extract(epoch FROM least(coalesce(ended_at, now()), $__timeTo())\n                                 - greatest(started_at, $__timeFrom())) / 3600 AS gpu_h\n  FROM scope\n)\nSELECT CASE use_rank WHEN 1 THEN 'Useful work' WHEN 2 THEN 'Allocated, inactive' WHEN 3 THEN 'Waste candidate' WHEN 4 THEN 'Constrained or failed' WHEN 5 THEN 'Use unknown' ELSE 'Not measured' END AS \"Use class\",\n       reason AS \"Reason\",\n       coalesce(owner, '—') AS \"Stage owner\",\n       sum(gpu_h) AS \"GPU-hours\",\n       CASE WHEN use_rank <= 5 THEN sum(gpu_h) / nullif(sum(sum(gpu_h) FILTER (WHERE use_rank <= 5)) OVER (), 0) END\n         AS \"Share of measured GPU-hours\"\nFROM h\nWHERE gpu_h > 0\nGROUP BY use_rank, reason, owner\nORDER BY use_rank, sum(gpu_h) DESC, array_position(ARRAY['DC', 'Redbull', 'POPAI', 'Serving'], owner), reason"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          },
+          "noValue": "No ledger data in the time range"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Use class"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "Useful work": {
+                        "color": "green",
+                        "index": 0
+                      },
+                      "Allocated, inactive": {
+                        "color": "orange",
+                        "index": 1
+                      },
+                      "Waste candidate": {
+                        "color": "orange",
+                        "index": 2
+                      },
+                      "Constrained or failed": {
+                        "color": "red",
+                        "index": 3
+                      },
+                      "Use unknown": {
+                        "color": "purple",
+                        "index": 4
+                      },
+                      "Not measured": {
+                        "color": "purple",
+                        "index": 5
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.width",
+                "value": 170
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Reason"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 210
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Stage owner"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 110
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "GPU-hours"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "custom.width",
+                "value": 120
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Share of measured GPU-hours"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "custom.width",
+                "value": 210
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        },
+        "sortBy": []
+      }
+    },
+    {
+      "type": "row",
+      "id": 20,
+      "title": "Not measurable in R1 (missing inputs)",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 64
+      },
+      "panels": []
+    },
+    {
+      "type": "text",
+      "id": 21,
+      "title": "E12 · Is allocated hardware physically busy?",
+      "description": "Missing input: R1 has no data source for this E12 dimension, so the page shows what is missing instead of a number.",
+      "gridPos": {
+        "x": 0,
+        "y": 65,
+        "w": 8,
+        "h": 10
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**Not in R1:** per-GPU activity over time (graphics-engine or SM activity), as a distribution across GPUs, for every GPU in a measured cluster.\n\n**Where it would come from:** the DCGM exporter in each target cluster, through that cluster's Thanos querier (`DCGM_FI_PROF_GR_ENGINE_ACTIVE`, else `DCGM_FI_DEV_GPU_UTIL`). The engine already reads them for productive pods, but only to set the `allocated_idle` flag (\"Allocated, inactive\" above). It stores neither the values nor a distribution.\n\n**Onboarding:** add a read-only Prometheus data source per target cluster's Thanos querier (`cluster-monitoring-view`), or have the engine keep an activity summary per bucket; then add an activity distribution panel here. Busy hardware is still not useful work by itself (§13).\n\n**Release:** R2.",
+        "code": {
+          "language": "plaintext",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        }
+      }
+    },
+    {
+      "type": "text",
+      "id": 22,
+      "title": "E12 · Is GPU memory the constraint?",
+      "description": "Missing input: R1 has no data source for this E12 dimension, so the page shows what is missing instead of a number.",
+      "gridPos": {
+        "x": 8,
+        "y": 65,
+        "w": 8,
+        "h": 10
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**Not in R1:** frame-buffer (HBM) use per GPU and KV-cache pressure per serving deployment, so memory-bound decoding or deliberate model residency is not mistaken for idle capacity (§8).\n\n**Where it would come from:** DCGM `DCGM_FI_DEV_FB_USED` / `DCGM_FI_DEV_FB_FREE` in each target cluster's Thanos, and the serving engine's KV-cache usage gauge. That gauge's name differs between vLLM, llm-d and Dynamo versions: discover it and keep a versioned mapping, never a hard-coded name.\n\n**Onboarding:** record the metric names per version in Discovery, add them to the policy's versioned mapping and a Thanos data source per cluster.\n\n**Release:** R2.",
+        "code": {
+          "language": "plaintext",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        }
+      }
+    },
+    {
+      "type": "text",
+      "id": 23,
+      "title": "E12 · Is the work useful and within SLO?",
+      "description": "Missing input: R1 has no data source for this E12 dimension, so the page shows what is missing instead of a number.",
+      "gridPos": {
+        "x": 16,
+        "y": 65,
+        "w": 8,
+        "h": 10
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**Not in R1:** goodput (successful requests that meet the chosen service criteria) and SLO compliance per logical deployment. R1 has only the genuine-request count of each deployment's counter of record (\"Workloads holding GPUs now\"), not success and latency together.\n\n**Where it would come from:** the counter of record's success and failure series and its latency histograms (time to first token, end-to-end), plus approved inputs: the I2 useful-use threshold and latency objectives per service tier. Combined compliance is never inferred from separate p95 values (§13).\n\n**Onboarding:** approve I2 and the SLOs; R2 adds the service graph (publication and reachability, `NOT_PUBLISHED`, §7) and the Service page.\n\n**Release:** R2.",
+        "code": {
+          "language": "plaintext",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        }
+      }
+    }
+  ]
+}

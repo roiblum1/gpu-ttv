@@ -1,0 +1,522 @@
+# Panel contracts for grafana/dashboards/ttv-asset.json (schema: config/panel-contracts/README.md).
+# Expected values refer to the synthetic fixture in tests/test_dashboards_gpu_use_asset_pg.py
+# (fixture-tested, not production evidence).
+dashboard: ttv-asset
+panels:
+- id: 2
+  title: GPUs in inventory
+  question: support
+  status: built
+  audience: Stage owners, engineers
+  decision: How many GPUs this server should account for.
+  definition: 'assets.gpu_count: GPUs inventory reports (E).'
+  unit: GPUs
+  numerator: assets.gpu_count
+  denominator: null
+  population: One asset.
+  window: now
+  filters:
+  - asset_id
+  exclusions: null
+  query: grafana/dashboards/ttv-asset.json#2
+  lineage:
+  - assets.gpu_count
+  freshness: Latest engine scan (5 min cadence).
+  baseline: null
+  direction: neutral
+  thresholds: null
+  uncertainty: null
+  missing_data: '''unread'' = GPU inventory not read, never 0.'
+  value_kind: observed
+  gate: core
+  privileges: SELECT on assets
+  cardinality: one value
+  drilldown: null
+  action: null
+  fixture: tests/test_dashboards_gpu_use_asset_pg.py
+  expected: 8 for cisco:syn-a with the fixture.
+- id: 3
+  title: Productive GPUs now
+  question: support
+  status: built
+  audience: Stage owners, engineers
+  decision: How many of this server's GPUs are PRODUCTIVE now.
+  definition: sum(gpus) of this asset's open PRODUCTIVE intervals.
+  unit: GPUs
+  numerator: >-
+    sum(capacity_intervals.gpus) where category = PRODUCTIVE and ended_at IS NULL
+  denominator: null
+  population: One asset.
+  window: now
+  filters:
+  - asset_id
+  exclusions: null
+  query: grafana/dashboards/ttv-asset.json#3
+  lineage:
+  - capacity_intervals.category
+  - capacity_intervals.gpus
+  freshness: Latest engine scan (5 min cadence).
+  baseline: null
+  direction: neutral
+  thresholds: null
+  uncertainty: null
+  missing_data: '''No open interval'' = no current state for the asset, never 0.'
+  value_kind: observed
+  gate: core
+  privileges: SELECT on capacity_intervals
+  cardinality: one value
+  drilldown: ttv-asset#9
+  action: null
+  fixture: tests/test_dashboards_gpu_use_asset_pg.py
+  expected: 4 for cisco:syn-a with the fixture.
+- id: 4
+  title: Idle GPUs now
+  question: support
+  status: built
+  audience: Stage owners, engineers
+  decision: How many of this server's GPUs are IDLE now.
+  definition: sum(gpus) of this asset's open IDLE intervals.
+  unit: GPUs
+  numerator: >-
+    sum(capacity_intervals.gpus) where category = IDLE and ended_at IS NULL
+  denominator: null
+  population: One asset.
+  window: now
+  filters:
+  - asset_id
+  exclusions: null
+  query: grafana/dashboards/ttv-asset.json#4
+  lineage:
+  - capacity_intervals.category
+  - capacity_intervals.gpus
+  freshness: Latest engine scan (5 min cadence).
+  baseline: null
+  direction: neutral
+  thresholds: null
+  uncertainty: null
+  missing_data: '''No open interval'' = no current state for the asset, never 0.'
+  value_kind: observed
+  gate: core
+  privileges: SELECT on capacity_intervals
+  cardinality: one value
+  drilldown: ttv-asset#9
+  action: null
+  fixture: tests/test_dashboards_gpu_use_asset_pg.py
+  expected: 3 for cisco:syn-a with the fixture.
+- id: 5
+  title: Unknown GPUs now
+  question: support
+  status: built
+  audience: Stage owners, engineers
+  decision: How many of this server's GPUs are UNKNOWN now.
+  definition: sum(gpus) of this asset's open UNKNOWN intervals.
+  unit: GPUs
+  numerator: >-
+    sum(capacity_intervals.gpus) where category = UNKNOWN and ended_at IS NULL
+  denominator: null
+  population: One asset.
+  window: now
+  filters:
+  - asset_id
+  exclusions: null
+  query: grafana/dashboards/ttv-asset.json#5
+  lineage:
+  - capacity_intervals.category
+  - capacity_intervals.gpus
+  freshness: Latest engine scan (5 min cadence).
+  baseline: null
+  direction: neutral
+  thresholds: null
+  uncertainty: null
+  missing_data: '''No open interval'' = no current state for the asset, never 0.'
+  value_kind: observed
+  gate: core
+  privileges: SELECT on capacity_intervals
+  cardinality: one value
+  drilldown: ttv-asset#9
+  action: null
+  fixture: tests/test_dashboards_gpu_use_asset_pg.py
+  expected: 1 for cisco:syn-a with the fixture.
+- id: 6
+  title: Not charged GPUs now
+  question: support
+  status: built
+  audience: Stage owners, engineers
+  decision: How many of this server's GPUs are NOT_CHARGED now.
+  definition: sum(gpus) of this asset's open NOT_CHARGED intervals.
+  unit: GPUs
+  numerator: >-
+    sum(capacity_intervals.gpus) where category = NOT_CHARGED and ended_at IS NULL
+  denominator: null
+  population: One asset.
+  window: now
+  filters:
+  - asset_id
+  exclusions: null
+  query: grafana/dashboards/ttv-asset.json#6
+  lineage:
+  - capacity_intervals.category
+  - capacity_intervals.gpus
+  freshness: Latest engine scan (5 min cadence).
+  baseline: null
+  direction: neutral
+  thresholds: null
+  uncertainty: null
+  missing_data: '''No open interval'' = no current state for the asset, never 0.'
+  value_kind: observed
+  gate: core
+  privileges: SELECT on capacity_intervals
+  cardinality: one value
+  drilldown: ttv-asset#9
+  action: null
+  fixture: tests/test_dashboards_gpu_use_asset_pg.py
+  expected: 0 for cisco:syn-a with the fixture.
+- id: 7
+  title: Why is it classified this way?
+  question: support
+  status: built
+  audience: Engineers
+  decision: Why the engine classified the asset this way.
+  definition: >-
+    Link to ${ttv_api}/explain/${asset_id}: rules evaluated, match, evidence, recent intervals from the
+    engine's last scan.
+  unit: none
+  numerator: null
+  denominator: null
+  population: One asset.
+  window: now
+  filters:
+  - asset_id
+  - ttv_api
+  exclusions: null
+  query: grafana/dashboards/ttv-asset.json#7
+  lineage:
+  - engine /explain/{asset_id}
+  freshness: Engine's last scan (in memory).
+  baseline: null
+  direction: neutral
+  thresholds: null
+  uncertainty: The link works only if ttv_api is reachable from the viewer's browser.
+  missing_data: The engine answers 404 when the last scan did not classify the asset.
+  value_kind: observed
+  gate: core
+  privileges: Network access to the engine read API
+  cardinality: null
+  drilldown: engine /explain
+  action: Open the explanation.
+  fixture: null
+  expected: Link to http://ttv-engine:8080/explain/<asset>.
+- id: 8
+  title: Identity
+  question: support
+  status: built
+  audience: Engineers, stage owners
+  decision: Which physical server this is and where it came from.
+  definition: >-
+    The assets row: id, name, vendor, serial, model, site, source, GPUs, GPU model, first and last observed.
+  unit: none
+  numerator: null
+  denominator: null
+  population: One asset.
+  window: now
+  filters:
+  - asset_id
+  exclusions: null
+  query: grafana/dashboards/ttv-asset.json#8
+  lineage:
+  - assets.asset_id
+  - assets.name
+  - assets.vendor
+  - assets.serial
+  - assets.model
+  - assets.site
+  - assets.source
+  - assets.gpu_count
+  - assets.gpu_model
+  - assets.first_observed_at
+  - assets.last_observed_at
+  freshness: Latest engine scan (5 min cadence).
+  baseline: null
+  direction: neutral
+  thresholds: null
+  uncertainty: first_observed_at is the engine's first sighting, not delivery.
+  missing_data: '''Unknown asset: not in the ledger'' when the id is not in assets.'
+  value_kind: observed
+  gate: core
+  privileges: SELECT on assets
+  cardinality: one row
+  drilldown: null
+  action: null
+  fixture: tests/test_dashboards_gpu_use_asset_pg.py
+  expected: cisco:syn-a, gpu-node-a, site s1, 8 SYN-GPU with the fixture.
+- id: 9
+  title: Current GPU buckets
+  question: support
+  status: built
+  audience: Stage owners, engineers
+  decision: What each of the server's GPUs is doing and what to fix.
+  definition: >-
+    The asset's open intervals: category, reason, stage owner, GPUs, GPU model, cluster, holder (and team),
+    flags in plain words, evidence in plain words, bucket start and stage clock.
+  unit: GPUs
+  numerator: null
+  denominator: null
+  population: One asset.
+  window: now
+  filters:
+  - asset_id
+  exclusions: null
+  query: grafana/dashboards/ttv-asset.json#9
+  lineage:
+  - capacity_intervals.*
+  - capacity_intervals.evidence (selected fields)
+  freshness: Latest engine scan (5 min cadence).
+  baseline: null
+  direction: neutral
+  thresholds: null
+  uncertainty: '''≥'' stage clock = lower bound (stage began before observation).'
+  missing_data: >-
+    'No open interval for this asset'; UNKNOWN buckets are never idle or productive.
+  value_kind: observed
+  gate: core
+  privileges: SELECT on capacity_intervals
+  cardinality: one row per bucket (≤ ~10)
+  drilldown: engine /explain
+  action: The stage owner of each IDLE bucket acts on its reason.
+  fixture: tests/test_dashboards_gpu_use_asset_pg.py
+  expected: >-
+    6 buckets summing to 8; GPU_MISSING stage clock '≥ 2026-10-01 00:00' with the fixture.
+- id: 11
+  title: Milestones (first-time facts)
+  question: support
+  status: built
+  audience: Stage owners, CEO (E02 inputs)
+  decision: How far the server got through the pipeline and when.
+  definition: >-
+    milestones rows in pipeline order (first_seen, ocp_profile_seen, in_serverscan, assigned_cluster,
+    node_ready, gpu_ready, workload_running, first_genuine_request), others after; '≥' for lower bounds.
+  unit: UTC time
+  numerator: null
+  denominator: null
+  population: One asset.
+  window: all time (first-time facts)
+  filters:
+  - asset_id
+  exclusions: null
+  query: grafana/dashboards/ttv-asset.json#11
+  lineage:
+  - milestones.milestone
+  - milestones.observed_at
+  - milestones.lower_bound
+  - milestones.evidence
+  freshness: Latest engine scan (5 min cadence).
+  baseline: null
+  direction: neutral
+  thresholds: null
+  uncertainty: 'Lower bounds: it happened at or before the time shown.'
+  missing_data: >-
+    'not observed yet' = no evidence; 'Not available' row when the role cannot read milestones.
+  value_kind: observed
+  gate: core
+  privileges: 'SELECT on milestones (guarded: missing grant shows ''Not available'')'
+  cardinality: 8 rows + any other milestone
+  drilldown: null
+  action: null
+  fixture: tests/test_dashboards_gpu_use_asset_pg.py
+  expected: >-
+    first_seen '≥ 2026-10-01 00:00', in_serverscan exact, node_ready 'not observed yet' with the fixture.
+- id: 12
+  title: Open identity conflicts naming this asset
+  question: E18
+  status: built
+  audience: Engineers, data owners
+  decision: Whether this asset's identity is trustworthy.
+  definition: >-
+    Unresolved identity_conflicts whose key is the asset or whose candidates include it, with the other
+    parties.
+  unit: none
+  numerator: null
+  denominator: null
+  population: One asset.
+  window: now
+  filters:
+  - asset_id
+  exclusions: Resolved conflicts.
+  query: grafana/dashboards/ttv-asset.json#12
+  lineage:
+  - identity_conflicts.kind
+  - identity_conflicts.key
+  - identity_conflicts.candidates
+  - identity_conflicts.first_seen
+  - identity_conflicts.last_seen
+  freshness: Latest engine scan (5 min cadence).
+  baseline: null
+  direction: lower_is_better
+  thresholds: null
+  uncertainty: null
+  missing_data: >-
+    Empty = no open conflict; 'Not available' row when the role cannot read identity_conflicts.
+  value_kind: observed
+  gate: core
+  privileges: SELECT on identity_conflicts (guarded)
+  cardinality: usually 0-2 rows
+  drilldown: ttv-evidence
+  action: Resolve the duplicate names or serials at the source.
+  fixture: tests/test_dashboards_gpu_use_asset_pg.py
+  expected: >-
+    NODE_CLAIM c1/node-7, other party dell:syn-g for dell:syn-f with the fixture.
+- id: 13
+  title: Next-action annotations (display only)
+  question: support
+  status: built
+  audience: Stage owners
+  decision: Who must act next on this server (display only).
+  definition: >-
+    next_action_annotations rows for the asset, newest first (≤ 20), active or expired.
+  unit: none
+  numerator: null
+  denominator: null
+  population: One asset.
+  window: all time
+  filters:
+  - asset_id
+  exclusions: null
+  query: grafana/dashboards/ttv-asset.json#13
+  lineage:
+  - next_action_annotations.*
+  freshness: As written by people.
+  baseline: null
+  direction: neutral
+  thresholds: null
+  uncertainty: 'Display only: never changes the stage owner or any total.'
+  missing_data: >-
+    Empty does not mean no action is needed; 'Not available' row when the role cannot read the table.
+  value_kind: business_input
+  gate: core
+  privileges: SELECT on next_action_annotations (guarded)
+  cardinality: ≤ 20 rows
+  drilldown: null
+  action: Follow up with the next-action owner.
+  fixture: tests/test_dashboards_gpu_use_asset_pg.py
+  expected: active, Network for cisco:syn-a with the fixture.
+- id: 14
+  title: Latest collector record
+  question: support
+  status: built
+  audience: DC, engineers
+  decision: What the profile-less collector last saw for a collector-only server.
+  definition: >-
+    Newest collector_servers row per manager and source id matching the asset's vendor and serial (or
+    manager and source id when the serial is empty): manager, kind, profile, GPUs, profile_unresolved,
+    read time and completeness.
+  unit: GPUs
+  numerator: null
+  denominator: null
+  population: >-
+    One asset (collector-only assets; server-scan assets show 'Not collector-only').
+  window: now
+  filters:
+  - asset_id
+  exclusions: null
+  query: grafana/dashboards/ttv-asset.json#14
+  lineage:
+  - collector_servers.*
+  - collector_reads.manager
+  - collector_reads.kind
+  - collector_reads.finished_at
+  - collector_reads.complete
+  - assets.aliases
+  freshness: Collector cadence (15 min).
+  baseline: null
+  direction: neutral
+  thresholds: null
+  uncertainty: profile_unresolved = ambiguous binding (identity conflict).
+  missing_data: >-
+    'GPU inventory unread' never 0; 'Not available' row when the role cannot read the collector tables.
+  value_kind: observed
+  gate: core
+  privileges: SELECT on collector_servers, collector_reads (guarded), assets
+  cardinality: one row per manager record
+  drilldown: null
+  action: DC applies a profile (PROFILE_NONE).
+  fixture: tests/test_dashboards_gpu_use_asset_pg.py
+  expected: >-
+    ucs-central-syn, none bound, 4 GPUs for hp:syn-e; 'Not available' after the tables are dropped.
+- id: 16
+  title: GPUs by category and reason over time
+  question: support
+  status: built
+  audience: Stage owners, engineers
+  decision: How this server's GPUs moved between categories over the period.
+  definition: >-
+    At each grid time t (step max($__interval, 1 min)), sum(gpus) of the asset's intervals open at t,
+    one row per category · reason.
+  unit: GPUs
+  numerator: null
+  denominator: null
+  population: One asset.
+  window: selected range
+  filters:
+  - asset_id
+  exclusions: null
+  query: grafana/dashboards/ttv-asset.json#16
+  lineage:
+  - capacity_intervals.category
+  - capacity_intervals.reason_code
+  - capacity_intervals.gpus
+  - capacity_intervals.started_at
+  - capacity_intervals.ended_at
+  freshness: Ledger history.
+  baseline: null
+  direction: neutral
+  thresholds: null
+  uncertainty: A state shorter than the grid step can fall between samples.
+  missing_data: >-
+    Empty stretch = no interval (not observed yet or retired), never 0 GPUs.
+  value_kind: observed
+  gate: history
+  privileges: SELECT on capacity_intervals
+  cardinality: one row per category · reason seen
+  drilldown: null
+  action: null
+  fixture: tests/test_dashboards_gpu_use_asset_pg.py
+  expected: >-
+    At 03:00 only 'IDLE · GPU_PLATFORM_NOT_READY' = 8 for cisco:syn-a with the fixture.
+- id: 17
+  title: GPU-hours in the selected range
+  question: support
+  status: built
+  audience: Stage owners
+  decision: Where this server's GPU-hours went in the period.
+  definition: >-
+    sum(gpus × hours clipped to the range; open intervals end at now) by category and reason.
+  unit: GPU-hours
+  numerator: clipped GPU-hours
+  denominator: null
+  population: One asset.
+  window: selected range
+  filters:
+  - asset_id
+  exclusions: null
+  query: grafana/dashboards/ttv-asset.json#17
+  lineage:
+  - capacity_intervals.category
+  - capacity_intervals.reason_code
+  - capacity_intervals.gpus
+  - capacity_intervals.started_at
+  - capacity_intervals.ended_at
+  freshness: Ledger history.
+  baseline: null
+  direction: neutral
+  thresholds: null
+  uncertainty: Time before the first observation is not counted.
+  missing_data: No interval in range shows a message, never 0.
+  value_kind: derived
+  gate: history
+  privileges: SELECT on capacity_intervals
+  cardinality: one row per category · reason
+  drilldown: ttv-queues
+  action: null
+  fixture: tests/test_dashboards_gpu_use_asset_pg.py
+  expected: >-
+    GPU_PLATFORM_NOT_READY 48 GPU-h for 00:00-12:00 for cisco:syn-a with the fixture.
