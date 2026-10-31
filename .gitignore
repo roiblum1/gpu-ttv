@@ -11,3 +11,5 @@ CLAUDE.local.md
 dist/
 build/
 *.egg-info/
+.claude/worktrees/
+.playwright-mcp/
