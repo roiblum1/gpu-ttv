@@ -1,0 +1,133 @@
+{
+  "@odata.context": "/api/$metadata#DeviceService.InventoryDetail",
+  "@odata.type": "#DeviceService.InventoryDetail",
+  "InventoryType": "serverDeviceCards",
+  "InventoryInfo": [
+    {
+      "Id": 1,
+      "SlotNumber": "Video.Embedded.1-1",
+      "Manufacturer": "Matrox Electronics Systems Ltd.",
+      "Description": "Integrated Matrox G200eW3 Graphics Controller",
+      "DatabusWidth": "Unknown",
+      "SlotLength": "Unknown",
+      "SlotType": "PCI Express Gen 5"
+    },
+    {
+      "Id": 2,
+      "SlotNumber": "RAID.SL.3-1",
+      "Manufacturer": "Broadcom / LSI",
+      "Description": "PERC H755 Front",
+      "DatabusWidth": "8x or x8",
+      "SlotLength": "Unknown",
+      "SlotType": "PCI Express Gen 5"
+    },
+    {
+      "Id": 3,
+      "SlotNumber": "NIC.Slot.2-1-1",
+      "Manufacturer": "Broadcom Inc. and subsidiaries",
+      "Description": "BCM57414 NetXtreme-E 10Gb/25Gb RDMA Ethernet Controller",
+      "DatabusWidth": "16x or x16",
+      "SlotLength": "Long Length",
+      "SlotType": "PCI Express Gen 5"
+    },
+    {
+      "Id": 4,
+      "SlotNumber": "NIC.Integrated.1-1-1",
+      "Manufacturer": "Intel Corporation",
+      "Description": "Ethernet Controller E810-C for SFP",
+      "DatabusWidth": "16x or x16",
+      "SlotLength": "Long Length",
+      "SlotType": "PCI Express Gen 5"
+    },
+    {
+      "Id": 10,
+      "SlotNumber": "Slot.31-1",
+      "Manufacturer": "NVIDIA Corporation",
+      "Description": "GH100 [H100 SXM5 80GB] 3D controller",
+      "DatabusWidth": "16x or x16",
+      "SlotLength": "Long Length",
+      "SlotType": "PCI Express Gen 5"
+    },
+    {
+      "Id": 11,
+      "SlotNumber": "Slot.32-1",
+      "Manufacturer": "NVIDIA Corporation",
+      "Description": "GH100 [H100 SXM5 80GB] 3D controller",
+      "DatabusWidth": "16x or x16",
+      "SlotLength": "Long Length",
+      "SlotType": "PCI Express Gen 5"
+    },
+    {
+      "Id": 12,
+      "SlotNumber": "Slot.33-1",
+      "Manufacturer": "NVIDIA Corporation",
+      "Description": "GH100 [H100 SXM5 80GB] 3D controller",
+      "DatabusWidth": "16x or x16",
+      "SlotLength": "Long Length",
+      "SlotType": "PCI Express Gen 5"
+    },
+    {
+      "Id": 13,
+      "SlotNumber": "Slot.34-1",
+      "Manufacturer": "NVIDIA Corporation",
+      "Description": "GH100 [H100 SXM5 80GB] 3D controller",
+      "DatabusWidth": "16x or x16",
+      "SlotLength": "Long Length",
+      "SlotType": "PCI Express Gen 5"
+    },
+    {
+      "Id": 14,
+      "SlotNumber": "Slot.35-1",
+      "Manufacturer": "NVIDIA Corporation",
+      "Description": "GH100 [H100 SXM5 80GB] 3D controller",
+      "DatabusWidth": "16x or x16",
+      "SlotLength": "Long Length",
+      "SlotType": "PCI Express Gen 5"
+    },
+    {
+      "Id": 15,
+      "SlotNumber": "Slot.36-1",
+      "Manufacturer": "NVIDIA Corporation",
+      "Description": "GH100 [H100 SXM5 80GB] 3D controller",
+      "DatabusWidth": "16x or x16",
+      "SlotLength": "Long Length",
+      "SlotType": "PCI Express Gen 5"
+    },
+    {
+      "Id": 16,
+      "SlotNumber": "Slot.37-1",
+      "Manufacturer": "NVIDIA Corporation",
+      "Description": "GH100 [H100 SXM5 80GB] 3D controller",
+      "DatabusWidth": "16x or x16",
+      "SlotLength": "Long Length",
+      "SlotType": "PCI Express Gen 5"
+    },
+    {
+      "Id": 17,
+      "SlotNumber": "Slot.38-1",
+      "Manufacturer": "NVIDIA Corporation",
+      "Description": "GH100 [H100 SXM5 80GB] 3D controller",
+      "DatabusWidth": "16x or x16",
+      "SlotLength": "Long Length",
+      "SlotType": "PCI Express Gen 5"
+    },
+    {
+      "Id": 30,
+      "SlotNumber": "Slot.40-1",
+      "Manufacturer": "NVIDIA Corporation",
+      "Description": "GH100 [H100 NVSwitch] Bridge",
+      "DatabusWidth": "16x or x16",
+      "SlotLength": "Long Length",
+      "SlotType": "PCI Express Gen 5"
+    },
+    {
+      "Id": 31,
+      "SlotNumber": "NIC.Slot.5-1-1",
+      "Manufacturer": "Mellanox Technologies",
+      "Description": "MT2910 Family [ConnectX-7] Ethernet controller",
+      "DatabusWidth": "16x or x16",
+      "SlotLength": "Long Length",
+      "SlotType": "PCI Express Gen 5"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "@odata.id": "/redfish/v1/Systems/System.Embedded.1/Processors/CPU.Socket.1",
+  "@odata.type": "#Processor.v1_18_0.Processor",
+  "Id": "CPU.Socket.1",
+  "Manufacturer": "Intel",
+  "Model": "Intel(R) Xeon(R) Gold 6448Y",
+  "ProcessorType": "CPU",
+  "TotalCores": 32,
+  "TotalThreads": 64,
+  "Status": {
+    "Health": "OK",
+    "State": "Enabled"
+  }
+}
