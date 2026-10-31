@@ -11,6 +11,37 @@ from ttv.models import AssetInput, ServerScanServer
 
 _EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 
+# Copied from server-scan `backend/app/domain/services/normalize.py@defe172` (SMBIOS placeholders).
+PLACEHOLDER_SERIALS = frozenset(
+    {
+        "",
+        "0123456789",
+        "default string",
+        "to be filled by o.e.m.",
+        "to be filled by o.e.m",
+        "not specified",
+        "none",
+        "n/a",
+        "unknown",
+        "system serial number",
+    }
+)
+
+
+def normalize_serial(raw: str | None) -> str:
+    """
+    Normalise a hardware serial exactly as server-scan does for `identity.serial_normalized`.
+
+    Args:
+        raw (str | None): Serial as a manager reported it.
+
+    Returns:
+        str: Lowercased, whitespace-collapsed serial; "" for missing or SMBIOS placeholder values.
+    """
+    if not raw or raw.strip().lower() in PLACEHOLDER_SERIALS:
+        return ""
+    return " ".join(raw.split()).lower()
+
 
 @dataclass(frozen=True)
 class IdentityConflict:

@@ -89,6 +89,8 @@ dependencies = [
     { name = "pydantic-settings" },
     { name = "pyyaml" },
     { name = "structlog" },
+    { name = "ucscsdk" },
+    { name = "ucsmsdk" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -110,6 +112,8 @@ requires-dist = [
     { name = "pydantic-settings", specifier = "==2.15.0" },
     { name = "pyyaml", specifier = "==6.0.3" },
     { name = "structlog", specifier = "==26.1.0" },
+    { name = "ucscsdk", specifier = "==0.9.0.8" },
+    { name = "ucsmsdk", specifier = "==0.9.18" },
     { name = "uvicorn", extras = ["standard"], specifier = "==0.34.0" },
 ]
 
@@ -368,6 +372,15 @@ wheels = [
 ]
 
 [[package]]
+name = "pyparsing"
+version = "3.3.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/e4/11/b213bebff182584360cb8d17c72c1677fec5c5c228de439e63bcf8ab1c8f/pyparsing-3.3.3.tar.gz", hash = "sha256:928ae7e20211f3b6f3915a72f06a0cfd29ab9d24279dd6346b6b1a7146397d36", size = 1050487, upload-time = "2026-09-20T20:59:05.609Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/38/bb/d215ee7c73b61497b28a5503f9f53523f294fcc936762b7caf90e0c1c2b5/pyparsing-3.3.3-py3-none-any.whl", hash = "sha256:ece8c00a69cf01b45d0b1dedabb469c90d8caf996d4fda40f147627a122849a4", size = 126420, upload-time = "2026-09-20T20:59:04.025Z" },
+]
+
+[[package]]
 name = "pytest"
 version = "9.1.1"
 source = { registry = "https://pypi.org/simple" }
@@ -460,6 +473,24 @@ wheels = [
 ]
 
 [[package]]
+name = "setuptools"
+version = "84.2.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/70/b3/c19426f783614d625699a4b247faf628ea9ab1db228674491767b417f9e1/setuptools-84.2.1.tar.gz", hash = "sha256:3ff8b3b5492a0aa66960f4419365a86b84e013070d4313e4d4a6894f5d64d6bc", size = 1230289, upload-time = "2026-10-20T19:01:37.742Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ef/55/6dc6d6bb953bdfc52519a0059592c52b6e3b8ad51cf8256dffceb55b0610/setuptools-84.2.1-py3-none-any.whl", hash = "sha256:ca140b45d5325a9478f880e351484f62fef15f336462e449ca0c03c873d589c2", size = 876263, upload-time = "2026-10-20T19:01:35.678Z" },
+]
+
+[[package]]
+name = "six"
+version = "1.17.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/94/e7/b2c673351809dca68a0e064b6af791aa332cf192da575fd474ed7d6f16a2/six-1.17.0.tar.gz", hash = "sha256:ff70335d468e7eb6ec65b95b99d3a2836546063f63acc5171de367e834932a81", size = 34031, upload-time = "2024-12-04T17:35:28.174Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl", hash = "sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274", size = 11050, upload-time = "2024-12-04T17:35:26.475Z" },
+]
+
+[[package]]
 name = "starlette"
 version = "1.10.0"
 source = { registry = "https://pypi.org/simple" }
@@ -534,6 +565,33 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/7a/29/6a1391d31cd00ff9e927215a224a880e1e84e826b64ba80a499e51c074d8/tzdata-2026.6.tar.gz", hash = "sha256:85d2cd9c09f81f0bb29db27759fc83af4f1e620efb814f8c5bf8b4cc4feece6d", size = 201017, upload-time = "2026-10-28T09:57:09.137Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/0a/66/9a06c2227fedfd4919f0eaaa8b94377d9730882a7e4f95823c9a331ab5e1/tzdata-2026.6-py2.py3-none-any.whl", hash = "sha256:0a10eec6e13ef16b627fabed9a5f2ba61a62b1c67f327305f4e7e412a70b4aec", size = 348210, upload-time = "2026-10-28T09:57:07.276Z" },
+]
+
+[[package]]
+name = "ucscsdk"
+version = "0.9.0.8"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pyparsing" },
+    { name = "six" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/44/38/893b6f244361fe75a1f2528c8266d5d5b2e4cfc1a58b624e2fd564e5beee/ucscsdk-0.9.0.8.tar.gz", hash = "sha256:800b421bb14a7e76171f5445d4bc1a7ca535690f203263c83c429b71065c761a", size = 3575932, upload-time = "2024-09-24T08:39:54.814Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/51/78/6550f6794446ad0f37345ce7475a063bd3cb64dada5b5867e82858c304c6/ucscsdk-0.9.0.8-py2.py3-none-any.whl", hash = "sha256:2af56488d1bb2df4554d5d7e85b7628855f0b67bfff234b9d69853c37206c7b6", size = 5465575, upload-time = "2024-09-24T08:39:53.071Z" },
+]
+
+[[package]]
+name = "ucsmsdk"
+version = "0.9.18"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pyparsing" },
+    { name = "setuptools" },
+    { name = "six" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/fa/d7/815ca425cc450bd3f9996dc15d741141204c22970ad29a99659b0ec3747e/ucsmsdk-0.9.18.tar.gz", hash = "sha256:679abf79bc4674e93c4de36406b727fd75f4f534b3f68878f8427de6044b9388", size = 4572314, upload-time = "2024-06-14T08:41:52.298Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3e/78/108e1e1ab805c7d2d62718975eb279deae1229cd7cdd1075252ee025aa09/ucsmsdk-0.9.18-py2.py3-none-any.whl", hash = "sha256:e46799575dab6719c191df2fea9f39e8d75a4bb74104ca6b62b5bb4b166bd10f", size = 6780629, upload-time = "2024-06-14T08:41:50.511Z" },
 ]
 
 [[package]]

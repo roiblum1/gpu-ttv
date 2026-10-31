@@ -14,6 +14,8 @@ dependencies = [
     "pydantic-settings==2.15.0",
     "pyyaml==6.0.3",
     "structlog==26.1.0",
+    "ucscsdk==0.9.0.8",
+    "ucsmsdk==0.9.18",
     "uvicorn[standard]==0.34.0",
 ]
 

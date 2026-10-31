@@ -255,6 +255,41 @@ class TeamMap(BaseModel):
     namespaces: dict[str, str] = {}
 
 
+class CollectorPolicy(BaseModel):
+    """
+    Profile-less collector rules (ADR-0002 rows 3-5; user decision of 2026-10-30).
+
+    Attributes:
+        ocp_profile_pattern (str): A bound profile whose name matches (`re.search`, case-
+            sensitive) is an OCP profile. Same rule as server-scan's collectors (C2: verify the
+            production value with probe P-SS-1).
+        handover_grace (timedelta): How long an OCP-profile GPU server may be missing from
+            server-scan before it is a data-quality problem (server-scan collects 3-hourly).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    ocp_profile_pattern: str = "^ocp"
+    handover_grace: timedelta = timedelta(hours=6)
+
+    _durations = field_validator("handover_grace", mode="before")(_duration_field)
+
+    @field_validator("ocp_profile_pattern")
+    @classmethod
+    def _compiles(cls, value: str) -> str:
+        """
+        Refuse a pattern that is not a valid regular expression.
+
+        Args:
+            value (str): The pattern.
+
+        Returns:
+            str: The pattern unchanged.
+        """
+        re.compile(value)
+        return value
+
+
 class Policy(BaseModel):
     """
     Versioned business policy; every interval records the version it was decided under.
@@ -271,6 +306,7 @@ class Policy(BaseModel):
         allocated_idle (AllocatedIdlePolicy): The `allocated_idle` flag.
         pools (list[Pool]): Node pools, first match wins.
         team_map (TeamMap): Consuming teams.
+        collector (CollectorPolicy): Profile-less collector rules.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -286,6 +322,7 @@ class Policy(BaseModel):
     allocated_idle: AllocatedIdlePolicy = AllocatedIdlePolicy()
     pools: list[Pool] = []
     team_map: TeamMap = TeamMap()
+    collector: CollectorPolicy = CollectorPolicy()
 
     def counters(self) -> list[CounterOfRecord]:
         """
@@ -427,6 +464,102 @@ class ClustersFile(BaseModel):
         return self
 
 
+class UcsCentralConnection(BaseModel):
+    """
+    One UCS Central (and the UCS Manager domains registered with it), read-only (ADR-0004).
+
+    Attributes:
+        name (str): Manager name; records carry `ucs-central:<name>`.
+        host (str): Bare host name of UCS Central (port 443 only; no scheme, no path).
+        username (str): UCS Central account (server-scan's, C4; read-only is enforced in code).
+        password_file (Path): File holding its password.
+        ucsm_username (str | None): The UCS Manager account valid on every domain, for the
+            per-domain GPU fallback; None disables the fallback.
+        ucsm_password_file (Path | None): Its password file.
+        ca_bundle (Path | None): CA bundle for UCS Central and UCS Manager TLS.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1)
+    host: str = Field(pattern=r"^[A-Za-z0-9.-]+$")
+    username: str
+    password_file: Path
+    ucsm_username: str | None = None
+    ucsm_password_file: Path | None = None
+    ca_bundle: Path | None = None
+
+
+class OpenManageConnection(BaseModel):
+    """
+    One Dell OpenManage Enterprise, read-only (ADR-0004).
+
+    Attributes:
+        name (str): Manager name; records carry `openmanage:<name>`.
+        url (str): OME base URL, `https://<host>`.
+        username (str): OME account with the Viewer role (never Device Manager, which is scoped).
+        password_file (Path): File holding its password.
+        ca_bundle (Path | None): CA bundle for OME TLS.
+        idrac_username (str | None): Read-only iDRAC account for the Redfish GPU fallback.
+        idrac_password_file (Path | None): Its password file.
+        idrac_ca_bundle (Path | None): CA bundle for iDRAC TLS.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1)
+    url: str = Field(pattern=r"^https://")
+    username: str
+    password_file: Path
+    ca_bundle: Path | None = None
+    idrac_username: str | None = None
+    idrac_password_file: Path | None = None
+    idrac_ca_bundle: Path | None = None
+
+
+class ManagersFile(BaseModel):
+    """The managers file: the UCS Centrals and OpenManage instances the collector reads."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    ucs_central: list[UcsCentralConnection] = []
+    openmanage: list[OpenManageConnection] = []
+
+
+def load_managers(path: Path | None) -> ManagersFile:
+    """
+    Load the managers file.
+
+    Args:
+        path (Path | None): YAML managers file; None reads no manager.
+
+    Returns:
+        ManagersFile: The connections.
+    """
+    if path is None:
+        return ManagersFile()
+    return ManagersFile.model_validate(yaml.safe_load(path.read_text()) or {})
+
+
+def read_secret(path: Path) -> str:
+    """
+    Read a password or token from its mounted file (re-read on every use, so rotation works).
+
+    Args:
+        path (Path): The file.
+
+    Returns:
+        str: The value, stripped.
+
+    Raises:
+        ValueError: If the file is empty.
+    """
+    value = path.read_text().strip()
+    if not value:
+        raise ValueError(f"secret file {path} is empty")
+    return value
+
+
 def load_clusters(path: Path | None, policy: Policy) -> list[ClusterConnection]:
     """
     Load the clusters file and check every cluster is a policy target.
@@ -480,6 +613,9 @@ class Settings(BaseSettings):
     tombstone_after: timedelta = timedelta(hours=24)
     pricing_dir: Path = Path("config/pricing/snapshots")
     pricing_snapshot: str | None = None
+    managers_file: Path | None = None
+    collector_timeout_seconds: float = Field(default=600.0, gt=0)
+    collector_stale_after: timedelta = timedelta(hours=1)
     api_host: str = "0.0.0.0"  # noqa: S104 — serves inside a container; exposure is decided by the Service
     api_port: int = 8080
 
@@ -497,7 +633,7 @@ class Settings(BaseSettings):
         """
         return None if isinstance(value, str) and not value.strip() else value
 
-    @field_validator("detail_ttl", "tombstone_after", mode="before")
+    @field_validator("detail_ttl", "tombstone_after", "collector_stale_after", mode="before")
     @classmethod
     def _parse_durations(cls, value: Any) -> Any:
         """
