@@ -27,6 +27,8 @@ from ttv.models import (
     SourceStatus,
     ThanosSnapshot,
 )
+from ttv.pricing.catalog import canonical_gpu_model
+from ttv.pricing.importer import PresentPricing
 from ttv.sources.http import SourceError
 from ttv.sources.serverscan import ServerScanError, ServerScanFetch
 from ttv.store import AssetRow, LedgerState, Milestone, PostgresStore
@@ -153,6 +155,7 @@ class Engine:
         tombstone_after: timedelta,
         clusters: Sequence[ClusterSources] = (),
         cluster_timeout: float = 120.0,
+        pricing: PresentPricing | None = None,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
         """
@@ -168,6 +171,7 @@ class Engine:
             tombstone_after (timedelta): Absence from complete listings before an asset is retired.
             clusters (Sequence[ClusterSources]): Observed target clusters.
             cluster_timeout (float): Deadline for each cluster source read, in seconds.
+            pricing (PresentPricing | None): Present-day snapshot; None prices nothing.
             clock (Callable[[], datetime]): Time source (tests inject one).
         """
         self.policy = policy
@@ -180,6 +184,7 @@ class Engine:
         self.clock = clock
         self.clusters = list(clusters)
         self.cluster_timeout = cluster_timeout
+        self.pricing = pricing
         self.last_fetch: ServerScanFetch | None = None
         self.last_report: ScanReport | None = None
         self._failed: dict[str, int] = defaultdict(int)
@@ -276,6 +281,7 @@ class Engine:
                 conflicts=conflicts,
                 resolve_missing_conflicts=fresh_complete,
                 now=now,
+                gpu_aliases=_aliases(decisions),
             )
 
         coverage["cluster_sources_failed"] = sum(
@@ -467,6 +473,10 @@ class Engine:
             if source in ("kube", "thanos"):
                 failed.append((source, rest.split(":", 1)[0]))
         self.metrics.observe_decisions(report.decisions, report.servers)
+        priced = self.pricing.priced if self.pricing else frozenset()
+        self.metrics.observe_unpriced(
+            report.decisions, lambda raw: canonical_gpu_model(raw) in priced
+        )
         self.metrics.observe_scan(
             kind="engine",
             complete=complete and report.status in ("ok", "dry_run"),
@@ -499,6 +509,20 @@ def _empty(asset_id: str, policy: Policy) -> Decision:
         {},
         policy.policy_version,
     )
+
+
+def _aliases(decisions: dict[str, Decision]) -> dict[str, str | None]:
+    """
+    Canonical names of the raw GPU models in this scan's buckets, for `gpu_model_aliases`.
+
+    Args:
+        decisions (dict[str, Decision]): Decisions by asset id.
+
+    Returns:
+        dict[str, str | None]: Raw model → canonical name (None: unidentified).
+    """
+    raw = {b.gpu_model for d in decisions.values() for b in d.buckets if b.gpu_model}
+    return {model: canonical_gpu_model(model) for model in raw}
 
 
 def _asset_row(asset_id: str, s: ServerScanServer) -> AssetRow:

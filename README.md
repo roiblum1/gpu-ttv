@@ -19,9 +19,9 @@ Idle GPU-hours are charged to the team that owns the current stage:
 | GPU platform | POPAI | the node is Ready but its GPUs are not advertised or not reporting to DCGM |
 | Serving | Serving | the GPUs are ready but unused: no workload, not ready, or no real demand |
 
-Idle time past a stage objective is reported as **overdue**. Value is shown as the **AWS On-Demand equivalent in USD** (slice 4).
+Idle time past a stage objective is reported as **overdue**. Value is shown as the **AWS On-Demand equivalent in USD** (Linux, shared tenancy, us-east-1): a comparison, not a bill or a loss ([ADR-0003](docs/adr/0003-aws-pricing.md)).
 
-The binding brief is [`AGENT.md`](AGENT.md). The design is in [ADR-0001](docs/adr/0001-architecture.md) (architecture) and [ADR-0002](docs/adr/0002-classification-rules.md) (every classification rule).
+The binding brief is [`AGENT.md`](AGENT.md). The design is in [ADR-0001](docs/adr/0001-architecture.md) (architecture), [ADR-0002](docs/adr/0002-classification-rules.md) (every classification rule) and [ADR-0003](docs/adr/0003-aws-pricing.md) (AWS pricing).
 
 ## How it works
 
@@ -40,7 +40,7 @@ target clusters, read-only:              │
 - **The ledger stores intervals of physical GPU counts.** Money is computed when queried, from a dated price snapshot, so refreshing prices never rewrites history.
 - **A failing source keeps its last good data** for a grace period, then turns UNKNOWN. A partial listing never deletes anything.
 
-## Status: Release 1, slices 1–2 of 5
+## Status: Release 1, slices 1–2 and pricing of 5
 
 | Area | State | Evidence |
 | --- | --- | --- |
@@ -51,7 +51,8 @@ target clusters, read-only:              │
 | Target clusters (`sources/kube.py`, `sources/thanos.py`) | Nodes, GPU pods, owner chains; DCGM, activity, serving counters | `lab-tested` on OpenShift 4.22 with KServe/llm-d; GPU rows on **simulated** GPUs (`deploy/lab/`) |
 | Grafana (`grafana/`) | Queues and Evidence dashboards, provisioned data sources | `fixture-tested` on Grafana 12.4 and 13.2; `lab-tested` on the lab ledger |
 | Profile-less collector (DC's no-profile queue) | Slice 3: not built | — |
-| AWS pricing (USD), home dashboard, alerts | Slice 4: not built | — |
+| AWS pricing in USD (`src/ttv/pricing/`, `ttv-pricing`) | Offline snapshots (capture, verify, import, rollback), GPU catalogue and instance map, present-day and historical value, `ttv_unpriced_gpus`, Queues value panels | Snapshot of the real us-east-1 price list published 2026-10-29 (`documented`); `fixture-tested` incl. §17 linear pricing; `lab-tested` on the lab ledger and Grafana 12.4. Two proxies and the size rule await approval |
+| Home dashboard, alerts | Slice 4: not built | — |
 | Helm chart, offline bundle, dry-run review | Slice 5: not built | — |
 
 Nothing here is `production-verified` yet. Evidence labels are defined in [`docs/discovery.md`](docs/discovery.md).
@@ -70,6 +71,8 @@ uv run ttv-engine --once           # one scan, summary on stdout
 uv run ttv-engine                  # scan loop + API on :8080
 ```
 
+Prices are never fetched by the engine. On a connected machine, `uv run ttv-pricing capture --region us-east-1` writes a new snapshot under `config/pricing/snapshots/`; carry it in and restart (or `ttv-pricing import`). Roll back by setting `TTV_PRICING_SNAPSHOT` to an older id ([ADR-0003](docs/adr/0003-aws-pricing.md)).
+
 `TTV_DRY_RUN=true` (the default) classifies and plans without writing the ledger. Turn it off only after a reviewed dry run of at least a day (AGENT.md §20.6). To view the dashboards, see [`grafana/README.md`](grafana/README.md).
 
 ## Configuration
@@ -79,6 +82,8 @@ uv run ttv-engine                  # scan loop + API on :8080
 | `.env` ([example](.env.example)) | Runtime settings: endpoints, token files, CA bundles, database, cadences, grace periods |
 | `config/policy.yaml` ([example](config/policy.example.yaml)) | Versioned business policy: stage owners, objectives, target clusters, exclusions, serving counters, Run:ai kinds, pools, teams |
 | `config/clusters.yaml` ([example](config/clusters.example.yaml)) | One read-only connection per target cluster: kube API, Thanos route, token file, CA bundles, expected cluster ID |
+| [`config/pricing/gpu-instance-map.yaml`](config/pricing/gpu-instance-map.yaml) | Versioned GPU model → AWS instance map (`exact`, `proxy`, `unpriced`, with reasons) |
+| `config/pricing/snapshots/*.json` | Immutable, checksummed AWS price snapshots, imported at startup (`TTV_PRICING_DIR`); `TTV_PRICING_SNAPSHOT` pins the present-day one |
 
 ## Development
 
@@ -100,8 +105,9 @@ src/ttv/            engine package
   ledger.py         scan decisions → interval opens/closes (pure)
   store.py          Postgres ledger
   engine.py         one scan: fetch → classify → plan → apply
+  pricing/          GPU catalogue, instance map, price snapshots, capture/import CLI (ttv-pricing)
 migrations/         plain SQL schema
-config/             policy and cluster examples
+config/             policy and cluster examples; pricing map and snapshots
 grafana/            data sources and dashboards as code
 deploy/lab/         lab-only manifests (fake GPUs on a cluster without GPUs)
 docs/               discovery findings, probe runbooks, ADRs

@@ -1,0 +1,198 @@
+# Canonical GPU model (src/ttv/pricing/catalog.py) -> AWS EC2 instance for the On-Demand comparison.
+# exact = same GPU and memory; proxy = comparable GPU, NEEDS USER APPROVAL; unpriced = never $0.
+# Bump map_version on every change: it is part of every snapshot id (docs/adr/0003-aws-pricing.md).
+map_version: "2026-10-31.1"
+retrieved: "2026-10-31"
+size_rule: >-
+  The smallest size with at least 4 GPUs of the model, so each GPU carries the least host
+  (vCPU, RAM) in the per-GPU split and the size matches 4-8 GPU servers. P families sell only
+  one multi-GPU size (8 GPUs).
+
+entries:
+  # --- exact ----------------------------------------------------------------------------------
+  - gpu_model: NVIDIA H100 80GB
+    kind: exact
+    instance_type: p5.48xlarge
+    instance_gpus: 8
+    confidence: medium
+    reason: >-
+      AWS: 8 x NVIDIA H100, 640 GiB (8 x 80 GiB). Same GPU and memory. AWS uses the SXM part;
+      a PCIe H100 (fewer SMs, lower memory bandwidth) is valued at the SXM rate.
+    sources: [https://docs.aws.amazon.com/ec2/latest/instancetypes/ac.html]
+  - gpu_model: NVIDIA H200 141GB
+    kind: exact
+    instance_type: p5en.48xlarge
+    instance_gpus: 8
+    confidence: medium
+    reason: >-
+      AWS: 8 x NVIDIA H200, 1128 GiB (8 x 141 GiB). p5e.48xlarge has the same GPUs but no
+      On-Demand row in the us-east-1 price list of 2026-10-29. The catalogue row also covers
+      H200 NVL (PCIe), valued at the SXM rate.
+    sources: [https://docs.aws.amazon.com/ec2/latest/instancetypes/ac.html]
+  - gpu_model: NVIDIA B200 180GB
+    kind: exact
+    instance_type: p6-b200.48xlarge
+    instance_gpus: 8
+    confidence: high
+    reason: AWS 8 x NVIDIA B200, 1432 GiB (8 x 179 GiB). Same GPU; AWS states 179 GiB per GPU.
+    sources: [https://docs.aws.amazon.com/ec2/latest/instancetypes/ac.html]
+  - gpu_model: NVIDIA A100 40GB
+    kind: exact
+    instance_type: p4d.24xlarge
+    instance_gpus: 8
+    confidence: medium
+    reason: >-
+      AWS: 8 x NVIDIA A100, 320 GiB (8 x 40 GiB). Same GPU and memory. AWS uses the SXM4 part;
+      a PCIe A100 is valued at the SXM4 rate.
+    sources: [https://docs.aws.amazon.com/ec2/latest/instancetypes/ac.html]
+  - gpu_model: NVIDIA A100 80GB
+    kind: exact
+    instance_type: p4de.24xlarge
+    instance_gpus: 8
+    confidence: medium
+    reason: >-
+      AWS: 8 x NVIDIA A100, 640 GiB (8 x 80 GiB). Same GPU and memory. AWS uses the SXM4 part;
+      a PCIe A100 80GB is valued at the SXM4 rate.
+    sources: [https://docs.aws.amazon.com/ec2/latest/instancetypes/ac.html]
+  - gpu_model: NVIDIA L40S 48GB
+    kind: exact
+    instance_type: g6e.12xlarge
+    instance_gpus: 4
+    confidence: high
+    reason: >-
+      AWS: 4 x NVIDIA L40S, 178 GiB (4 x 44 GiB), 48 vCPU, 384 GiB. Same GPU. The 8-GPU
+      g6e.48xlarge carries a 4x larger host (192 vCPU, 1536 GiB) for 2x the GPUs, so it prices
+      each GPU higher.
+    sources: [https://docs.aws.amazon.com/ec2/latest/instancetypes/ac.html]
+  - gpu_model: NVIDIA L4 24GB
+    kind: exact
+    instance_type: g6.12xlarge
+    instance_gpus: 4
+    confidence: high
+    reason: AWS 4 x NVIDIA L4, 89 GiB (4 x 22 GiB), 48 vCPU, 192 GiB. Same GPU.
+    sources: [https://docs.aws.amazon.com/ec2/latest/instancetypes/ac.html]
+  - gpu_model: NVIDIA T4 16GB
+    kind: exact
+    instance_type: g4dn.12xlarge
+    instance_gpus: 4
+    confidence: high
+    reason: >-
+      AWS: 4 x NVIDIA T4, 64 GiB (4 x 16 GiB), 48 vCPU, 192 GiB. Same GPU. The 8-GPU
+      g4dn.metal is bare metal, a separate product family in the price list.
+    sources: [https://docs.aws.amazon.com/ec2/latest/instancetypes/ac.html]
+  - gpu_model: NVIDIA RTX PRO 6000 Blackwell 96GB
+    kind: exact
+    instance_type: g7e.24xlarge
+    instance_gpus: 4
+    confidence: high
+    reason: AWS 4 x NVIDIA RTX PRO Server 6000, 384 GiB (4 x 96 GiB). Same GPU (Server Edition).
+    sources: [https://docs.aws.amazon.com/ec2/latest/instancetypes/ac.html]
+  - gpu_model: NVIDIA Tesla V100 32GB
+    kind: exact
+    instance_type: p3dn.24xlarge
+    instance_gpus: 8
+    confidence: medium
+    reason: >-
+      AWS (previous generation): 8 x NVIDIA V100, 256 GiB (8 x 32 GiB). Same GPU and memory;
+      AWS uses the SXM2 part.
+    sources: [https://docs.aws.amazon.com/ec2/latest/instancetypes/pg.html]
+
+  # --- proxy: needs user approval -------------------------------------------------------------
+  - gpu_model: NVIDIA A10 24GB
+    kind: proxy
+    instance_type: g5.12xlarge
+    instance_gpus: 4
+    confidence: medium
+    reason: >-
+      AWS: 4 x NVIDIA A10G, 89 GiB (4 x 22 GiB). The A10G is AWS's variant of the A10 and
+      server-scan's catalogue files both under this row, but they are different SKUs.
+    sources: [https://docs.aws.amazon.com/ec2/latest/instancetypes/ac.html]
+  - gpu_model: NVIDIA A100 (memory unknown)
+    kind: proxy
+    instance_type: p4d.24xlarge
+    instance_gpus: 8
+    confidence: low
+    reason: >-
+      The inventory reports a bare A100 without its memory size (40GB and 80GB both exist).
+      Valued at the 40GB (p4d) rate, the lower of the two A100 rates, so the value is a lower
+      bound. Teaching server-scan the model (INVENTORY_GPU_MODELS) removes the need.
+    sources: [https://docs.aws.amazon.com/ec2/latest/instancetypes/ac.html]
+
+  # --- unpriced: no defensible AWS equivalent -------------------------------------------------
+  - gpu_model: NVIDIA Tesla V100 16GB
+    kind: unpriced
+    reason: >-
+      AWS's instance-type specifications no longer document a V100 16GB instance (ac.html and
+      pg.html list only p3dn.24xlarge, V100 32GB), although the price list still has p3 sizes.
+  - gpu_model: NVIDIA Tesla V100 (memory unknown)
+    kind: unpriced
+    reason: Memory size not reported, and only the 32GB V100 has a documented AWS instance.
+  - gpu_model: NVIDIA Tesla P100 12GB
+    kind: unpriced
+    reason: No EC2 instance type with this GPU (ac.html, pg.html).
+  - gpu_model: NVIDIA Tesla P100 16GB
+    kind: unpriced
+    reason: No EC2 instance type with this GPU (ac.html, pg.html).
+  - gpu_model: NVIDIA Tesla P100 (memory unknown)
+    kind: unpriced
+    reason: No EC2 instance type with this GPU (ac.html, pg.html).
+  - gpu_model: NVIDIA Quadro RTX 6000 24GB
+    kind: unpriced
+    reason: No EC2 instance type with this GPU (ac.html, pg.html).
+  - gpu_model: NVIDIA Quadro RTX 8000 48GB
+    kind: unpriced
+    reason: No EC2 instance type with this GPU (ac.html, pg.html).
+  - gpu_model: NVIDIA A2 16GB
+    kind: unpriced
+    reason: No EC2 instance type with this GPU (ac.html, pg.html).
+  - gpu_model: NVIDIA A16 16GB
+    kind: unpriced
+    reason: No EC2 instance type with this GPU (a virtual-desktop card; ac.html, pg.html).
+  - gpu_model: NVIDIA A30 24GB
+    kind: unpriced
+    reason: No EC2 instance type with this GPU (ac.html, pg.html).
+  - gpu_model: NVIDIA A40 48GB
+    kind: unpriced
+    reason: No EC2 instance type with this GPU (ac.html, pg.html).
+  - gpu_model: NVIDIA L40 48GB
+    kind: unpriced
+    reason: No EC2 instance type with this GPU; G6e uses the L40S, a different SKU.
+  - gpu_model: NVIDIA H100 NVL 94GB
+    kind: unpriced
+    reason: No EC2 instance type with this GPU; P5 uses an 80 GiB H100.
+  - gpu_model: NVIDIA A800 40GB
+    kind: unpriced
+    reason: China-market A100 variant; no EC2 instance type.
+  - gpu_model: NVIDIA A800 80GB
+    kind: unpriced
+    reason: China-market A100 variant; no EC2 instance type.
+  - gpu_model: NVIDIA A800 (memory unknown)
+    kind: unpriced
+    reason: China-market A100 variant; no EC2 instance type.
+  - gpu_model: NVIDIA H800 80GB
+    kind: unpriced
+    reason: China-market H100 variant; no EC2 instance type.
+  - gpu_model: AMD Instinct MI100 32GB
+    kind: unpriced
+    reason: &amd No EC2 instance has an AMD Instinct GPU (ac.html lists only the Radeon Pro V520).
+  - gpu_model: AMD Instinct MI210 64GB
+    kind: unpriced
+    reason: *amd
+  - gpu_model: AMD Instinct MI250 128GB
+    kind: unpriced
+    reason: *amd
+  - gpu_model: AMD Instinct MI250X 128GB
+    kind: unpriced
+    reason: *amd
+  - gpu_model: AMD Instinct MI300A 128GB
+    kind: unpriced
+    reason: *amd
+  - gpu_model: AMD Instinct MI300X 192GB
+    kind: unpriced
+    reason: *amd
+  - gpu_model: AMD Instinct MI325X 256GB
+    kind: unpriced
+    reason: *amd
+  - gpu_model: AMD Instinct MI355X 288GB
+    kind: unpriced
+    reason: *amd

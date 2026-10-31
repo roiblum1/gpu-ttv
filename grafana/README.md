@@ -1,6 +1,6 @@
 # Grafana: dashboards and data sources as code
 
-Slice 1 (ADR-0001): the Queues view of E03 and the Evidence view of E18, read from the TTV ledger (`migrations/0001_init.sql`).
+Slice 1 (ADR-0001): the Queues view of E03 and the Evidence view of E18, read from the TTV ledger (`migrations/`). Slice 4 adds AWS-equivalent value in USD to Queues (ADR-0003).
 
 ```
 grafana/
@@ -24,7 +24,7 @@ Mount `provisioning/datasources/` and `provisioning/dashboards/` under Grafana's
 | `TTV_PG_SSLROOTCERT` | path to the CA bundle inside the Grafana container for `verify-ca`/`verify-full`; may be empty otherwise |
 | `TTV_PROM_URL` | Prometheus/Thanos URL for the engine's `/metrics` (no slice-1 panel uses it yet) |
 
-The Grafana database user needs only `SELECT` on the ledger tables (validated with a SELECT-only role). Dashboards are read-only in the UI (`allowUiUpdates: false`). To change one, edit the JSON and keep its `uid` and panel `id`s stable. For air-gapped Grafana, also set `GF_ANALYTICS_REPORTING_ENABLED=false`, `GF_ANALYTICS_CHECK_FOR_UPDATES=false`, `GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES=false`, `GF_NEWS_NEWS_FEED_ENABLED=false` and `GF_SECURITY_DISABLE_GRAVATAR=true`.
+The Grafana database user needs only `SELECT` on the ledger tables, including `gpu_model_aliases`, `pricing_snapshots`, `pricing_rates` and `pricing_selection` from `migrations/0002_pricing.sql` (validated with a SELECT-only role for slice 1). Dashboards are read-only in the UI (`allowUiUpdates: false`). To change one, edit the JSON and keep its `uid` and panel `id`s stable. For air-gapped Grafana, also set `GF_ANALYTICS_REPORTING_ENABLED=false`, `GF_ANALYTICS_CHECK_FOR_UPDATES=false`, `GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES=false`, `GF_NEWS_NEWS_FEED_ENABLED=false` and `GF_SECURITY_DISABLE_GRAVATAR=true`.
 
 ## Reading the dashboards
 
@@ -34,6 +34,11 @@ The Grafana database user needs only `SELECT` on the ledger tables (validated wi
 - **Unknown is never zero or green.** UNKNOWN GPUs are purple and kept separate. Panels with no evidence show "No data" or "never", not 0. Colours: green = productive/healthy, orange = idle/needs attention, red = overdue/problem, blue = NOT_CHARGED (approved exclusion), purple = unknown.
 - **Filters.** `stage_owner` and `site` are multi-select. "All" sends `'__all__'`, which means no filter, so rows with no owner or no site are kept. Each panel's description lists the filters it honours. UNKNOWN, PRODUCTIVE and NOT_CHARGED stats ignore `stage_owner`, because those GPUs have no stage owner.
 - Next-action annotations are display only (latest unexpired row per asset). They never change an owner or a total.
+- **Value (USD).** Panels 16-20 and the USD columns of panel 12 show the AWS On-Demand equivalent (Linux, shared tenancy, us-east-1): GPU-hours × the per-GPU rate of each GPU's model, joined `gpu_model` → `gpu_model_aliases` → `pricing_rates`. It is a comparison, **not a bill, not our cost and not a loss**, and is never added to other money views (AGENT.md §10, ADR-0003).
+  - `Price snapshot (USD)` (`$snapshot`) picks the present-day snapshot. It defaults to the engine's selection (`pricing_selection`: `TTV_PRICING_SNAPSHOT`, else the latest published). The stat shows the snapshot's region and publication date.
+  - "Historical" columns value each interval at the snapshot in force when it started, so importing a newer snapshot never changes them. Intervals older than every snapshot are unpriced historically.
+  - **Unpriced is never $0.** GPUs whose model has no rate are counted in "Unpriced idle GPUs now" (purple), listed with the reason in "Unpriced idle GPUs now, by model", and shown as unpriced GPU-h beside every USD column. A USD cell reading "unpriced" means nothing in that row could be priced. The value-per-hour stat excludes unpriced GPUs, so it is a lower bound whenever that count is above 0.
+  - Dollars use the unit `prefix:$` so they are exact, not abbreviated to K/M.
 
 Assumptions the SQL makes about the engine:
 1. All intervals of one stage episode carry the same `stage_entered_at`.
@@ -49,3 +54,8 @@ Assumptions the SQL makes about the engine:
 - AGENT.md §17, through Grafana's own macros: 8 GPUs idle for 3 h with a 1 h objective gave 24 idle and 16 overdue GPU-h. The same interval clipped to 00:30–02:30 gave 16 idle and 12 overdue. 6 idle GPUs for 2 h beside 2 productive ones gave 12 idle GPU-h.
 
 To re-check, start Postgres 17 and apply the migration and a fixture. Run Grafana with the mounts above. Then query `/api/dashboards/uid/ttv-queues` and post each panel's target to `/api/ds/query`, substituting `$site`/`$stage_owner` with `'__all__'` as the browser would.
+
+2026-10-31, slice 4 (pricing), `lab-tested` (not production evidence): `ttv_lab_pricing` (lab ledger from the sandbox, migration 0002, the us-east-1 snapshot published 2026-10-29):
+- Every panel and variable query of both dashboards ran with macros substituted (`$__timeFrom()`/`$__timeTo()`, `$site`/`$stage_owner` = All, `$snapshot` = the snapshot id) with no errors.
+- A throwaway Grafana **12.4.14** (same digest as above) provisioned from these files against that database: all 15 Queues queries passed through `/api/ds/query` with All, with `stage_owner=Redbull` and with an empty snapshot; the Evidence dashboard's queries had no errors either. The page was rendered in a browser: idle value $1865.30 per hour (snapshot us-east-1, published 2026-10-29 17:56 UTC) and 178 unpriced idle GPUs (MI300X, RTX A6000, A16) with reasons.
+- The browser check found and fixed three problems: a stat's field regex matches the display name (so it went blank), `currencyUSD` abbreviated $1,261 to "$1K", and long headers were truncated.

@@ -6,6 +6,7 @@ import dataclasses
 import os
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +15,8 @@ import pytest
 
 from ttv.config import Policy
 from ttv.models import ServerScanServer, Stage
+from ttv.pricing.mapping import Confidence
+from ttv.pricing.snapshot import Rate, Snapshot, Unpriced, decimal_str, per_gpu_rate
 from ttv.store import PostgresStore
 
 T0 = datetime(2026, 10, 1, 12, 0, tzinfo=UTC)
@@ -83,4 +86,50 @@ def policy() -> Policy:
             Stage.SERVING: timedelta(days=7),
         },
         target_clusters=frozenset({"ocp4-prod-gpu-site1"}),
+    )
+
+
+def synthetic_snapshot(
+    published: datetime,
+    rates: dict[str, tuple[str, int]] | None = None,
+    *,
+    unpriced: tuple[str, ...] = ("NVIDIA A16 16GB",),
+    map_version: str = "test-1",
+) -> Snapshot:
+    """A sealed snapshot with unmistakably synthetic prices: {model: (instance $/h, GPUs)}."""
+    rates = {"NVIDIA H100 80GB": ("80.00", 8)} if rates is None else rates
+    return Snapshot.create(
+        region="us-east-1",
+        publication_date=published,
+        offer_version=published.strftime("%Y%m%d%H%M%S"),
+        captured_at=published + timedelta(hours=1),
+        source_urls=["https://pricing.example.invalid/index.csv"],
+        raw_sha256="0" * 64,
+        raw_bytes=0,
+        parser_version="test",
+        map_version=map_version,
+        catalog_version="test",
+        filters={"TermType": "OnDemand"},
+        rates=[
+            Rate(
+                gpu_model=model,
+                instance_type=f"synthetic{i}.48xlarge",
+                sku=f"SKU{i}",
+                rate_code=f"SKU{i}.JRTCKXETXF.6YS6EN2CT7",
+                instance_hourly_usd=hourly,
+                instance_gpus=gpus,
+                per_gpu_hour_usd=decimal_str(per_gpu_rate(Decimal(hourly), gpus)),
+                kind="exact",
+                confidence=Confidence.HIGH,
+                reason="synthetic",
+                effective_date="2026-01-01",
+                price_description="synthetic",
+                gpu_memory="",
+                vcpu="",
+                memory="",
+                map_sources=[],
+            )
+            for i, (model, (hourly, gpus)) in enumerate(sorted(rates.items()))
+        ],
+        unpriced=[Unpriced(gpu_model=m, reason="synthetic: no equivalent") for m in unpriced],
     )

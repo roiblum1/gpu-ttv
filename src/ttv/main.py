@@ -7,8 +7,7 @@ import asyncio
 import json
 import logging
 import sys
-from datetime import timedelta
-from pathlib import Path
+from datetime import UTC, datetime, timedelta
 
 import structlog
 import uvicorn
@@ -17,12 +16,13 @@ from ttv.api import create_app
 from ttv.config import ClusterConnection, Policy, Settings, load_clusters, load_policy
 from ttv.engine import ClusterSources, Engine
 from ttv.metrics import EngineMetrics
+from ttv.pricing.catalog import canonical_gpu_model
+from ttv.pricing.importer import prepare_pricing
 from ttv.sources.kube import KubeSource
 from ttv.sources.serverscan import DetailCache, InMemoryDetailCache, ServerScanSource
 from ttv.sources.thanos import ThanosSource
-from ttv.store import PostgresStore
+from ttv.store import MIGRATIONS, PostgresStore
 
-MIGRATIONS = Path(__file__).resolve().parents[2] / "migrations"
 log = structlog.get_logger(__name__)
 
 
@@ -96,6 +96,24 @@ async def _run(args: argparse.Namespace) -> int:
             log.info("engine.standby", reason="another engine holds the leader lock")
             await asyncio.sleep(settings.scan_interval_seconds)
         await store.sync_objectives(policy)
+    now = datetime.now(UTC)
+    pricing, imported = await prepare_pricing(
+        store.conn if store else None, settings.pricing_dir, settings.pricing_snapshot, now
+    )
+    log.info(
+        "pricing.ready",
+        directory=str(settings.pricing_dir),
+        imported=imported,
+        snapshot=pricing.snapshot_id if pricing else None,
+        published=pricing.publication_date.isoformat() if pricing else None,
+        selected_by=pricing.source if pricing else None,
+        priced_models=sorted(pricing.priced) if pricing else [],
+    )
+    if pricing is None:
+        log.warning("pricing.none", effect="every GPU is reported unpriced; no value is shown")
+    if store and not settings.dry_run:
+        seen = await store.refresh_gpu_aliases(canonical_gpu_model, now)
+        log.info("pricing.aliases_refreshed", raw_models=seen)
 
     source = ServerScanSource(
         settings.serverscan_url,
@@ -118,6 +136,7 @@ async def _run(args: argparse.Namespace) -> int:
         tombstone_after=settings.tombstone_after,
         clusters=cluster_sources,
         cluster_timeout=settings.cluster_timeout_seconds,
+        pricing=pricing,
     )
     log.info(
         "engine.start",
