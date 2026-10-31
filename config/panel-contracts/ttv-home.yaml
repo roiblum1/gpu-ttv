@@ -552,6 +552,159 @@ panels:
   action: null
   fixture: null
   expected: null
+- id: 26
+  title: Time to GPU-ready · p50
+  question: E02
+  status: built
+  audience: CEO
+  decision: Is typical time from first record to usable GPUs falling?
+  definition: Median of first record → GPU-ready over servers whose clock completed in the last period.
+  unit: days
+  numerator: percentile_cont(0.5) of exact samples (else exact + lower bounds, shown "≥")
+  denominator: null
+  population: Servers with a first record and a gpu_ready milestone completing in the window.
+  window: last $period complete UTC days before the end of the time range
+  filters:
+  - site
+  - period
+  exclusions: Samples whose GPU-ready was already true at first sight; stage_owner does not apply.
+  query: grafana/dashboards/ttv-home.json#26
+  lineage:
+  - milestones.in_serverscan
+  - milestones.first_seen
+  - milestones.gpu_ready
+  - capacity_intervals.ended_at
+  - scan_runs.status
+  freshness: Periods end at the last complete UTC day.
+  baseline: Prior period (Clocks table, panel 14).
+  direction: lower_is_better
+  thresholds: null
+  uncertainty: Caption gives n; "lower bound" (purple, "≥") when exact samples are fewer than 5.
+  missing_data: Fewer than 5 usable samples shows "no estimate" with "insufficient history · n = k of
+    5".
+  value_kind: derived
+  gate: history
+  privileges: SELECT on milestones, capacity_intervals, scan_runs, assets
+  cardinality: one value
+  drilldown: ttv-delivery#14
+  action: null
+  fixture: tests/test_delivery_sql.py
+  expected: Exact samples of 2, 3, 4, 5, 6 days give 4.0 d with "n = 5 · last 28 d".
+- id: 27
+  title: Time to GPU-ready · p90
+  question: E02
+  status: built
+  audience: CEO
+  decision: Are the slow deliveries to GPU-ready getting faster too?
+  definition: 90th percentile of first record → GPU-ready over servers whose clock completed in the last
+    period.
+  unit: days
+  numerator: percentile_cont(0.9) of exact samples (else exact + lower bounds, shown "≥")
+  denominator: null
+  population: Servers with a first record and a gpu_ready milestone completing in the window.
+  window: last $period complete UTC days before the end of the time range
+  filters:
+  - site
+  - period
+  exclusions: Samples whose GPU-ready was already true at first sight; stage_owner does not apply.
+  query: grafana/dashboards/ttv-home.json#27
+  lineage:
+  - milestones.in_serverscan
+  - milestones.first_seen
+  - milestones.gpu_ready
+  - capacity_intervals.ended_at
+  - scan_runs.status
+  freshness: Periods end at the last complete UTC day.
+  baseline: Prior period (panel 14).
+  direction: lower_is_better
+  thresholds: null
+  uncertainty: Caption gives n; with few samples p90 is close to the maximum.
+  missing_data: Fewer than 5 usable samples shows "no estimate".
+  value_kind: derived
+  gate: history
+  privileges: SELECT on milestones, capacity_intervals, scan_runs, assets
+  cardinality: one value
+  drilldown: ttv-delivery#14
+  action: null
+  fixture: tests/test_delivery_sql.py
+  expected: Exact samples of 2..6 days give 5.6 d.
+- id: 28
+  title: Time to first genuine request · p50
+  question: E02
+  status: built
+  audience: CEO
+  decision: Is typical time from first record to real use falling?
+  definition: Median of first record → first genuine request, computed per server from its own milestones
+    (never a sum of stage percentiles).
+  unit: days
+  numerator: percentile_cont(0.5) of exact samples (else exact + lower bounds, shown "≥")
+  denominator: null
+  population: Servers whose first genuine request was recorded in the window.
+  window: last $period complete UTC days before the end of the time range
+  filters:
+  - site
+  - period
+  exclusions: Requests already flowing at first sight or after an UNKNOWN traffic state; Run:ai-only servers
+    (never record a genuine request); stage_owner does not apply.
+  query: grafana/dashboards/ttv-home.json#28
+  lineage:
+  - milestones.in_serverscan
+  - milestones.first_seen
+  - milestones.first_genuine_request
+  - capacity_intervals.category
+  - scan_runs.status
+  freshness: Periods end at the last complete UTC day.
+  baseline: Prior period (panel 14).
+  direction: lower_is_better
+  thresholds: null
+  uncertainty: Caption gives n; "≥" when lower bounds were needed.
+  missing_data: Fewer than 5 usable samples shows "no estimate".
+  value_kind: derived
+  gate: history
+  privileges: SELECT on milestones, capacity_intervals, scan_runs, assets
+  cardinality: one value
+  drilldown: ttv-delivery#14
+  action: null
+  fixture: tests/test_delivery_sql.py
+  expected: Lab ledger 2026-10-31 showed "insufficient history · n = 0 of 5" (its only request followed
+    TRAFFIC_UNOBSERVED).
+- id: 29
+  title: Time to first genuine request · p90
+  question: E02
+  status: built
+  audience: CEO
+  decision: Are the slowest paths to real use getting faster?
+  definition: 90th percentile of first record → first genuine request per server.
+  unit: days
+  numerator: percentile_cont(0.9) of exact samples (else exact + lower bounds, shown "≥")
+  denominator: null
+  population: Servers whose first genuine request was recorded in the window.
+  window: last $period complete UTC days before the end of the time range
+  filters:
+  - site
+  - period
+  exclusions: As panel 12.
+  query: grafana/dashboards/ttv-home.json#29
+  lineage:
+  - milestones.in_serverscan
+  - milestones.first_seen
+  - milestones.first_genuine_request
+  - capacity_intervals.category
+  - scan_runs.status
+  freshness: Periods end at the last complete UTC day.
+  baseline: Prior period (panel 14).
+  direction: lower_is_better
+  thresholds: null
+  uncertainty: Caption gives n; with few samples p90 is close to the maximum.
+  missing_data: Fewer than 5 usable samples shows "no estimate".
+  value_kind: derived
+  gate: history
+  privileges: SELECT on milestones, capacity_intervals, scan_runs, assets
+  cardinality: one value
+  drilldown: ttv-delivery#14
+  action: null
+  fixture: tests/test_delivery_sql.py
+  expected: As panel 12.
 - id: 31
   title: E04 · What changed since our last review?
   question: E04

@@ -229,6 +229,70 @@
         "hide": 0,
         "regex": "",
         "skipUrlSync": false
+      },
+      {
+        "name": "period",
+        "label": "Comparison period (days)",
+        "description": "Length of the two complete periods compared: the last N complete UTC days before the end of the time range vs the N days before that.",
+        "type": "custom",
+        "query": "7, 14, 28, 56, 91",
+        "current": {
+          "selected": true,
+          "text": "28",
+          "value": "28"
+        },
+        "options": [
+          {
+            "selected": false,
+            "text": "7",
+            "value": "7"
+          },
+          {
+            "selected": false,
+            "text": "14",
+            "value": "14"
+          },
+          {
+            "selected": true,
+            "text": "28",
+            "value": "28"
+          },
+          {
+            "selected": false,
+            "text": "56",
+            "value": "56"
+          },
+          {
+            "selected": false,
+            "text": "91",
+            "value": "91"
+          }
+        ],
+        "multi": false,
+        "includeAll": false,
+        "hide": 2,
+        "skipUrlSync": false
+      },
+      {
+        "name": "min_n",
+        "label": "Minimum exact samples",
+        "description": "A percentile is shown only with at least this many samples (fewer = 'insufficient history').",
+        "type": "constant",
+        "query": "5",
+        "current": {
+          "selected": false,
+          "text": "5",
+          "value": "5"
+        },
+        "options": [
+          {
+            "selected": true,
+            "text": "5",
+            "value": "5"
+          }
+        ],
+        "hide": 2,
+        "skipUrlSync": false
       }
     ]
   },
@@ -716,7 +780,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 90
+                "value": 110
               },
               {
                 "id": "links",
@@ -756,7 +820,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 130
+                "value": 120
               }
             ]
           },
@@ -800,7 +864,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 95
+                "value": 115
               }
             ]
           },
@@ -1427,7 +1491,7 @@
     {
       "type": "row",
       "id": 20,
-      "title": "Selected period: idle and overdue time",
+      "title": "Selected period: idle and overdue time, and delivery speed",
       "gridPos": {
         "x": 0,
         "y": 35,
@@ -1635,7 +1699,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 40,
+        "y": 44,
         "w": 24,
         "h": 9
       },
@@ -1795,12 +1859,420 @@
       }
     },
     {
+      "type": "stat",
+      "id": 26,
+      "title": "Time to GPU-ready · p50",
+      "description": "Definition: Median (p50) of first record → GPU-ready over clocks that completed in the window, one sample per server. First record = the earliest of the server-scan registration (created_at, exact) and the engine's first sighting (exact only when the engine's previous scan was complete). GPU-ready = the gpu_ready milestone, exact when the ledger shows the transition (a pre-ready DC/Redbull/POPAI interval ended at that scan).\nUnits: days.\nFilters: site (stage_owner does not apply: the clock spans owners). Window: completions in the last $period complete UTC days before the end of the time range, vs the $period days before that (variable 'Comparison period'). Clocks (ADR-0005): a sample is exact when both ends were observed by the engine; '≥' samples have an exact end and a start that began before observation; samples whose end was not observed (milestone already true at first sight, rework, end unobserved) are never used. Percentiles use exact samples when there are at least $min_n; otherwise exact + '≥' samples give a lower bound shown as '≥'; otherwise 'insufficient history'. The caption gives n; 'lower bound' (purple, '≥') means exact + '≥' samples were used. Physical receipt or acceptance dates need procurement input (R3).\nOn Home: the last 28 complete days vs the 28 before (Delivery lets you change the period).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 40,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "WITH ep AS (\n  SELECT i.asset_id, i.stage, i.stage_entered_at AS entered_at,\n         bool_or(i.stage_entered_lower_bound) AS entered_lb,\n         (array_agg(i.stage_owner ORDER BY i.started_at DESC, i.id DESC))[1] AS stage_owner,\n         bool_or(i.ended_at IS NULL) AS is_open,\n         max(i.ended_at) AS last_end\n  FROM capacity_intervals i\n  WHERE i.category = 'IDLE' AND i.stage IS NOT NULL AND i.stage_entered_at IS NOT NULL\n  GROUP BY i.asset_id, i.stage, i.stage_entered_at\n), ms AS (\n  SELECT m.asset_id,\n         min(m.observed_at) FILTER (WHERE m.milestone = 'in_serverscan') AS reg_at,\n         bool_or(NOT m.lower_bound) FILTER (WHERE m.milestone = 'in_serverscan') AS reg_flag,\n         min(m.observed_at) FILTER (WHERE m.milestone = 'first_seen') AS seen_at,\n         bool_or(NOT m.lower_bound) FILTER (WHERE m.milestone = 'first_seen') AS seen_flag,\n         min(m.observed_at) FILTER (WHERE m.milestone = 'gpu_ready') AS ready_at,\n         bool_or(NOT m.lower_bound) FILTER (WHERE m.milestone = 'gpu_ready') AS ready_flag,\n         min(m.observed_at) FILTER (WHERE m.milestone = 'workload_running') AS work_at,\n         bool_or(NOT m.lower_bound) FILTER (WHERE m.milestone = 'workload_running') AS work_flag,\n         min(m.observed_at) FILTER (WHERE m.milestone = 'first_genuine_request') AS req_at,\n         bool_or(NOT m.lower_bound) FILTER (WHERE m.milestone = 'first_genuine_request') AS req_flag\n  FROM milestones m\n  GROUP BY m.asset_id\n), scan AS (\n  SELECT s.started_at, lag(s.status) OVER (ORDER BY s.started_at, s.id) = 'ok' AS prev_ok\n  FROM scan_runs s\n  WHERE s.kind = 'engine'\n), clk0 AS (\n  SELECT ms.asset_id, ms.seen_at, ms.ready_at, ms.work_at, ms.req_at, ms.work_flag,\n         CASE WHEN ms.reg_at <= coalesce(ms.seen_at, ms.reg_at) THEN ms.reg_at ELSE ms.seen_at END AS rec_at,\n         CASE WHEN ms.reg_at <= coalesce(ms.seen_at, ms.reg_at) THEN coalesce(ms.reg_flag, false)\n              ELSE coalesce(ms.seen_flag, false) OR coalesce(sc.prev_ok, false) END AS rec_exact,\n         coalesce(ms.ready_flag, false) OR EXISTS (\n           SELECT 1 FROM capacity_intervals p\n           WHERE p.asset_id = ms.asset_id AND p.ended_at = ms.ready_at AND p.category = 'IDLE'\n             AND p.stage IN ('PRE_PROVISIONING', 'PROVISIONING', 'GPU_PLATFORM')\n             AND p.reason_code <> 'GPU_MISSING') AS ready_exact,\n         coalesce(ms.req_flag, false) OR (\n           EXISTS (SELECT 1 FROM capacity_intervals p\n                   WHERE p.asset_id = ms.asset_id AND p.ended_at = ms.req_at AND p.category = 'IDLE')\n           AND NOT EXISTS (SELECT 1 FROM capacity_intervals u\n                           WHERE u.asset_id = ms.asset_id AND u.category = 'UNKNOWN'\n                             AND u.started_at < ms.req_at\n                             AND coalesce(u.ended_at, 'infinity') >= ms.req_at)) AS req_exact\n  FROM ms\n  LEFT JOIN scan sc ON sc.started_at = ms.seen_at\n), clk AS (\n  SELECT c.*,\n         coalesce(c.work_flag, false) OR c.ready_exact OR coalesce(c.work_at > c.ready_at, false) AS work_exact\n  FROM clk0 c\n), smp AS (\n  SELECT e.stage AS clock, e.stage_owner AS owner, e.asset_id, e.last_end AS done_at,\n         extract(epoch FROM e.last_end - e.entered_at)::float8 AS secs,\n         CASE WHEN nx.next_rank > array_position(ARRAY['PRE_PROVISIONING', 'PROVISIONING', 'GPU_PLATFORM', 'SERVING']::text[], e.stage)\n              THEN CASE WHEN e.entered_lb THEN 'min' ELSE 'exact' END\n              ELSE 'other' END AS bound\n  FROM ep e\n  CROSS JOIN LATERAL (\n    SELECT max(CASE WHEN n.category = 'PRODUCTIVE' THEN 5\n                    WHEN n.category = 'IDLE' THEN array_position(ARRAY['PRE_PROVISIONING', 'PROVISIONING', 'GPU_PLATFORM', 'SERVING']::text[], n.stage) END) AS next_rank\n    FROM capacity_intervals n\n    WHERE n.asset_id = e.asset_id AND n.started_at = e.last_end\n  ) nx\n  WHERE NOT e.is_open\n  UNION ALL\n  SELECT 'rec_ready', NULL, c.asset_id, c.ready_at,\n         greatest(extract(epoch FROM c.ready_at - c.rec_at), 0)::float8,\n         CASE WHEN NOT c.ready_exact THEN 'other' WHEN c.rec_exact THEN 'exact' ELSE 'min' END\n  FROM clk c WHERE c.ready_at IS NOT NULL AND c.rec_at IS NOT NULL\n  UNION ALL\n  SELECT 'ready_work', NULL, c.asset_id, greatest(c.work_at, c.ready_at),\n         greatest(extract(epoch FROM c.work_at - c.ready_at), 0)::float8,\n         CASE WHEN NOT c.work_exact THEN 'other' WHEN c.ready_exact THEN 'exact' ELSE 'min' END\n  FROM clk c WHERE c.work_at IS NOT NULL AND c.ready_at IS NOT NULL\n  UNION ALL\n  SELECT 'work_req', NULL, c.asset_id, greatest(c.req_at, c.work_at),\n         greatest(extract(epoch FROM c.req_at - c.work_at), 0)::float8,\n         CASE WHEN NOT c.req_exact THEN 'other' WHEN c.work_exact THEN 'exact' ELSE 'min' END\n  FROM clk c WHERE c.req_at IS NOT NULL AND c.work_at IS NOT NULL\n  UNION ALL\n  SELECT 'rec_req', NULL, c.asset_id, c.req_at,\n         greatest(extract(epoch FROM c.req_at - c.rec_at), 0)::float8,\n         CASE WHEN NOT c.req_exact THEN 'other' WHEN c.rec_exact THEN 'exact' ELSE 'min' END\n  FROM clk c WHERE c.req_at IS NOT NULL AND c.rec_at IS NOT NULL\n), win AS (\n  SELECT date_trunc('day', $__timeTo()::timestamptz, 'UTC') AS t1, make_interval(days => $period) AS p\n), sel AS (\n  SELECT s.*, a.gpu_model, coalesce(a.site, '(none)') AS site,\n         CASE WHEN s.done_at >= w.t1 - w.p AND s.done_at < w.t1 THEN 'last'\n              WHEN s.done_at >= w.t1 - 2 * w.p AND s.done_at < w.t1 - w.p THEN 'prior' END AS win\n  FROM smp s\n  CROSS JOIN win w\n  JOIN assets a ON a.asset_id = s.asset_id\n  WHERE ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))\n    AND (s.owner IS NULL OR ('__all__' IN ($stage_owner) OR s.owner IN ($stage_owner)))\n), g AS (\n  SELECT count(*) FILTER (WHERE s.bound = 'exact') AS n_x,\n         count(*) FILTER (WHERE s.bound = 'min') AS n_min,\n         count(*) FILTER (WHERE s.bound = 'other') AS n_other,\n         percentile_cont(0.5) WITHIN GROUP (ORDER BY s.secs) FILTER (WHERE s.bound = 'exact') AS p50_x,\n         percentile_cont(0.9) WITHIN GROUP (ORDER BY s.secs) FILTER (WHERE s.bound = 'exact') AS p90_x,\n         percentile_cont(0.5) WITHIN GROUP (ORDER BY s.secs) FILTER (WHERE s.bound IN ('exact', 'min')) AS p50_b,\n         percentile_cont(0.9) WITHIN GROUP (ORDER BY s.secs) FILTER (WHERE s.bound IN ('exact', 'min')) AS p90_b\n  FROM sel s\n  WHERE s.clock = 'rec_ready' AND s.win = 'last'\n)\nSELECT $__timeTo()::timestamptz AS time,\n       CASE WHEN g.n_x >= $min_n THEN 'n = ' || g.n_x || ' · last $period d'\n            WHEN g.n_x + g.n_min >= $min_n THEN 'lower bound, days · n = ' || g.n_x || ' + ' || g.n_min || ' ≥'\n            ELSE 'insufficient history · n = ' || (g.n_x + g.n_min) || ' of $min_n' END AS metric,\n       CASE WHEN g.n_x >= $min_n THEN g.p50_x / 86400\n            WHEN g.n_x + g.n_min >= $min_n THEN g.p50_b / 86400 END AS value\nFROM g"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "noValue": "no estimate",
+          "unit": "suffix: d",
+          "decimals": 1,
+          "links": [
+            {
+              "title": "Delivery",
+              "url": "/d/ttv-delivery?${__url_time_range}&${site:queryparam}&${stage_owner:queryparam}"
+            }
+          ]
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/^lower bound/"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "prefix:≥ "
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "purple"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/^insufficient/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "purple"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value_and_name",
+        "wideLayout": false,
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "showPercentChange": false,
+        "text": {
+          "titleSize": 14,
+          "valueSize": 40
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "id": 27,
+      "title": "Time to GPU-ready · p90",
+      "description": "Definition: 90th percentile (p90) of first record → GPU-ready over clocks that completed in the window, one sample per server. First record = the earliest of the server-scan registration (created_at, exact) and the engine's first sighting (exact only when the engine's previous scan was complete). GPU-ready = the gpu_ready milestone, exact when the ledger shows the transition (a pre-ready DC/Redbull/POPAI interval ended at that scan).\nUnits: days.\nFilters: site (stage_owner does not apply: the clock spans owners). Window: completions in the last $period complete UTC days before the end of the time range, vs the $period days before that (variable 'Comparison period'). Clocks (ADR-0005): a sample is exact when both ends were observed by the engine; '≥' samples have an exact end and a start that began before observation; samples whose end was not observed (milestone already true at first sight, rework, end unobserved) are never used. Percentiles use exact samples when there are at least $min_n; otherwise exact + '≥' samples give a lower bound shown as '≥'; otherwise 'insufficient history'. The caption gives n; 'lower bound' (purple, '≥') means exact + '≥' samples were used. Physical receipt or acceptance dates need procurement input (R3).\nOn Home: the last 28 complete days vs the 28 before (Delivery lets you change the period).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 40,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "WITH ep AS (\n  SELECT i.asset_id, i.stage, i.stage_entered_at AS entered_at,\n         bool_or(i.stage_entered_lower_bound) AS entered_lb,\n         (array_agg(i.stage_owner ORDER BY i.started_at DESC, i.id DESC))[1] AS stage_owner,\n         bool_or(i.ended_at IS NULL) AS is_open,\n         max(i.ended_at) AS last_end\n  FROM capacity_intervals i\n  WHERE i.category = 'IDLE' AND i.stage IS NOT NULL AND i.stage_entered_at IS NOT NULL\n  GROUP BY i.asset_id, i.stage, i.stage_entered_at\n), ms AS (\n  SELECT m.asset_id,\n         min(m.observed_at) FILTER (WHERE m.milestone = 'in_serverscan') AS reg_at,\n         bool_or(NOT m.lower_bound) FILTER (WHERE m.milestone = 'in_serverscan') AS reg_flag,\n         min(m.observed_at) FILTER (WHERE m.milestone = 'first_seen') AS seen_at,\n         bool_or(NOT m.lower_bound) FILTER (WHERE m.milestone = 'first_seen') AS seen_flag,\n         min(m.observed_at) FILTER (WHERE m.milestone = 'gpu_ready') AS ready_at,\n         bool_or(NOT m.lower_bound) FILTER (WHERE m.milestone = 'gpu_ready') AS ready_flag,\n         min(m.observed_at) FILTER (WHERE m.milestone = 'workload_running') AS work_at,\n         bool_or(NOT m.lower_bound) FILTER (WHERE m.milestone = 'workload_running') AS work_flag,\n         min(m.observed_at) FILTER (WHERE m.milestone = 'first_genuine_request') AS req_at,\n         bool_or(NOT m.lower_bound) FILTER (WHERE m.milestone = 'first_genuine_request') AS req_flag\n  FROM milestones m\n  GROUP BY m.asset_id\n), scan AS (\n  SELECT s.started_at, lag(s.status) OVER (ORDER BY s.started_at, s.id) = 'ok' AS prev_ok\n  FROM scan_runs s\n  WHERE s.kind = 'engine'\n), clk0 AS (\n  SELECT ms.asset_id, ms.seen_at, ms.ready_at, ms.work_at, ms.req_at, ms.work_flag,\n         CASE WHEN ms.reg_at <= coalesce(ms.seen_at, ms.reg_at) THEN ms.reg_at ELSE ms.seen_at END AS rec_at,\n         CASE WHEN ms.reg_at <= coalesce(ms.seen_at, ms.reg_at) THEN coalesce(ms.reg_flag, false)\n              ELSE coalesce(ms.seen_flag, false) OR coalesce(sc.prev_ok, false) END AS rec_exact,\n         coalesce(ms.ready_flag, false) OR EXISTS (\n           SELECT 1 FROM capacity_intervals p\n           WHERE p.asset_id = ms.asset_id AND p.ended_at = ms.ready_at AND p.category = 'IDLE'\n             AND p.stage IN ('PRE_PROVISIONING', 'PROVISIONING', 'GPU_PLATFORM')\n             AND p.reason_code <> 'GPU_MISSING') AS ready_exact,\n         coalesce(ms.req_flag, false) OR (\n           EXISTS (SELECT 1 FROM capacity_intervals p\n                   WHERE p.asset_id = ms.asset_id AND p.ended_at = ms.req_at AND p.category = 'IDLE')\n           AND NOT EXISTS (SELECT 1 FROM capacity_intervals u\n                           WHERE u.asset_id = ms.asset_id AND u.category = 'UNKNOWN'\n                             AND u.started_at < ms.req_at\n                             AND coalesce(u.ended_at, 'infinity') >= ms.req_at)) AS req_exact\n  FROM ms\n  LEFT JOIN scan sc ON sc.started_at = ms.seen_at\n), clk AS (\n  SELECT c.*,\n         coalesce(c.work_flag, false) OR c.ready_exact OR coalesce(c.work_at > c.ready_at, false) AS work_exact\n  FROM clk0 c\n), smp AS (\n  SELECT e.stage AS clock, e.stage_owner AS owner, e.asset_id, e.last_end AS done_at,\n         extract(epoch FROM e.last_end - e.entered_at)::float8 AS secs,\n         CASE WHEN nx.next_rank > array_position(ARRAY['PRE_PROVISIONING', 'PROVISIONING', 'GPU_PLATFORM', 'SERVING']::text[], e.stage)\n              THEN CASE WHEN e.entered_lb THEN 'min' ELSE 'exact' END\n              ELSE 'other' END AS bound\n  FROM ep e\n  CROSS JOIN LATERAL (\n    SELECT max(CASE WHEN n.category = 'PRODUCTIVE' THEN 5\n                    WHEN n.category = 'IDLE' THEN array_position(ARRAY['PRE_PROVISIONING', 'PROVISIONING', 'GPU_PLATFORM', 'SERVING']::text[], n.stage) END) AS next_rank\n    FROM capacity_intervals n\n    WHERE n.asset_id = e.asset_id AND n.started_at = e.last_end\n  ) nx\n  WHERE NOT e.is_open\n  UNION ALL\n  SELECT 'rec_ready', NULL, c.asset_id, c.ready_at,\n         greatest(extract(epoch FROM c.ready_at - c.rec_at), 0)::float8,\n         CASE WHEN NOT c.ready_exact THEN 'other' WHEN c.rec_exact THEN 'exact' ELSE 'min' END\n  FROM clk c WHERE c.ready_at IS NOT NULL AND c.rec_at IS NOT NULL\n  UNION ALL\n  SELECT 'ready_work', NULL, c.asset_id, greatest(c.work_at, c.ready_at),\n         greatest(extract(epoch FROM c.work_at - c.ready_at), 0)::float8,\n         CASE WHEN NOT c.work_exact THEN 'other' WHEN c.ready_exact THEN 'exact' ELSE 'min' END\n  FROM clk c WHERE c.work_at IS NOT NULL AND c.ready_at IS NOT NULL\n  UNION ALL\n  SELECT 'work_req', NULL, c.asset_id, greatest(c.req_at, c.work_at),\n         greatest(extract(epoch FROM c.req_at - c.work_at), 0)::float8,\n         CASE WHEN NOT c.req_exact THEN 'other' WHEN c.work_exact THEN 'exact' ELSE 'min' END\n  FROM clk c WHERE c.req_at IS NOT NULL AND c.work_at IS NOT NULL\n  UNION ALL\n  SELECT 'rec_req', NULL, c.asset_id, c.req_at,\n         greatest(extract(epoch FROM c.req_at - c.rec_at), 0)::float8,\n         CASE WHEN NOT c.req_exact THEN 'other' WHEN c.rec_exact THEN 'exact' ELSE 'min' END\n  FROM clk c WHERE c.req_at IS NOT NULL AND c.rec_at IS NOT NULL\n), win AS (\n  SELECT date_trunc('day', $__timeTo()::timestamptz, 'UTC') AS t1, make_interval(days => $period) AS p\n), sel AS (\n  SELECT s.*, a.gpu_model, coalesce(a.site, '(none)') AS site,\n         CASE WHEN s.done_at >= w.t1 - w.p AND s.done_at < w.t1 THEN 'last'\n              WHEN s.done_at >= w.t1 - 2 * w.p AND s.done_at < w.t1 - w.p THEN 'prior' END AS win\n  FROM smp s\n  CROSS JOIN win w\n  JOIN assets a ON a.asset_id = s.asset_id\n  WHERE ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))\n    AND (s.owner IS NULL OR ('__all__' IN ($stage_owner) OR s.owner IN ($stage_owner)))\n), g AS (\n  SELECT count(*) FILTER (WHERE s.bound = 'exact') AS n_x,\n         count(*) FILTER (WHERE s.bound = 'min') AS n_min,\n         count(*) FILTER (WHERE s.bound = 'other') AS n_other,\n         percentile_cont(0.5) WITHIN GROUP (ORDER BY s.secs) FILTER (WHERE s.bound = 'exact') AS p50_x,\n         percentile_cont(0.9) WITHIN GROUP (ORDER BY s.secs) FILTER (WHERE s.bound = 'exact') AS p90_x,\n         percentile_cont(0.5) WITHIN GROUP (ORDER BY s.secs) FILTER (WHERE s.bound IN ('exact', 'min')) AS p50_b,\n         percentile_cont(0.9) WITHIN GROUP (ORDER BY s.secs) FILTER (WHERE s.bound IN ('exact', 'min')) AS p90_b\n  FROM sel s\n  WHERE s.clock = 'rec_ready' AND s.win = 'last'\n)\nSELECT $__timeTo()::timestamptz AS time,\n       CASE WHEN g.n_x >= $min_n THEN 'n = ' || g.n_x || ' · last $period d'\n            WHEN g.n_x + g.n_min >= $min_n THEN 'lower bound, days · n = ' || g.n_x || ' + ' || g.n_min || ' ≥'\n            ELSE 'insufficient history · n = ' || (g.n_x + g.n_min) || ' of $min_n' END AS metric,\n       CASE WHEN g.n_x >= $min_n THEN g.p90_x / 86400\n            WHEN g.n_x + g.n_min >= $min_n THEN g.p90_b / 86400 END AS value\nFROM g"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "noValue": "no estimate",
+          "unit": "suffix: d",
+          "decimals": 1,
+          "links": [
+            {
+              "title": "Delivery",
+              "url": "/d/ttv-delivery?${__url_time_range}&${site:queryparam}&${stage_owner:queryparam}"
+            }
+          ]
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/^lower bound/"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "prefix:≥ "
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "purple"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/^insufficient/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "purple"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value_and_name",
+        "wideLayout": false,
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "showPercentChange": false,
+        "text": {
+          "titleSize": 14,
+          "valueSize": 40
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "id": 28,
+      "title": "Time to first genuine request · p50",
+      "description": "Definition: Median (p50) of first record → first genuine request (end-to-end, from the same server's milestones, never a sum of stage percentiles) over clocks that completed in the window, one sample per server. First record = the earliest of the server-scan registration (created_at, exact) and the engine's first sighting (exact only when the engine's previous scan was complete). First genuine request = the first_genuine_request milestone (serving demand), exact when an idle interval ended at that scan and no GPU of the server was UNKNOWN just before. Servers used only by Run:ai training never record one; see GPU use (E12).\nUnits: days.\nFilters: site (stage_owner does not apply: the clock spans owners). Window: completions in the last $period complete UTC days before the end of the time range, vs the $period days before that (variable 'Comparison period'). Clocks (ADR-0005): a sample is exact when both ends were observed by the engine; '≥' samples have an exact end and a start that began before observation; samples whose end was not observed (milestone already true at first sight, rework, end unobserved) are never used. Percentiles use exact samples when there are at least $min_n; otherwise exact + '≥' samples give a lower bound shown as '≥'; otherwise 'insufficient history'. The caption gives n; 'lower bound' (purple, '≥') means exact + '≥' samples were used. Physical receipt or acceptance dates need procurement input (R3).\nOn Home: the last 28 complete days vs the 28 before (Delivery lets you change the period).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 40,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "WITH ep AS (\n  SELECT i.asset_id, i.stage, i.stage_entered_at AS entered_at,\n         bool_or(i.stage_entered_lower_bound) AS entered_lb,\n         (array_agg(i.stage_owner ORDER BY i.started_at DESC, i.id DESC))[1] AS stage_owner,\n         bool_or(i.ended_at IS NULL) AS is_open,\n         max(i.ended_at) AS last_end\n  FROM capacity_intervals i\n  WHERE i.category = 'IDLE' AND i.stage IS NOT NULL AND i.stage_entered_at IS NOT NULL\n  GROUP BY i.asset_id, i.stage, i.stage_entered_at\n), ms AS (\n  SELECT m.asset_id,\n         min(m.observed_at) FILTER (WHERE m.milestone = 'in_serverscan') AS reg_at,\n         bool_or(NOT m.lower_bound) FILTER (WHERE m.milestone = 'in_serverscan') AS reg_flag,\n         min(m.observed_at) FILTER (WHERE m.milestone = 'first_seen') AS seen_at,\n         bool_or(NOT m.lower_bound) FILTER (WHERE m.milestone = 'first_seen') AS seen_flag,\n         min(m.observed_at) FILTER (WHERE m.milestone = 'gpu_ready') AS ready_at,\n         bool_or(NOT m.lower_bound) FILTER (WHERE m.milestone = 'gpu_ready') AS ready_flag,\n         min(m.observed_at) FILTER (WHERE m.milestone = 'workload_running') AS work_at,\n         bool_or(NOT m.lower_bound) FILTER (WHERE m.milestone = 'workload_running') AS work_flag,\n         min(m.observed_at) FILTER (WHERE m.milestone = 'first_genuine_request') AS req_at,\n         bool_or(NOT m.lower_bound) FILTER (WHERE m.milestone = 'first_genuine_request') AS req_flag\n  FROM milestones m\n  GROUP BY m.asset_id\n), scan AS (\n  SELECT s.started_at, lag(s.status) OVER (ORDER BY s.started_at, s.id) = 'ok' AS prev_ok\n  FROM scan_runs s\n  WHERE s.kind = 'engine'\n), clk0 AS (\n  SELECT ms.asset_id, ms.seen_at, ms.ready_at, ms.work_at, ms.req_at, ms.work_flag,\n         CASE WHEN ms.reg_at <= coalesce(ms.seen_at, ms.reg_at) THEN ms.reg_at ELSE ms.seen_at END AS rec_at,\n         CASE WHEN ms.reg_at <= coalesce(ms.seen_at, ms.reg_at) THEN coalesce(ms.reg_flag, false)\n              ELSE coalesce(ms.seen_flag, false) OR coalesce(sc.prev_ok, false) END AS rec_exact,\n         coalesce(ms.ready_flag, false) OR EXISTS (\n           SELECT 1 FROM capacity_intervals p\n           WHERE p.asset_id = ms.asset_id AND p.ended_at = ms.ready_at AND p.category = 'IDLE'\n             AND p.stage IN ('PRE_PROVISIONING', 'PROVISIONING', 'GPU_PLATFORM')\n             AND p.reason_code <> 'GPU_MISSING') AS ready_exact,\n         coalesce(ms.req_flag, false) OR (\n           EXISTS (SELECT 1 FROM capacity_intervals p\n                   WHERE p.asset_id = ms.asset_id AND p.ended_at = ms.req_at AND p.category = 'IDLE')\n           AND NOT EXISTS (SELECT 1 FROM capacity_intervals u\n                           WHERE u.asset_id = ms.asset_id AND u.category = 'UNKNOWN'\n                             AND u.started_at < ms.req_at\n                             AND coalesce(u.ended_at, 'infinity') >= ms.req_at)) AS req_exact\n  FROM ms\n  LEFT JOIN scan sc ON sc.started_at = ms.seen_at\n), clk AS (\n  SELECT c.*,\n         coalesce(c.work_flag, false) OR c.ready_exact OR coalesce(c.work_at > c.ready_at, false) AS work_exact\n  FROM clk0 c\n), smp AS (\n  SELECT e.stage AS clock, e.stage_owner AS owner, e.asset_id, e.last_end AS done_at,\n         extract(epoch FROM e.last_end - e.entered_at)::float8 AS secs,\n         CASE WHEN nx.next_rank > array_position(ARRAY['PRE_PROVISIONING', 'PROVISIONING', 'GPU_PLATFORM', 'SERVING']::text[], e.stage)\n              THEN CASE WHEN e.entered_lb THEN 'min' ELSE 'exact' END\n              ELSE 'other' END AS bound\n  FROM ep e\n  CROSS JOIN LATERAL (\n    SELECT max(CASE WHEN n.category = 'PRODUCTIVE' THEN 5\n                    WHEN n.category = 'IDLE' THEN array_position(ARRAY['PRE_PROVISIONING', 'PROVISIONING', 'GPU_PLATFORM', 'SERVING']::text[], n.stage) END) AS next_rank\n    FROM capacity_intervals n\n    WHERE n.asset_id = e.asset_id AND n.started_at = e.last_end\n  ) nx\n  WHERE NOT e.is_open\n  UNION ALL\n  SELECT 'rec_ready', NULL, c.asset_id, c.ready_at,\n         greatest(extract(epoch FROM c.ready_at - c.rec_at), 0)::float8,\n         CASE WHEN NOT c.ready_exact THEN 'other' WHEN c.rec_exact THEN 'exact' ELSE 'min' END\n  FROM clk c WHERE c.ready_at IS NOT NULL AND c.rec_at IS NOT NULL\n  UNION ALL\n  SELECT 'ready_work', NULL, c.asset_id, greatest(c.work_at, c.ready_at),\n         greatest(extract(epoch FROM c.work_at - c.ready_at), 0)::float8,\n         CASE WHEN NOT c.work_exact THEN 'other' WHEN c.ready_exact THEN 'exact' ELSE 'min' END\n  FROM clk c WHERE c.work_at IS NOT NULL AND c.ready_at IS NOT NULL\n  UNION ALL\n  SELECT 'work_req', NULL, c.asset_id, greatest(c.req_at, c.work_at),\n         greatest(extract(epoch FROM c.req_at - c.work_at), 0)::float8,\n         CASE WHEN NOT c.req_exact THEN 'other' WHEN c.work_exact THEN 'exact' ELSE 'min' END\n  FROM clk c WHERE c.req_at IS NOT NULL AND c.work_at IS NOT NULL\n  UNION ALL\n  SELECT 'rec_req', NULL, c.asset_id, c.req_at,\n         greatest(extract(epoch FROM c.req_at - c.rec_at), 0)::float8,\n         CASE WHEN NOT c.req_exact THEN 'other' WHEN c.rec_exact THEN 'exact' ELSE 'min' END\n  FROM clk c WHERE c.req_at IS NOT NULL AND c.rec_at IS NOT NULL\n), win AS (\n  SELECT date_trunc('day', $__timeTo()::timestamptz, 'UTC') AS t1, make_interval(days => $period) AS p\n), sel AS (\n  SELECT s.*, a.gpu_model, coalesce(a.site, '(none)') AS site,\n         CASE WHEN s.done_at >= w.t1 - w.p AND s.done_at < w.t1 THEN 'last'\n              WHEN s.done_at >= w.t1 - 2 * w.p AND s.done_at < w.t1 - w.p THEN 'prior' END AS win\n  FROM smp s\n  CROSS JOIN win w\n  JOIN assets a ON a.asset_id = s.asset_id\n  WHERE ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))\n    AND (s.owner IS NULL OR ('__all__' IN ($stage_owner) OR s.owner IN ($stage_owner)))\n), g AS (\n  SELECT count(*) FILTER (WHERE s.bound = 'exact') AS n_x,\n         count(*) FILTER (WHERE s.bound = 'min') AS n_min,\n         count(*) FILTER (WHERE s.bound = 'other') AS n_other,\n         percentile_cont(0.5) WITHIN GROUP (ORDER BY s.secs) FILTER (WHERE s.bound = 'exact') AS p50_x,\n         percentile_cont(0.9) WITHIN GROUP (ORDER BY s.secs) FILTER (WHERE s.bound = 'exact') AS p90_x,\n         percentile_cont(0.5) WITHIN GROUP (ORDER BY s.secs) FILTER (WHERE s.bound IN ('exact', 'min')) AS p50_b,\n         percentile_cont(0.9) WITHIN GROUP (ORDER BY s.secs) FILTER (WHERE s.bound IN ('exact', 'min')) AS p90_b\n  FROM sel s\n  WHERE s.clock = 'rec_req' AND s.win = 'last'\n)\nSELECT $__timeTo()::timestamptz AS time,\n       CASE WHEN g.n_x >= $min_n THEN 'n = ' || g.n_x || ' · last $period d'\n            WHEN g.n_x + g.n_min >= $min_n THEN 'lower bound, days · n = ' || g.n_x || ' + ' || g.n_min || ' ≥'\n            ELSE 'insufficient history · n = ' || (g.n_x + g.n_min) || ' of $min_n' END AS metric,\n       CASE WHEN g.n_x >= $min_n THEN g.p50_x / 86400\n            WHEN g.n_x + g.n_min >= $min_n THEN g.p50_b / 86400 END AS value\nFROM g"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "noValue": "no estimate",
+          "unit": "suffix: d",
+          "decimals": 1,
+          "links": [
+            {
+              "title": "Delivery",
+              "url": "/d/ttv-delivery?${__url_time_range}&${site:queryparam}&${stage_owner:queryparam}"
+            }
+          ]
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/^lower bound/"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "prefix:≥ "
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "purple"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/^insufficient/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "purple"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value_and_name",
+        "wideLayout": false,
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "showPercentChange": false,
+        "text": {
+          "titleSize": 14,
+          "valueSize": 40
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "id": 29,
+      "title": "Time to first genuine request · p90",
+      "description": "Definition: 90th percentile (p90) of first record → first genuine request (end-to-end, from the same server's milestones, never a sum of stage percentiles) over clocks that completed in the window, one sample per server. First record = the earliest of the server-scan registration (created_at, exact) and the engine's first sighting (exact only when the engine's previous scan was complete). First genuine request = the first_genuine_request milestone (serving demand), exact when an idle interval ended at that scan and no GPU of the server was UNKNOWN just before. Servers used only by Run:ai training never record one; see GPU use (E12).\nUnits: days.\nFilters: site (stage_owner does not apply: the clock spans owners). Window: completions in the last $period complete UTC days before the end of the time range, vs the $period days before that (variable 'Comparison period'). Clocks (ADR-0005): a sample is exact when both ends were observed by the engine; '≥' samples have an exact end and a start that began before observation; samples whose end was not observed (milestone already true at first sight, rework, end unobserved) are never used. Percentiles use exact samples when there are at least $min_n; otherwise exact + '≥' samples give a lower bound shown as '≥'; otherwise 'insufficient history'. The caption gives n; 'lower bound' (purple, '≥') means exact + '≥' samples were used. Physical receipt or acceptance dates need procurement input (R3).\nOn Home: the last 28 complete days vs the 28 before (Delivery lets you change the period).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 40,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "WITH ep AS (\n  SELECT i.asset_id, i.stage, i.stage_entered_at AS entered_at,\n         bool_or(i.stage_entered_lower_bound) AS entered_lb,\n         (array_agg(i.stage_owner ORDER BY i.started_at DESC, i.id DESC))[1] AS stage_owner,\n         bool_or(i.ended_at IS NULL) AS is_open,\n         max(i.ended_at) AS last_end\n  FROM capacity_intervals i\n  WHERE i.category = 'IDLE' AND i.stage IS NOT NULL AND i.stage_entered_at IS NOT NULL\n  GROUP BY i.asset_id, i.stage, i.stage_entered_at\n), ms AS (\n  SELECT m.asset_id,\n         min(m.observed_at) FILTER (WHERE m.milestone = 'in_serverscan') AS reg_at,\n         bool_or(NOT m.lower_bound) FILTER (WHERE m.milestone = 'in_serverscan') AS reg_flag,\n         min(m.observed_at) FILTER (WHERE m.milestone = 'first_seen') AS seen_at,\n         bool_or(NOT m.lower_bound) FILTER (WHERE m.milestone = 'first_seen') AS seen_flag,\n         min(m.observed_at) FILTER (WHERE m.milestone = 'gpu_ready') AS ready_at,\n         bool_or(NOT m.lower_bound) FILTER (WHERE m.milestone = 'gpu_ready') AS ready_flag,\n         min(m.observed_at) FILTER (WHERE m.milestone = 'workload_running') AS work_at,\n         bool_or(NOT m.lower_bound) FILTER (WHERE m.milestone = 'workload_running') AS work_flag,\n         min(m.observed_at) FILTER (WHERE m.milestone = 'first_genuine_request') AS req_at,\n         bool_or(NOT m.lower_bound) FILTER (WHERE m.milestone = 'first_genuine_request') AS req_flag\n  FROM milestones m\n  GROUP BY m.asset_id\n), scan AS (\n  SELECT s.started_at, lag(s.status) OVER (ORDER BY s.started_at, s.id) = 'ok' AS prev_ok\n  FROM scan_runs s\n  WHERE s.kind = 'engine'\n), clk0 AS (\n  SELECT ms.asset_id, ms.seen_at, ms.ready_at, ms.work_at, ms.req_at, ms.work_flag,\n         CASE WHEN ms.reg_at <= coalesce(ms.seen_at, ms.reg_at) THEN ms.reg_at ELSE ms.seen_at END AS rec_at,\n         CASE WHEN ms.reg_at <= coalesce(ms.seen_at, ms.reg_at) THEN coalesce(ms.reg_flag, false)\n              ELSE coalesce(ms.seen_flag, false) OR coalesce(sc.prev_ok, false) END AS rec_exact,\n         coalesce(ms.ready_flag, false) OR EXISTS (\n           SELECT 1 FROM capacity_intervals p\n           WHERE p.asset_id = ms.asset_id AND p.ended_at = ms.ready_at AND p.category = 'IDLE'\n             AND p.stage IN ('PRE_PROVISIONING', 'PROVISIONING', 'GPU_PLATFORM')\n             AND p.reason_code <> 'GPU_MISSING') AS ready_exact,\n         coalesce(ms.req_flag, false) OR (\n           EXISTS (SELECT 1 FROM capacity_intervals p\n                   WHERE p.asset_id = ms.asset_id AND p.ended_at = ms.req_at AND p.category = 'IDLE')\n           AND NOT EXISTS (SELECT 1 FROM capacity_intervals u\n                           WHERE u.asset_id = ms.asset_id AND u.category = 'UNKNOWN'\n                             AND u.started_at < ms.req_at\n                             AND coalesce(u.ended_at, 'infinity') >= ms.req_at)) AS req_exact\n  FROM ms\n  LEFT JOIN scan sc ON sc.started_at = ms.seen_at\n), clk AS (\n  SELECT c.*,\n         coalesce(c.work_flag, false) OR c.ready_exact OR coalesce(c.work_at > c.ready_at, false) AS work_exact\n  FROM clk0 c\n), smp AS (\n  SELECT e.stage AS clock, e.stage_owner AS owner, e.asset_id, e.last_end AS done_at,\n         extract(epoch FROM e.last_end - e.entered_at)::float8 AS secs,\n         CASE WHEN nx.next_rank > array_position(ARRAY['PRE_PROVISIONING', 'PROVISIONING', 'GPU_PLATFORM', 'SERVING']::text[], e.stage)\n              THEN CASE WHEN e.entered_lb THEN 'min' ELSE 'exact' END\n              ELSE 'other' END AS bound\n  FROM ep e\n  CROSS JOIN LATERAL (\n    SELECT max(CASE WHEN n.category = 'PRODUCTIVE' THEN 5\n                    WHEN n.category = 'IDLE' THEN array_position(ARRAY['PRE_PROVISIONING', 'PROVISIONING', 'GPU_PLATFORM', 'SERVING']::text[], n.stage) END) AS next_rank\n    FROM capacity_intervals n\n    WHERE n.asset_id = e.asset_id AND n.started_at = e.last_end\n  ) nx\n  WHERE NOT e.is_open\n  UNION ALL\n  SELECT 'rec_ready', NULL, c.asset_id, c.ready_at,\n         greatest(extract(epoch FROM c.ready_at - c.rec_at), 0)::float8,\n         CASE WHEN NOT c.ready_exact THEN 'other' WHEN c.rec_exact THEN 'exact' ELSE 'min' END\n  FROM clk c WHERE c.ready_at IS NOT NULL AND c.rec_at IS NOT NULL\n  UNION ALL\n  SELECT 'ready_work', NULL, c.asset_id, greatest(c.work_at, c.ready_at),\n         greatest(extract(epoch FROM c.work_at - c.ready_at), 0)::float8,\n         CASE WHEN NOT c.work_exact THEN 'other' WHEN c.ready_exact THEN 'exact' ELSE 'min' END\n  FROM clk c WHERE c.work_at IS NOT NULL AND c.ready_at IS NOT NULL\n  UNION ALL\n  SELECT 'work_req', NULL, c.asset_id, greatest(c.req_at, c.work_at),\n         greatest(extract(epoch FROM c.req_at - c.work_at), 0)::float8,\n         CASE WHEN NOT c.req_exact THEN 'other' WHEN c.work_exact THEN 'exact' ELSE 'min' END\n  FROM clk c WHERE c.req_at IS NOT NULL AND c.work_at IS NOT NULL\n  UNION ALL\n  SELECT 'rec_req', NULL, c.asset_id, c.req_at,\n         greatest(extract(epoch FROM c.req_at - c.rec_at), 0)::float8,\n         CASE WHEN NOT c.req_exact THEN 'other' WHEN c.rec_exact THEN 'exact' ELSE 'min' END\n  FROM clk c WHERE c.req_at IS NOT NULL AND c.rec_at IS NOT NULL\n), win AS (\n  SELECT date_trunc('day', $__timeTo()::timestamptz, 'UTC') AS t1, make_interval(days => $period) AS p\n), sel AS (\n  SELECT s.*, a.gpu_model, coalesce(a.site, '(none)') AS site,\n         CASE WHEN s.done_at >= w.t1 - w.p AND s.done_at < w.t1 THEN 'last'\n              WHEN s.done_at >= w.t1 - 2 * w.p AND s.done_at < w.t1 - w.p THEN 'prior' END AS win\n  FROM smp s\n  CROSS JOIN win w\n  JOIN assets a ON a.asset_id = s.asset_id\n  WHERE ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))\n    AND (s.owner IS NULL OR ('__all__' IN ($stage_owner) OR s.owner IN ($stage_owner)))\n), g AS (\n  SELECT count(*) FILTER (WHERE s.bound = 'exact') AS n_x,\n         count(*) FILTER (WHERE s.bound = 'min') AS n_min,\n         count(*) FILTER (WHERE s.bound = 'other') AS n_other,\n         percentile_cont(0.5) WITHIN GROUP (ORDER BY s.secs) FILTER (WHERE s.bound = 'exact') AS p50_x,\n         percentile_cont(0.9) WITHIN GROUP (ORDER BY s.secs) FILTER (WHERE s.bound = 'exact') AS p90_x,\n         percentile_cont(0.5) WITHIN GROUP (ORDER BY s.secs) FILTER (WHERE s.bound IN ('exact', 'min')) AS p50_b,\n         percentile_cont(0.9) WITHIN GROUP (ORDER BY s.secs) FILTER (WHERE s.bound IN ('exact', 'min')) AS p90_b\n  FROM sel s\n  WHERE s.clock = 'rec_req' AND s.win = 'last'\n)\nSELECT $__timeTo()::timestamptz AS time,\n       CASE WHEN g.n_x >= $min_n THEN 'n = ' || g.n_x || ' · last $period d'\n            WHEN g.n_x + g.n_min >= $min_n THEN 'lower bound, days · n = ' || g.n_x || ' + ' || g.n_min || ' ≥'\n            ELSE 'insufficient history · n = ' || (g.n_x + g.n_min) || ' of $min_n' END AS metric,\n       CASE WHEN g.n_x >= $min_n THEN g.p90_x / 86400\n            WHEN g.n_x + g.n_min >= $min_n THEN g.p90_b / 86400 END AS value\nFROM g"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "noValue": "no estimate",
+          "unit": "suffix: d",
+          "decimals": 1,
+          "links": [
+            {
+              "title": "Delivery",
+              "url": "/d/ttv-delivery?${__url_time_range}&${site:queryparam}&${stage_owner:queryparam}"
+            }
+          ]
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/^lower bound/"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "prefix:≥ "
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "purple"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/^insufficient/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "purple"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value_and_name",
+        "wideLayout": false,
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "showPercentChange": false,
+        "text": {
+          "titleSize": 14,
+          "valueSize": 40
+        }
+      }
+    },
+    {
       "type": "row",
       "id": 30,
       "title": "Not answered yet: review changes, actions, commitments (R2/R3)",
       "gridPos": {
         "x": 0,
-        "y": 49,
+        "y": 53,
         "w": 24,
         "h": 1
       },
@@ -1813,7 +2285,7 @@
           "description": "",
           "gridPos": {
             "x": 0,
-            "y": 50,
+            "y": 54,
             "w": 12,
             "h": 6
           },
@@ -1834,7 +2306,7 @@
           "description": "",
           "gridPos": {
             "x": 12,
-            "y": 50,
+            "y": 54,
             "w": 12,
             "h": 6
           },

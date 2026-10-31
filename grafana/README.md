@@ -77,7 +77,7 @@ The links bar titles are the short names (Home, Queues, Delivery, GPU use, Asset
 - **Missing-input panels** (unbuilt questions) are `text` panels titled `E0X · <question>` with: what is missing, where it would come from, the onboarding step, and the release. They never show a number.
 - **Rows.** Group a page into at most 4 collapsible rows: "Now" (current state) first, then "Selected period" panels. Current-state and period panels are never mixed in one row.
 - **Times.** Store and query UTC; tables use Grafana time fields (`unit: dateTimeAsIso` or `dateTimeFromNow`) so the dashboard timezone setting applies; never `to_char` a timestamp unless it needs a `≥` prefix.
-- **Size.** Validate at 1440×900 (laptop) and 2560×1440; no panel narrower than 4 grid units; no page with more than 8 KPI cards.
+- **Size.** Validate at 1440×900 (laptop) and 2560×1440; no panel narrower than 4 grid units; at most 8 KPI cards per row group, except where §20.11 lists more for Home.
 
 **Panel contracts.** Every non-row panel has a contract in `config/panel-contracts/<dashboard-uid>.yaml`; `tests/test_panel_contracts.py` checks the files against the dashboards (schema in `config/panel-contracts/README.md`).
 
@@ -85,7 +85,7 @@ The links bar titles are the short names (Home, Queues, Delivery, GPU use, Asset
 
 ## Reading the dashboards
 
-- **Home** answers the main story in a minute: six cards (idle GPUs, their AWS-equivalent value per hour, productive share of eligible GPUs, unknown and not-measured GPUs, data age), the four stage queues in pipeline order with their oldest wait, every GPU by category, the ten longest waits, installed GPUs by model (E01, purchase dates "input missing"), and idle/overdue time and value in the selected period with a trend. Set `GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/gpu-ttv/ttv-home.json` to open it first.
+- **Home** answers the main story in a minute: six cards (idle GPUs, their AWS-equivalent value per hour, productive share of eligible GPUs, unknown and not-measured GPUs, data age), the four stage queues in pipeline order with their oldest wait, every GPU by category, the ten longest waits, installed GPUs by model (E01, purchase dates "input missing"), idle/overdue time and value in the selected period with a trend, and Delivery's p50/p90 time to GPU-ready and to first genuine request (same queries, last 28 complete days). Set `GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/gpu-ttv/ttv-home.json` to open it first.
 - **Value cards** show a number with a line above it: the snapshot's region and price date, and "at least (N GPUs unpriced)" when some GPUs have no rate, so the number is a lower bound.
 
 - **Now vs period.** "Now" panels read open intervals (`ended_at IS NULL`), i.e. the latest engine scan; "Data as of" and "Data age" show how old that is. Period panels clip every interval to the time range and end open intervals at `now()`.
