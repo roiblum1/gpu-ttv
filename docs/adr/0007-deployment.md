@@ -8,7 +8,14 @@
     - the engine ran a dry run in the image against the sandbox server-scan (3,008 demo servers);
     - `mirror-images.sh` archived one image with its digest intact;
     - `sbom.sh` produced both SBOMs.
-  - Nothing here has run on OpenShift or against production: no chart was installed anywhere.
+  - `lab-tested` on an OpenShift 4.22 workshop cluster (amd64, no GPUs), 2026-10-31:
+    - the image built in the cluster by a Docker-strategy BuildConfig from this repository at a fixed commit, with dependencies from PyPI by `uv.lock` hash (`RUN --mount=type=bind` works under OpenShift's buildah);
+    - `helm install`, then `helm upgrade` to a new digest, of `gpu-ttv` with the defaults (dry run), a throwaway Postgres 15, the sandbox server-scan, the ServiceMonitor and all three Grafana sidecar parts;
+    - the engine ran under the `restricted-v2` SCC with an assigned UID, applied the migrations on Postgres 15 and passed its probes (ready after the first scan), and the dry run wrote no assets, intervals or milestones;
+    - user-workload monitoring scraped `/metrics/` through the chart's NetworkPolicy, and the series reached Thanos;
+    - sizes: the Helm release Secret stores about 0.4 MB of the 1 MiB limit, because it holds the dashboards twice (chart files and rendered ConfigMaps); the largest dashboard ConfigMap, Delivery, is 218 KiB as JSON, under client-side apply's 256 KiB annotation limit;
+    - not covered: `deploy/gpu-cluster-rbac` (installing it grants cluster permissions, which awaits the user's approval), so no target cluster was read; the collector (no managers in the lab); egress rules (`networkPolicy.egress` was empty).
+  - Nothing here has run against production.
 - **Context:** AGENT.md §20.8 (air-gapped: internal registry and Python mirror, digest-pinned images, no runtime downloads, GitLab CI, Helm, Argo CD; per-cluster RBAC with no write verbs), §20.9 (layout), §15 (offline release process), §20.6 (dry run before writes), §20.12 (read-only verified, offline install test).
 - **Files:** `Containerfile`, `.containerignore`, `deploy/helm/gpu-ttv/`, `deploy/gpu-cluster-rbac/`, `offline/`, `.gitlab-ci.yml`, `docs/dry-run-review.md`.
 

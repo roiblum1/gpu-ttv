@@ -177,7 +177,7 @@ grafana:
       grafana_dashboard: "1"
     annotations:
       grafana_folder: GPU Time-to-Value
-      # Dashboards exceed client-side apply's annotation limit when Argo CD syncs them.
+      # Delivery is 218 KiB as JSON, near client-side apply's 256 KiB annotation limit (ADR-0007).
       argocd.argoproj.io/sync-options: ServerSideApply=true
   datasource:
     enabled: false

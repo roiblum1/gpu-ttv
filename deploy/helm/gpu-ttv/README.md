@@ -4,6 +4,8 @@ Deploys ttv-engine (scan loop, read API, metrics) and, when managers are configu
 
 **Dry run by default.** `dryRun: true` renders `TTV_DRY_RUN=true`: the engine classifies and logs every scan and writes no ledger rows. Change it only after the review in [`docs/dry-run-review.md`](../../../docs/dry-run-review.md).
 
+Evidence: `fixture-tested`, and `lab-tested` by an install and upgrade on an OpenShift 4.22 workshop cluster ([ADR-0007](../../../docs/adr/0007-deployment.md), "Status").
+
 ## What it renders
 
 | Object | When | Notes |
