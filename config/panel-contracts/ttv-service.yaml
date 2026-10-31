@@ -1,0 +1,91 @@
+# Panel contracts for ttv-service.json (schema: config/panel-contracts/README.md).
+# Every panel is a missing-input text card (AGENT.md §0.6): it names the missing inputs and the
+# onboarding path and shows no number. value_kind and direction describe the future answer.
+dashboard: ttv-service
+panels:
+  - id: 1
+    title: E10 · Are users actually getting a good service?
+    question: E10
+    status: missing_input
+    audience: CEO, service owners
+    decision: Protect user outcomes while increasing utilisation.
+    definition: >-
+      Not built (R2). Will show per logical deployment real traffic, successful complete requests,
+      latency SLO attainment, error budget, saturation and rejected or timed-out demand. Missing
+      inputs: the service graph, a versioned serving-engine metric mapping, SLOs per service, the
+      useful-use policy (open input I2) and traffic classes.
+    unit: requests per second; share within SLO
+    numerator: null
+    denominator: null
+    population: Serving deployments on target clusters.
+    window: selected range
+    filters: []
+    exclusions: Probe, warm-up and benchmark traffic, where it can be told apart.
+    query: grafana/dashboards/ttv-service.json#1
+    lineage:
+      - service graph (R2)
+      - serving metrics via Thanos (R2)
+      - service SLOs (missing)
+      - useful-use policy I2 (missing)
+    freshness: Static text until R2; then the Thanos scrape interval.
+    baseline: null
+    direction: higher_is_better
+    thresholds: null
+    uncertainty: One counter of record per deployment; per-instance percentiles are never averaged.
+    missing_data: >-
+      The card lists the missing inputs, where they come from and the onboarding step; it shows no
+      number.
+    value_kind: observed
+    gate: business_input
+    privileges: None today (static text).
+    cardinality: One text panel.
+    drilldown: ttv-gpu-use
+    action: "R2: discover services per target cluster, record the metric mapping, load SLOs."
+    fixture: tests/test_panel_contracts.py
+    expected: >-
+      Text card titled 'E10 · Are users actually getting a good service?' naming the service graph,
+      metric mapping, SLOs and I2 as missing; no number. When built (§17): high activity with errors
+      never reads as healthy productive use.
+
+  - id: 2
+    title: E11 · Is adoption growing beyond a few consumers?
+    question: E11
+    status: missing_input
+    audience: CEO, service owners
+    decision: Identify adoption gaps and dependence on a few consumers.
+    definition: >-
+      Not built (R2). Will show active consuming teams and services, new versus returning aggregate
+      cohorts, traffic concentration, approved use cases and published services with little genuine
+      demand. Missing inputs: team-level consumer identity, approval to use it, publication evidence
+      (R2), the use-case register and the useful-use policy (I2).
+    unit: consuming teams; share of traffic
+    numerator: null
+    denominator: null
+    population: Published serving deployments.
+    window: selected range
+    filters: []
+    exclusions: Synthetic traffic; no prompt content or request/user IDs.
+    query: grafana/dashboards/ttv-service.json#2
+    lineage:
+      - consumer identity aggregates (missing)
+      - service graph (R2)
+      - use-case register (missing)
+    freshness: Static text until R2.
+    baseline: null
+    direction: higher_is_better
+    thresholds: null
+    uncertainty: Requests are not people; identities only where permitted.
+    missing_data: >-
+      The card lists the missing inputs, where they come from and the onboarding step; it shows no
+      number.
+    value_kind: observed
+    gate: business_input
+    privileges: None today (static text).
+    cardinality: One text panel.
+    drilldown: ttv-queues#15
+    action: Confirm the permitted consumer identity and map it to teams in configuration.
+    fixture: tests/test_panel_contracts.py
+    expected: >-
+      Text card titled 'E11 · Is adoption growing beyond a few consumers?' naming identity,
+      approval, publication evidence and use cases as missing; no number. When built (§17):
+      probe-only traffic gives no adoption claim.

@@ -61,18 +61,124 @@
   },
   "links": [
     {
-      "title": "GPU Time-to-Value",
-      "type": "dashboards",
-      "tags": [
-        "gpu-ttv"
-      ],
+      "title": "Home",
+      "type": "link",
+      "url": "/d/ttv-home",
+      "tooltip": "Executive summary: scope, KPIs, queues and longest waits",
+      "icon": "dashboard",
+      "tags": [],
       "asDropdown": false,
       "includeVars": true,
       "keepTime": true,
-      "targetBlank": false,
-      "icon": "external link",
-      "tooltip": "",
-      "url": ""
+      "targetBlank": false
+    },
+    {
+      "title": "Queues",
+      "type": "link",
+      "url": "/d/ttv-queues",
+      "tooltip": "E03: where GPUs are stuck and why",
+      "icon": "dashboard",
+      "tags": [],
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false
+    },
+    {
+      "title": "Delivery",
+      "type": "link",
+      "url": "/d/ttv-delivery",
+      "tooltip": "E02: are we getting faster?",
+      "icon": "dashboard",
+      "tags": [],
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false
+    },
+    {
+      "title": "GPU use",
+      "type": "link",
+      "url": "/d/ttv-gpu-use",
+      "tooltip": "E12: are GPUs doing useful work?",
+      "icon": "dashboard",
+      "tags": [],
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false
+    },
+    {
+      "title": "Asset",
+      "type": "link",
+      "url": "/d/ttv-asset",
+      "tooltip": "One server's GPUs, stages and evidence",
+      "icon": "dashboard",
+      "tags": [],
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false
+    },
+    {
+      "title": "Evidence",
+      "type": "link",
+      "url": "/d/ttv-evidence",
+      "tooltip": "E18: can I trust these numbers?",
+      "icon": "dashboard",
+      "tags": [],
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false
+    },
+    {
+      "title": "Actions",
+      "type": "link",
+      "url": "/d/ttv-actions",
+      "tooltip": "E05, E16: team actions (R2/R3, missing input)",
+      "icon": "dashboard",
+      "tags": [],
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false
+    },
+    {
+      "title": "Capacity",
+      "type": "link",
+      "url": "/d/ttv-capacity",
+      "tooltip": "E06, E08, E09, E14, E17: capacity and commitments (R3, missing input)",
+      "icon": "dashboard",
+      "tags": [],
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false
+    },
+    {
+      "title": "Service",
+      "type": "link",
+      "url": "/d/ttv-service",
+      "tooltip": "E10, E11: service and adoption (R2, missing input)",
+      "icon": "dashboard",
+      "tags": [],
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false
+    },
+    {
+      "title": "Economics",
+      "type": "link",
+      "url": "/d/ttv-economics",
+      "tooltip": "E13, E15: economics and energy (R2/R3, missing input)",
+      "icon": "dashboard",
+      "tags": [],
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false
     }
   ],
   "panels": [

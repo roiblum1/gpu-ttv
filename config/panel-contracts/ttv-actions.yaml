@@ -1,0 +1,93 @@
+# Panel contracts for ttv-actions.json (schema: config/panel-contracts/README.md).
+# Every panel is a missing-input text card (AGENT.md §0.6): it names the missing inputs and the
+# onboarding path and shows no number. value_kind and direction describe the future answer.
+dashboard: ttv-actions
+panels:
+  - id: 1
+    title: E05 · What should I unblock today?
+    question: E05
+    status: missing_input
+    audience: CEO, stage owners, team leads
+    decision: Choose the highest-impact achievable intervention.
+    definition: >-
+      Not built (R2). Will rank interventions by business priority, unique compatible capacity
+      released, urgency, confidence, effort and risk, each shown, not a single score. Missing
+      inputs: the action ledger (action ID, reason, owner, status, target date, expected result),
+      business priority per project or service, effort and risk per action, prerequisites between
+      actions, and affected commitments (R3).
+    unit: ranked actions
+    numerator: Unique GPUs an action could release (deduplicated across actions).
+    denominator: null
+    population: Open idle and overdue stage episodes that have a linked action.
+    window: now
+    filters: []
+    exclusions: >-
+      Actions without a linked asset or service; capacity counted by an earlier-ranked action.
+    query: grafana/dashboards/ttv-actions.json#1
+    lineage:
+      - action ledger (missing)
+      - business priority list (missing)
+      - next_action_annotations
+      - capacity_intervals
+    freshness: Static text until the action ledger exists; then each engine scan and ledger import.
+    baseline: null
+    direction: neutral
+    thresholds: null
+    uncertainty: >-
+      Impact is a range; serial prerequisites release no capacity until the whole chain is done.
+    missing_data: >-
+      The card lists the missing inputs, where they come from and the onboarding step; it shows no
+      number.
+    value_kind: derived
+    gate: business_input
+    privileges: None today (static text).
+    cardinality: One text panel.
+    drilldown: ttv-queues#14
+    action: >-
+      Onboard the action ledger (ticket integration or versioned import) and the priority list.
+    fixture: tests/test_panel_contracts.py
+    expected: >-
+      Text card titled 'E05 · What should I unblock today?' naming the action ledger, priority,
+      effort/risk, prerequisites and commitments as missing; no number. When built (§17): two
+      actions on the same 8 GPUs never add up to 16.
+
+  - id: 2
+    title: E16 · Did our previous decisions actually help?
+    question: E16
+    status: missing_input
+    audience: CEO, team leads
+    decision: Verify improvements and avoid repeating ineffective actions.
+    definition: >-
+      Not built (R3). Will compare each completed action's follow-up result with its baseline and
+      expected result, listing confounders and recurring blockers. Missing inputs: the action ledger
+      with expected result, completion evidence and follow-up window; review snapshots (R2); a
+      confounder record (policy, coverage, demand, hardware changes).
+    unit: actions (verified, not verified, inconclusive)
+    numerator: null
+    denominator: null
+    population: Completed actions in the action ledger.
+    window: follow-up window per action
+    filters: []
+    exclusions: Actions without completion evidence stay unverified, never counted as successes.
+    query: grafana/dashboards/ttv-actions.json#2
+    lineage: [action ledger (missing), review snapshots (missing), capacity_intervals, milestones]
+    freshness: Static text until the action ledger exists; then when each follow-up window ends.
+    baseline: The action's recorded baseline.
+    direction: neutral
+    thresholds: null
+    uncertainty: Association in time is labelled separately from demonstrated cause.
+    missing_data: >-
+      The card lists the missing inputs, where they come from and the onboarding step; it shows no
+      number.
+    value_kind: derived
+    gate: business_input
+    privileges: None today (static text).
+    cardinality: One text panel.
+    drilldown: ttv-delivery
+    action: >-
+      After E05's ledger, record expected result and follow-up window when an action is accepted.
+    fixture: tests/test_panel_contracts.py
+    expected: >-
+      Text card titled 'E16 · Did our previous decisions actually help?' naming the missing ledger
+      fields; no number. When built (§17): an action coinciding with lower demand reports the
+      confounder rather than claiming the saving.

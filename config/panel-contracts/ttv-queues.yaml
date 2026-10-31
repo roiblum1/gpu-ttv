@@ -1,0 +1,557 @@
+# Panel contracts for ttv-queues.json (schema: config/panel-contracts/README.md).
+# Accurate to the dashboard as committed; update an entry in the same change as its panel.
+dashboard: ttv-queues
+panels:
+  - id: 2
+    title: Data as of (last successful scan)
+    question: support
+    status: built
+    audience: Everyone reading the page
+    decision: Whether the numbers are fresh enough to act on.
+    definition: Finish time of the newest scan_runs row with status 'ok', one value per scan kind.
+    unit: timestamp (stored UTC, shown in the dashboard timezone)
+    numerator: null
+    denominator: null
+    population: scan_runs
+    window: now
+    filters: []
+    exclusions: Partial, failed, running and dry_run scans.
+    query: grafana/dashboards/ttv-queues.json#2
+    lineage: [scan_runs.finished_at, scan_runs.status, scan_runs.kind]
+    freshness: Each scan.
+    baseline: null
+    direction: neutral
+    thresholds: null
+    uncertainty: null
+    missing_data: A kind that never finished an 'ok' scan shows 'No successful scan yet'.
+    value_kind: observed
+    gate: core
+    privileges: SELECT on scan_runs
+    cardinality: one value per scan kind (≤ 3)
+    drilldown: ttv-evidence#18
+    action: If stale, check Evidence for failing sources.
+    fixture: tests/test_dashboards_sql.py
+    expected: One time per kind (collector, engine) with the fixture.
+
+  - id: 3
+    title: Data age
+    question: support
+    status: built
+    audience: Everyone reading the page
+    decision: Whether the numbers are fresh enough to act on.
+    definition: now() minus the finish time of the newest 'ok' scan, per scan kind.
+    unit: duration
+    numerator: null
+    denominator: null
+    population: scan_runs
+    window: now
+    filters: []
+    exclusions: Partial, failed, running and dry_run scans.
+    query: grafana/dashboards/ttv-queues.json#3
+    lineage: [scan_runs.finished_at, scan_runs.status, scan_runs.kind]
+    freshness: Each scan.
+    baseline: null
+    direction: lower_is_better
+    thresholds: green < 20 min, orange from 20 min, red from 60 min; purple = never succeeded
+    uncertainty: null
+    missing_data: A kind with no successful scan shows no value in purple, never an age of 0.
+    value_kind: derived
+    gate: core
+    privileges: SELECT on scan_runs
+    cardinality: one value per scan kind (≤ 3)
+    drilldown: ttv-evidence#18
+    action: If red, check Evidence for failing sources.
+    fixture: tests/test_dashboards_sql.py
+    expected: About 9 min (engine) and 19 min (collector) with the fixture.
+
+  - id: 4
+    title: Policy version in use
+    question: support
+    status: built
+    audience: Analysts, stage owners
+    decision: Whether open intervals were classified under more than one policy.
+    definition: Distinct policy_version of the open ledger intervals.
+    unit: text
+    numerator: null
+    denominator: null
+    population: Open capacity_intervals.
+    window: now
+    filters: []
+    exclusions: null
+    query: grafana/dashboards/ttv-queues.json#4
+    lineage: [capacity_intervals.policy_version]
+    freshness: Latest engine scan (open intervals); 'Data as of' and 'Data age' show its age.
+    baseline: null
+    direction: neutral
+    thresholds: null
+    uncertainty: null
+    missing_data: "'no open intervals' means the engine has not written a scan yet."
+    value_kind: observed
+    gate: core
+    privileges: SELECT on capacity_intervals
+    cardinality: one row
+    drilldown: null
+    action: null
+    fixture: tests/test_dashboards_sql.py
+    expected: "'fixture-1' with the fixture."
+
+  - id: 5
+    title: "Coverage: GPUs UNKNOWN vs total"
+    question: E18
+    status: built
+    audience: CEO, stage owners
+    decision: Whether coverage is good enough to trust the queue numbers.
+    definition: >-
+      GPUs in open UNKNOWN intervals against all GPUs in open intervals, plus servers whose GPU
+      count was never read (they have no GPU total, so they are outside 'GPUs in scope').
+    unit: GPUs; share
+    numerator: sum(gpus) of open UNKNOWN intervals
+    denominator: sum(gpus) of all open intervals
+    population: Every GPU asset in the ledger (server-scan and the profile-less collector).
+    window: now
+    filters: [site]
+    exclusions: "stage_owner does not apply: UNKNOWN GPUs have no stage owner."
+    query: grafana/dashboards/ttv-queues.json#5
+    lineage: [capacity_intervals.gpus, capacity_intervals.category, assets.gpu_count, assets.site]
+    freshness: Latest engine scan (open intervals); 'Data as of' and 'Data age' show its age.
+    baseline: null
+    direction: lower_is_better
+    thresholds: null
+    uncertainty: null
+    missing_data: No open intervals for the scope gives no value (purple), never 0.
+    value_kind: observed
+    gate: core
+    privileges: SELECT on capacity_intervals, assets
+    cardinality: one row
+    drilldown: ttv-evidence#25
+    action: Fix the sources behind UNKNOWN GPUs (Evidence).
+    fixture: tests/test_dashboards_sql.py
+    expected: 4 UNKNOWN of 40 GPUs and 1 server with an unread GPU count with the fixture.
+
+  - id: 7
+    title: Idle GPUs now, by stage owner
+    question: E03
+    status: built
+    audience: CEO, stage owners
+    decision: Which handoff queue to unblock first.
+    definition: >-
+      GPUs in open IDLE intervals, summed per stage_owner. Owners seen in the ledger with no idle
+      GPUs now show 0 when the scope has open intervals.
+    unit: GPUs
+    numerator: sum(capacity_intervals.gpus) where category = IDLE and ended_at IS NULL
+    denominator: null
+    population: Every GPU asset in the ledger (server-scan and the profile-less collector).
+    window: now
+    filters: [site, stage_owner]
+    exclusions: UNKNOWN, PRODUCTIVE and NOT_CHARGED GPUs.
+    query: grafana/dashboards/ttv-queues.json#7
+    lineage: [capacity_intervals.gpus, capacity_intervals.stage_owner, assets.site]
+    freshness: Latest engine scan (open intervals); 'Data as of' and 'Data age' show its age.
+    baseline: null
+    direction: lower_is_better
+    thresholds: null
+    uncertainty: Stage clocks that began before observation are lower bounds (≥).
+    missing_data: >-
+      No open intervals at all shows 'No ledger data yet'; a stale source turns GPUs UNKNOWN, never
+      idle.
+    value_kind: observed
+    gate: core
+    privileges: SELECT on capacity_intervals, assets
+    cardinality: one row per stage owner (≤ 4)
+    drilldown: ttv-queues#14
+    action: Ask the stage owner to clear the longest waits (Longest waits).
+    fixture: tests/test_dashboards_sql.py
+    expected: DC 8, Redbull 8, POPAI 2, Serving 6 with the fixture.
+
+  - id: 8
+    title: PRODUCTIVE GPUs
+    question: E12
+    status: built
+    audience: CEO
+    decision: How much capacity is doing productive work now.
+    definition: >-
+      GPUs in open PRODUCTIVE intervals (Run:ai workloads; serving with genuine requests, AGENT.md
+      §0.2).
+    unit: GPUs
+    numerator: sum(gpus) of open PRODUCTIVE intervals
+    denominator: null
+    population: Every GPU asset in the ledger (server-scan and the profile-less collector).
+    window: now
+    filters: [site]
+    exclusions: "stage_owner does not apply: PRODUCTIVE GPUs have no stage owner."
+    query: grafana/dashboards/ttv-queues.json#8
+    lineage: [capacity_intervals.gpus, capacity_intervals.category, assets.site]
+    freshness: Latest engine scan (open intervals); 'Data as of' and 'Data age' show its age.
+    baseline: null
+    direction: higher_is_better
+    thresholds: null
+    uncertainty: null
+    missing_data: No open intervals for the scope gives no value (purple), never 0.
+    value_kind: observed
+    gate: core
+    privileges: SELECT on capacity_intervals, assets
+    cardinality: one value
+    drilldown: ttv-gpu-use
+    action: null
+    fixture: tests/test_dashboards_sql.py
+    expected: 10 with the fixture; no value for an empty site.
+
+  - id: 9
+    title: UNKNOWN GPUs
+    question: E18
+    status: built
+    audience: CEO, platform engineers
+    decision: Whether unclassifiable capacity is large enough to distrust the totals.
+    definition: >-
+      GPUs in open UNKNOWN intervals (stale or failed source, identity conflict, cluster not
+      observed).
+    unit: GPUs
+    numerator: sum(gpus) of open UNKNOWN intervals
+    denominator: null
+    population: Every GPU asset in the ledger (server-scan and the profile-less collector).
+    window: now
+    filters: [site]
+    exclusions: "stage_owner does not apply: UNKNOWN GPUs have no stage owner."
+    query: grafana/dashboards/ttv-queues.json#9
+    lineage: [capacity_intervals.gpus, capacity_intervals.category, assets.site]
+    freshness: Latest engine scan (open intervals); 'Data as of' and 'Data age' show its age.
+    baseline: null
+    direction: lower_is_better
+    thresholds: null
+    uncertainty: null
+    missing_data: >-
+      No open intervals for the scope gives no value (purple), never 0; UNKNOWN is never idle or
+      productive.
+    value_kind: observed
+    gate: core
+    privileges: SELECT on capacity_intervals, assets
+    cardinality: one value
+    drilldown: ttv-evidence#25
+    action: Fix the sources behind UNKNOWN GPUs (Evidence).
+    fixture: tests/test_dashboards_sql.py
+    expected: 4 with the fixture; no value for an empty site.
+
+  - id: 10
+    title: NOT_CHARGED GPUs
+    question: E03
+    status: built
+    audience: CEO
+    decision: How much capacity is excluded by policy rather than stuck.
+    definition: >-
+      GPUs in open NOT_CHARGED intervals (exclusion list, outside target clusters, other intended
+      use).
+    unit: GPUs
+    numerator: sum(gpus) of open NOT_CHARGED intervals
+    denominator: null
+    population: Every GPU asset in the ledger (server-scan and the profile-less collector).
+    window: now
+    filters: [site]
+    exclusions: "stage_owner does not apply: NOT_CHARGED GPUs have no stage owner."
+    query: grafana/dashboards/ttv-queues.json#10
+    lineage: [capacity_intervals.gpus, capacity_intervals.category, assets.site]
+    freshness: Latest engine scan (open intervals); 'Data as of' and 'Data age' show its age.
+    baseline: null
+    direction: neutral
+    thresholds: null
+    uncertainty: null
+    missing_data: No open intervals for the scope gives no value (purple), never 0.
+    value_kind: observed
+    gate: core
+    privileges: SELECT on capacity_intervals, assets
+    cardinality: one value
+    drilldown: ttv-queues#15
+    action: null
+    fixture: tests/test_dashboards_sql.py
+    expected: 2 with the fixture.
+
+  - id: 12
+    title: Idle and overdue GPU-hours in the time range, by stage owner
+    question: E03
+    status: built
+    audience: CEO, stage owners
+    decision: Which stage owner accumulated the most idle and overdue time in the period.
+    definition: >-
+      For every IDLE interval clipped to the time range (open intervals end at now()): idle GPU-h =
+      gpus x hours; overdue GPU-h = gpus x hours after stage_entered_at + objective, the objective
+      joined on the interval's (stage, policy_version). USD columns value the same hours at the
+      selected snapshot. AWS-equivalent value is a comparison (AWS On-Demand, Linux, shared tenancy,
+      us-east-1): not a bill, not our cost and not a loss; never added to other money views
+      (AGENT.md §10, ADR-0003).
+    unit: GPU-h; USD
+    numerator: sum(gpus x clipped hours) of IDLE intervals
+    denominator: null
+    population: Every GPU asset in the ledger (server-scan and the profile-less collector).
+    window: selected range
+    filters: [site, stage_owner, snapshot]
+    exclusions: >-
+      Time before an asset was first observed; idle time with no objective is in its own column,
+      never 0 overdue.
+    query: grafana/dashboards/ttv-queues.json#12
+    lineage:
+      - capacity_intervals.gpus
+      - capacity_intervals.started_at
+      - capacity_intervals.ended_at
+      - capacity_intervals.stage_entered_at
+      - stage_objectives.objective
+      - pricing_rates.per_gpu_hour_usd
+    freshness: Recomputed at query time from the ledger.
+    baseline: null
+    direction: lower_is_better
+    thresholds: null
+    uncertainty: >-
+      Stage clocks that began before observation are lower bounds (≥). 'Stage clock' then shows '≥'
+      and overdue is a minimum.
+    missing_data: >-
+      Owners with 0 had no idle GPU-hours in the range; unpriced GPU-h have their own column.
+    value_kind: derived
+    gate: core
+    privileges: >-
+      SELECT on capacity_intervals, assets, stage_objectives, gpu_model_aliases, pricing_rates
+    cardinality: one row per stage owner (≤ 4)
+    drilldown: ttv-queues#14
+    action: Ask the owner with the most overdue GPU-h to clear its longest waits.
+    fixture: tests/test_dashboards_sql.py
+    expected: >-
+      AGENT.md §17: Redbull 24 idle / 16 overdue GPU-h (16 / 12 clipped to 00:30–02:30); Serving 12
+      idle, 0 overdue.
+
+  - id: 14
+    title: Longest waits (current idle stage episodes)
+    question: E03
+    status: built
+    audience: Stage owners, team leads
+    decision: Which servers to unblock first and who acts next.
+    definition: >-
+      One row per asset and current stage episode with open IDLE intervals: idle GPUs, reasons,
+      cluster, holder, time in stage, idle GPU-h of the whole episode, and the newest unexpired
+      next-action annotation. Top 50, longest first.
+    unit: GPUs; days; GPU-h
+    numerator: null
+    denominator: null
+    population: Current idle stage episodes.
+    window: now
+    filters: [site, stage_owner]
+    exclusions: Episode GPU-hours are not limited to the time range.
+    query: grafana/dashboards/ttv-queues.json#14
+    lineage:
+      - capacity_intervals
+      - assets.name
+      - assets.model
+      - next_action_annotations.next_action_owner
+      - next_action_annotations.reason
+    freshness: Latest engine scan (open intervals); 'Data as of' and 'Data age' show its age.
+    baseline: null
+    direction: lower_is_better
+    thresholds: null
+    uncertainty: >-
+      Stage clocks that began before observation are lower bounds (≥). Since, days and GPU-h then
+      show '≥'.
+    missing_data: An empty next-action owner means no annotation, not 'no action needed'.
+    value_kind: observed
+    gate: core
+    privileges: SELECT on capacity_intervals, assets, next_action_annotations
+    cardinality: ≤ 50 rows
+    drilldown: null
+    action: >-
+      Contact the stage owner; the next-action owner is display only and never moves GPU-hours.
+    fixture: tests/test_dashboards_sql.py
+    expected: >-
+      The DC server shows '≥' days; the DGX shows next-action owner Network, with the fixture.
+
+  - id: 15
+    title: "Reason breakdown now: GPUs by category and reason"
+    question: E03
+    status: built
+    audience: Stage owners, analysts
+    decision: Which reasons dominate each category now.
+    definition: >-
+      GPUs and distinct assets of open intervals by category, reason_code and stage owner, with the
+      share of all GPUs in the table.
+    unit: GPUs; assets; share
+    numerator: null
+    denominator: null
+    population: Every GPU asset in the ledger (server-scan and the profile-less collector).
+    window: now
+    filters: [site, stage_owner]
+    exclusions: >-
+      Selecting an owner keeps only that owner's IDLE rows; rows with no owner show only under All.
+    query: grafana/dashboards/ttv-queues.json#15
+    lineage:
+      - capacity_intervals.category
+      - capacity_intervals.reason_code
+      - capacity_intervals.stage_owner
+      - capacity_intervals.gpus
+    freshness: Latest engine scan (open intervals); 'Data as of' and 'Data age' show its age.
+    baseline: null
+    direction: neutral
+    thresholds: null
+    uncertainty: null
+    missing_data: >-
+      A reason absent from the table has 0 GPUs in the latest scan; UNKNOWN rows stay visible.
+    value_kind: observed
+    gate: core
+    privileges: SELECT on capacity_intervals, assets
+    cardinality: one row per category, reason and owner (tens)
+    drilldown: null
+    action: null
+    fixture: tests/test_dashboards_sql.py
+    expected: GPUs add up to 'GPUs in scope' (40 with the fixture).
+
+  - id: 17
+    title: Idle value per hour now (USD, AWS On-Demand)
+    question: E03
+    status: built
+    audience: CEO, finance
+    decision: How much comparison value the current queue represents, to weigh unblocking it.
+    definition: >-
+      Sum over GPUs idle now of the per-GPU-hour rate of each GPU's model in the selected snapshot
+      (raw model -> gpu_model_aliases -> pricing_rates). AWS-equivalent value is a comparison (AWS
+      On-Demand, Linux, shared tenancy, us-east-1): not a bill, not our cost and not a loss; never
+      added to other money views (AGENT.md §10, ADR-0003).
+    unit: USD per hour
+    numerator: sum(gpus x per_gpu_hour_usd) of open IDLE intervals
+    denominator: null
+    population: GPUs idle now whose model has a rate in the snapshot.
+    window: now
+    filters: [site, stage_owner, snapshot]
+    exclusions: >-
+      Unpriced GPUs (counted in 'Unpriced idle GPUs now'), so the value is a lower bound when that
+      count is above 0.
+    query: grafana/dashboards/ttv-queues.json#17
+    lineage:
+      - capacity_intervals.gpus
+      - capacity_intervals.gpu_model
+      - gpu_model_aliases.canonical
+      - pricing_rates.per_gpu_hour_usd
+      - pricing_snapshots.publication_date
+    freshness: >-
+      Latest engine scan (open intervals); 'Data as of' and 'Data age' show its age. The snapshot's
+      publication date is shown under the value.
+    baseline: null
+    direction: lower_is_better
+    thresholds: null
+    uncertainty: >-
+      Per-GPU rate = whole instance price / GPUs; similar GPU names do not prove equal performance.
+    missing_data: Nothing priced shows 'nothing priced (see Unpriced idle GPUs)', never $0.
+    value_kind: derived
+    gate: core
+    privileges: >-
+      SELECT on capacity_intervals, assets, gpu_model_aliases, pricing_rates, pricing_snapshots
+    cardinality: one value
+    drilldown: ttv-queues#20
+    action: null
+    fixture: tests/test_dashboards_sql.py
+    expected: >-
+      $220/h with the fixture; $80/h for Redbull's 8 idle GPUs (one synthetic instance-hour).
+
+  - id: 18
+    title: Unpriced idle GPUs now
+    question: E18
+    status: built
+    audience: CEO, finance
+    decision: Whether the USD value can be trusted as complete.
+    definition: GPUs idle now whose model has no rate in the selected snapshot.
+    unit: GPUs
+    numerator: sum(gpus) of open IDLE intervals with no per_gpu_hour_usd
+    denominator: null
+    population: GPUs idle now.
+    window: now
+    filters: [site, stage_owner, snapshot]
+    exclusions: null
+    query: grafana/dashboards/ttv-queues.json#18
+    lineage: [capacity_intervals.gpus, gpu_model_aliases.canonical, pricing_rates.per_gpu_hour_usd]
+    freshness: Latest engine scan (open intervals); 'Data as of' and 'Data age' show its age.
+    baseline: null
+    direction: lower_is_better
+    thresholds: null
+    uncertainty: null
+    missing_data: Unpriced GPUs are never valued at $0; no idle GPUs in scope gives no value.
+    value_kind: observed
+    gate: core
+    privileges: SELECT on capacity_intervals, assets, gpu_model_aliases, pricing_rates
+    cardinality: one value
+    drilldown: ttv-queues#19
+    action: null
+    fixture: tests/test_dashboards_sql.py
+    expected: 2 (the A16s) with the fixture.
+
+  - id: 19
+    title: Unpriced idle GPUs now, by model
+    question: E18
+    status: built
+    audience: Finance, platform engineers
+    decision: Which GPU models need a pricing mapping.
+    definition: >-
+      Unpriced idle GPUs by reported model, canonical name and the reason they have no rate.
+    unit: GPUs
+    numerator: null
+    denominator: null
+    population: GPUs idle now with no rate in the snapshot.
+    window: now
+    filters: [site, stage_owner, snapshot]
+    exclusions: null
+    query: grafana/dashboards/ttv-queues.json#19
+    lineage: [capacity_intervals.gpu_model, gpu_model_aliases.canonical, pricing_rates.reason]
+    freshness: Latest engine scan (open intervals); 'Data as of' and 'Data age' show its age.
+    baseline: null
+    direction: lower_is_better
+    thresholds: null
+    uncertainty: null
+    missing_data: An empty table means every idle GPU in scope is priced.
+    value_kind: observed
+    gate: core
+    privileges: SELECT on capacity_intervals, assets, gpu_model_aliases, pricing_rates
+    cardinality: one row per unpriced model (a handful)
+    drilldown: null
+    action: >-
+      Add a defensible mapping in config/pricing/gpu-instance-map.yaml, or keep it unpriced with a
+      reason.
+    fixture: tests/test_dashboards_sql.py
+    expected: "One row: NVIDIA A16 16GB, 2 GPUs, with the fixture."
+
+  - id: 20
+    title: "Idle and overdue value in the time range (USD): present-day vs historical prices"
+    question: E03
+    status: built
+    audience: CEO, finance
+    decision: >-
+      How much comparison value idle and overdue time represents, at today's and at historical
+      prices.
+    definition: >-
+      Idle and overdue GPU-hours of the period valued twice: present-day at the selected snapshot,
+      and historical at the snapshot of the same region and purchase option in force when each
+      interval started. AWS-equivalent value is a comparison (AWS On-Demand, Linux, shared tenancy,
+      us-east-1): not a bill, not our cost and not a loss; never added to other money views
+      (AGENT.md §10, ADR-0003).
+    unit: USD; GPU-h
+    numerator: null
+    denominator: null
+    population: Every GPU asset in the ledger (server-scan and the profile-less collector).
+    window: selected range
+    filters: [site, stage_owner, snapshot]
+    exclusions: Intervals older than every snapshot are unpriced historically.
+    query: grafana/dashboards/ttv-queues.json#20
+    lineage:
+      - capacity_intervals.gpus
+      - capacity_intervals.started_at
+      - stage_objectives.objective
+      - pricing_snapshots.publication_date
+      - pricing_rates.per_gpu_hour_usd
+    freshness: >-
+      Recomputed at query time; importing a newer snapshot never changes the historical columns.
+    baseline: null
+    direction: lower_is_better
+    thresholds: null
+    uncertainty: Stage clocks that began before observation are lower bounds (≥).
+    missing_data: >-
+      Empty value = nothing in that row could be priced; unpriced GPU-h have their own columns.
+    value_kind: derived
+    gate: core
+    privileges: >-
+      SELECT on capacity_intervals, assets, stage_objectives, gpu_model_aliases, pricing_rates,
+      pricing_snapshots
+    cardinality: one row per stage owner (≤ 4)
+    drilldown: null
+    action: null
+    fixture: tests/test_dashboards_sql.py
+    expected: Redbull $240 idle, present-day and historical, in the §17 window with the fixture.

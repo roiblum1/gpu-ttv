@@ -79,6 +79,8 @@ The links bar titles are the short names (Home, Queues, Delivery, GPU use, Asset
 
 **Panel contracts.** Every non-row panel has a contract in `config/panel-contracts/<dashboard-uid>.yaml`; `tests/test_panel_contracts.py` checks the files against the dashboards (schema in `config/panel-contracts/README.md`).
 
+**Missing-input pages, question map and query tests.** `dashboards/ttv-actions.json`, `ttv-capacity.json`, `ttv-service.json` and `ttv-economics.json` hold one text card per R2/R3 question: the missing inputs, where they would come from, the onboarding step, the release and the R1 page that answers the nearest question today. They have no variables and run no queries. `docs/executive-question-map.md` maps E01–E18 to pages and panels. `tests/test_dashboards_sql.py` runs every panel and variable query of every page against a migrated, seeded Postgres (`TTV_TEST_DSN`); `tests/grafana_sql.py` substitutes macros and variables the way Grafana's Postgres datasource does.
+
 ## Reading the dashboards
 
 - **Now vs period.** "Now" panels read open intervals (`ended_at IS NULL`), i.e. the latest engine scan; "Data as of" and "Data age" show how old that is. Period panels clip every interval to the time range and end open intervals at `now()`.
