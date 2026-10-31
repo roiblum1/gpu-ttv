@@ -40,7 +40,7 @@ UCS Central, OpenManage (+ iDRAC),       │               │
 - **The ledger stores intervals of physical GPU counts.** Money is computed when queried, from a dated price snapshot, so refreshing prices never rewrites history.
 - **A failing source keeps its last good data** for a grace period, then turns UNKNOWN. A partial listing never deletes anything.
 
-## Status: Release 1, slices 1–3 and pricing of 5
+## Status: Release 1, slices 1–4 of 5
 
 | Area | State | Evidence |
 | --- | --- | --- |
@@ -49,7 +49,7 @@ UCS Central, OpenManage (+ iDRAC),       │               │
 | Ledger (`ledger.py`, `store.py`, `migrations/`) | Intervals, stage episodes, tombstones, conflicts, milestones | `fixture-tested` on Postgres 17, incl. §17's 24 → 16 overdue check |
 | Engine + API (`engine.py`, `api.py`, `main.py`) | Scan loop, leader lock, dry-run default, per-cluster deadlines and grace | `lab-tested`: sandbox + one cluster in 3.6 s, idempotent re-scan |
 | Target clusters (`sources/kube.py`, `sources/thanos.py`) | Nodes, GPU pods, owner chains; DCGM, activity, serving counters | `lab-tested` on OpenShift 4.22 with KServe/llm-d; GPU rows on **simulated** GPUs (`deploy/lab/`) |
-| Grafana (`grafana/`) | Queues and Evidence dashboards, provisioned data sources | `fixture-tested` on Grafana 12.4 and 13.2; `lab-tested` on the lab ledger |
+| Grafana (`grafana/`) | The R1 pages of §20.11: Home, Queues (E03), Delivery (E02), GPU use (E12), Asset drill-down, Evidence (E18), and the R2/R3 pages in their missing-input state; shared design conventions; a panel contract per panel (`config/panel-contracts/`), checked by `tests/test_panel_contracts.py`; every query run by `tests/test_dashboards_sql.py` | `fixture-tested` on Grafana 12.4; `lab-tested` on the lab ledger and reviewed in a browser at 1440 px |
 | Profile-less collector (`src/ttv/collector/`, `ttv-collector`) | UCS Central (+ UCS Manager GPU fallback) and OpenManage (+ iDRAC Redfish GPU fallback) readers, read-only in code with TLS verified; the job; rows 3–5 in the engine | `fixture-tested` only (synthetic UCS XML, OME and Redfish JSON); validation gates in ADR-0004 await the production probe |
 | AWS pricing in USD (`src/ttv/pricing/`, `ttv-pricing`) | Offline snapshots (capture, verify, import, rollback), GPU catalogue and instance map, present-day and historical value, `ttv_unpriced_gpus`, Queues value panels | Snapshot of the real us-east-1 price list published 2026-10-29 (`documented`); `fixture-tested` incl. §17 linear pricing; `lab-tested` on the lab ledger and Grafana 12.4. Proxies and size rule approved 2026-10-31 |
 | Home dashboard, alerts | Slice 4: not built | — |

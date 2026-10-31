@@ -50,7 +50,7 @@ uv run pytest -q
 
 - Every function and class gets a Google-style docstring (`Args:` / `Returns:` / `Raises:` / `Yields:`, types in parentheses, summary of 3 lines or fewer).
 - At most 3 consecutive comment lines. Reasoning goes in `docs/adr/` (decisions) or `docs/discovery.md` (verified source facts), with a one-line pointer in code. Delete comments that restate the code.
-- Each change updates the docs it makes wrong, in the same change: `docs/discovery.md`, `docs/adr/`, `docs/executive-question-map.md`, `config/panel-contracts.yaml`, `.env.example`.
+- Each change updates the docs it makes wrong, in the same change: `docs/discovery.md`, `docs/adr/`, `docs/executive-question-map.md`, `config/panel-contracts/<page uid>.yaml`, `.env.example`.
 - `.env.example` is committed; `.env` is gitignored. Never put credentials in fixtures, logs or exported config; fixtures are sanitised captures.
 
 ## Git
