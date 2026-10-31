@@ -1,4 +1,4 @@
-"""Read API: health, readiness, per-asset explanation and metrics (AGENT.md §20.1, §20.6)."""
+"""Read API: health, readiness, decisions, explanations and metrics (AGENT.md §20.1, §20.6)."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
 from prometheus_client import make_asgi_app
 
@@ -95,6 +95,61 @@ def create_app(engine: Engine, scan_interval: timedelta) -> FastAPI:
             "serverscan": asdict(server) if server else None,
             "collector": asdict(collected) if collected else None,
             "recent_intervals": intervals,
+        }
+
+    @app.get("/decisions")
+    async def decisions(
+        category: str | None = None,
+        reason: str | None = None,
+        limit: int = Query(default=200, ge=1, le=10000),
+    ) -> dict[str, Any]:
+        """
+        The last scan's buckets per asset, to pick assets for the dry-run spot check.
+
+        Args:
+            category (str | None): Keep assets with a bucket in this category.
+            reason (str | None): Keep assets with a bucket with this reason code.
+            limit (int): Most assets returned, in asset id order.
+
+        Returns:
+            dict[str, Any]: Scan id and time, dry-run flag, match count and one row per asset.
+
+        Raises:
+            HTTPException: 503 before the first scan.
+        """
+        report = engine.last_report
+        if report is None:
+            raise HTTPException(status_code=503, detail="no scan yet")
+        rows = [
+            {
+                "asset_id": d.asset_id,
+                "expected_gpus": d.expected_gpus,
+                "buckets": [
+                    {
+                        "category": b.category.value,
+                        "reason": b.reason.value,
+                        "gpus": b.gpus,
+                        "stage_owner": b.stage_owner,
+                        "cluster": b.cluster,
+                        "holder_ref": b.holder_ref,
+                        "flags": list(b.flags),
+                    }
+                    for b in d.buckets
+                ],
+            }
+            for _, d in sorted(report.decisions.items())
+            if any(
+                (category is None or b.category.value == category)
+                and (reason is None or b.reason.value == reason)
+                for b in d.buckets
+            )
+        ]
+        return {
+            "scan_id": report.scan_id,
+            "scanned_at": report.started_at.isoformat(),
+            "dry_run": engine.dry_run,
+            "matched": len(rows),
+            "assets": rows[:limit],
         }
 
     return app

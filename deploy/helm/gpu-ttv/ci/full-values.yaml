@@ -1,0 +1,71 @@
+# Every optional part switched on, with synthetic names, for helm lint/template and
+# tests/test_helm_chart.py. Not a deployment example: no endpoint here exists.
+image:
+  digest: "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+serverscan:
+  url: https://server-scan.example.internal
+  tokenSecret:
+    name: ttv-serverscan
+    key: token
+database:
+  existingSecret: ttv-database
+caBundle:
+  configMap: ttv-ca-bundle
+pricing:
+  snapshotsConfigMap: ttv-pricing-snapshots
+policy:
+  policy_version: "ci.1"
+  teams: {PRE_PROVISIONING: DC, PROVISIONING: Redbull, GPU_PLATFORM: POPAI, SERVING: Serving}
+  stage_objectives: {PRE_PROVISIONING: 3d, PROVISIONING: 2d, GPU_PLATFORM: 1d, SERVING: 7d}
+  target_clusters: [ocp4-prod-gpu-site1, ocp4-prod-gpu-site2]
+clusters:
+  - name: ocp4-prod-gpu-site1
+    api_url: https://api.ocp4-prod-gpu-site1.example.internal:6443
+    thanos_url: https://thanos-querier-openshift-monitoring.apps.ocp4-prod-gpu-site1.example.internal
+    cluster_id: 00000000-0000-0000-0000-000000000001
+    tokenSecret: ttv-reader-ocp4-prod-gpu-site1
+  - name: ocp4-prod-gpu-site2
+    api_url: https://api.ocp4-prod-gpu-site2.example.internal:6443
+    thanos_url: https://thanos-querier-openshift-monitoring.apps.ocp4-prod-gpu-site2.example.internal
+    tokenSecret: ttv-reader-ocp4-prod-gpu-site2
+    caKey: ""
+    thanosCaKey: thanos-ca.crt
+    dcgm_node_label: Hostname
+settings:
+  TTV_SCAN_INTERVAL_SECONDS: 300
+  TTV_UNKNOWN_GRACE_SCANS: 2
+  TTV_COLLECTOR_STALE_AFTER: 1h
+  TTV_PRICING_SNAPSHOT: ""
+collector:
+  managers:
+    ucs_central:
+      - name: central-1
+        host: ucs-central.example.internal
+        username: svc-gpu-ttv
+        password_file: /var/run/secrets/ttv/ucs-central/password
+        ca_bundle: /etc/pki/ttv/ca-bundle.pem
+    openmanage:
+      - name: ome-1
+        url: https://ome.example.internal
+        username: svc-gpu-ttv
+        password_file: /var/run/secrets/ttv/ome/password
+        ca_bundle: /etc/pki/ttv/ca-bundle.pem
+  secretMounts:
+    - secret: ttv-ucs-central
+      mountPath: /var/run/secrets/ttv/ucs-central
+    - secret: ttv-ome
+      mountPath: /var/run/secrets/ttv/ome
+serviceMonitor:
+  enabled: true
+networkPolicy:
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 192.0.2.0/24
+grafana:
+  dashboards:
+    enabled: true
+  datasource:
+    enabled: true
+  alerting:
+    enabled: true

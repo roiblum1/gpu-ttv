@@ -1,0 +1,192 @@
+# gpu-ttv chart values. Install steps: deploy/helm/gpu-ttv/README.md and offline/README.md.
+# The chart never holds a secret value: every credential is an existing Secret, referenced by name.
+
+nameOverride: ""
+fullnameOverride: ""
+
+image:
+  # Internal registry the offline bundle was imported into (offline/import-images.sh).
+  registry: registry.internal.example
+  repository: gpu-ttv/gpu-ttv
+  # The release digest from GitLab CI or offline/make-bundle.sh; the image is referenced by digest
+  # alone (CRI-O and skopeo refuse a tag next to a digest). The all-zero placeholder cannot be
+  # pulled, so nothing unpinned ever runs; values.schema.json enforces the form.
+  digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+# TTV_DRY_RUN. true: the engine classifies and logs every scan but writes no ledger rows.
+# Keep it true for at least one day against production and set it to false only after the
+# go/no-go review in docs/dry-run-review.md (AGENT.md §20.6). That review is the only reason to change it.
+dryRun: true
+
+serverscan:
+  # TTV_SERVERSCAN_URL (read-only GETs). Placeholder: the engine cannot resolve it until you set it.
+  url: https://server-scan.example.internal
+  # Existing Secret holding server-scan's AUDITOR API token; mounted as TTV_SERVERSCAN_TOKEN_FILE.
+  tokenSecret:
+    name: ""
+    key: token
+
+database:
+  # Existing Secret holding the full ledger DSN, e.g. postgresql://ttv:<password>@<host>:5432/ttv?sslmode=verify-full.
+  # Empty: the engine classifies without storing anything, and the collector cannot run.
+  existingSecret: ""
+  urlKey: url
+
+caBundle:
+  # Existing ConfigMap with the internal CA bundle (PEM), mounted at /etc/pki/ttv and used as
+  # TTV_CA_BUNDLE for server-scan. Managers and clusters can point their ca_bundle at the same file.
+  configMap: ""
+  key: ca-bundle.pem
+
+# Business policy (schema: config/policy.example.yaml). Empty: the example policy is used, with the
+# provisional I1 objectives and the example target cluster; set the real one before the dry run.
+policy: {}
+
+# Target clusters the engine reads (schema: config/clusters.example.yaml). Every name must be in the
+# policy's target_clusters. The chart adds token_file and ca_bundle from tokenSecret, which holds the
+# reader token from deploy/gpu-cluster-rbac/ (keys token and ca.crt by default).
+clusters: []
+# - name: ocp4-prod-gpu-site1
+#   api_url: https://api.ocp4-prod-gpu-site1.example.internal:6443
+#   thanos_url: https://thanos-querier-openshift-monitoring.apps.ocp4-prod-gpu-site1.example.internal
+#   cluster_id: 00000000-0000-0000-0000-000000000000   # clusterversion spec.clusterID
+#   tokenSecret: ttv-reader-ocp4-prod-gpu-site1
+#   tokenKey: token                  # default
+#   caKey: ca.crt                    # API server CA from the same Secret; "" uses ca_bundle or the trust store
+#   thanos_ca_bundle: /etc/pki/ttv/ca-bundle.pem   # ingress CA of *.apps; default: caBundle when set
+#   # Any other clusters.yaml field (dcgm_node_label, gpu_resource, ...) is passed through unchanged.
+
+# Optional ConfigMap of pricing snapshot files (*.json from ttv-pricing capture) to import at startup
+# instead of the ones built into the image (TTV_PRICING_DIR). Lets a price refresh skip an image build.
+pricing:
+  snapshotsConfigMap: ""
+
+# Scalar TTV_* settings for both workloads (.env.example explains each one). values.schema.json lists
+# the allowed names; the chart sets the rest itself. The Grafana alerts assume the defaults of
+# TTV_SCAN_INTERVAL_SECONDS, TTV_UNKNOWN_GRACE_SCANS and TTV_COLLECTOR_STALE_AFTER (docs/runbooks.md).
+settings: {}
+#  TTV_SCAN_INTERVAL_SECONDS: 300
+#  TTV_DETAIL_MAX_PER_SCAN: 1000
+#  TTV_PRICING_SNAPSHOT: ""
+
+engine:
+  # Engines share one Postgres advisory lock: only the holder scans; others wait (not ready) behind it.
+  replicaCount: 1
+  port: 8080
+  # Sizing is provisional (ADR-0007): about 65 MB resident after a 3,008-server lab scan.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  # A replica waiting for the leader lock serves no HTTP yet, so the startup probe allows it to wait
+  # this long (periodSeconds x failureThreshold) before a restart; liveness starts once it serves.
+  startupProbe:
+    periodSeconds: 10
+    failureThreshold: 360
+  livenessProbe:
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 3
+  # /readyz is 503 until the first scan finishes and when the last scan failed or is 3 intervals old.
+  readinessProbe:
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 2
+  extraEnv: []
+  extraVolumes: []
+  extraVolumeMounts: []
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+collector:
+  # Managers file (schema: config/managers.example.yaml). The collector Deployment exists only when
+  # at least one manager is listed, and then needs database.existingSecret. Passwords are files from
+  # secretMounts, never values here.
+  managers:
+    ucs_central: []
+    openmanage: []
+  # Existing Secrets mounted for the managers file's *_password_file and CA paths.
+  secretMounts: []
+  # - secret: ttv-ucs-central
+  #   mountPath: /var/run/secrets/ttv/ucs-central
+  resources:
+    requests:
+      cpu: 50m
+      memory: 192Mi
+    limits:
+      cpu: 500m
+      memory: 768Mi
+  extraEnv: []
+  extraVolumes: []
+  extraVolumeMounts: []
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+serviceAccount:
+  create: true
+  name: ""
+
+# Restricted defaults. OpenShift's restricted-v2 SCC assigns the UID and fsGroup; elsewhere, set an
+# fsGroup so the 0440 Secret files are readable.
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: [ALL]
+
+service:
+  type: ClusterIP
+
+# Prometheus Operator ServiceMonitor for the engine's /metrics (OpenShift user-workload monitoring).
+serviceMonitor:
+  enabled: false
+  interval: 60s
+  scrapeTimeout: 10s
+  labels: {}
+
+networkPolicy:
+  enabled: true
+  # Who may reach the engine's port (API and /metrics). The collector accepts no ingress at all.
+  ingressFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: openshift-user-workload-monitoring
+    - podSelector: {}
+  # Egress rules for both workloads. Empty: egress is not restricted. When set, DNS is added and
+  # every source needs a rule: Postgres, server-scan, each kube API and Thanos route, each manager.
+  egress: []
+
+# Provisioning ConfigMaps for a sidecar-based Grafana (e.g. the grafana chart's k8s-sidecar), rendered
+# from the repo's grafana/ files. The Grafana container needs TTV_PG_* (grafana/README.md, "Install").
+grafana:
+  namespace: ""   # where the sidecars watch; default: the release namespace
+  dashboards:
+    enabled: false
+    labels:
+      grafana_dashboard: "1"
+    annotations:
+      grafana_folder: GPU Time-to-Value
+      # Dashboards exceed client-side apply's annotation limit when Argo CD syncs them.
+      argocd.argoproj.io/sync-options: ServerSideApply=true
+  datasource:
+    enabled: false
+    labels:
+      grafana_datasource: "1"
+  alerting:
+    enabled: false
+    labels:
+      grafana_alert: "1"
+    # ttv-notifications.yaml replaces the organisation's whole notification policy tree with an inert,
+    # muted one. Keep it for a Grafana of our own; in a shared Grafana set false and merge the routes.
+    notifications: true

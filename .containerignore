@@ -1,0 +1,11 @@
+# Allow-list: the image gets only what it runs. Never .env, CLAUDE.local.md, .claude/ or .git.
+*
+!pyproject.toml
+!uv.lock
+!src/
+!migrations/
+!config/
+!offline/
+offline/bundle/
+**/__pycache__
+**/*.pyc

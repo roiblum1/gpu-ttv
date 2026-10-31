@@ -21,7 +21,7 @@ Idle GPU-hours are charged to the team that owns the current stage:
 
 Idle time past a stage objective is reported as **overdue**. Value is shown as the **AWS On-Demand equivalent in USD** (Linux, shared tenancy, us-east-1): a comparison, not a bill or a loss ([ADR-0003](docs/adr/0003-aws-pricing.md)).
 
-The binding brief is [`AGENT.md`](AGENT.md). The design is in [ADR-0001](docs/adr/0001-architecture.md) (architecture), [ADR-0002](docs/adr/0002-classification-rules.md) (every classification rule), [ADR-0003](docs/adr/0003-aws-pricing.md) (AWS pricing) and [ADR-0004](docs/adr/0004-profile-less-collector.md) (profile-less collector).
+The binding brief is [`AGENT.md`](AGENT.md). The design is in [ADR-0001](docs/adr/0001-architecture.md) (architecture), [ADR-0002](docs/adr/0002-classification-rules.md) (every classification rule), [ADR-0003](docs/adr/0003-aws-pricing.md) (AWS pricing), [ADR-0004](docs/adr/0004-profile-less-collector.md) (profile-less collector) and [ADR-0007](docs/adr/0007-deployment.md) (packaging and deployment).
 
 ## How it works
 
@@ -30,7 +30,7 @@ server-scan API (inventory) ─────────────┐
 target clusters, read-only:              │
   kube API  (nodes, GPU pods, owners)  ──┼──▶ ttv-engine (every 5 min, one active replica)
   Thanos    (DCGM, serving counters)   ──┤       snapshot → classify (pure) → interval ledger
-                                         │        /healthz /readyz /explain/{asset} /metrics
+                                         │        /healthz /readyz /decisions /explain/{asset} /metrics
 UCS Central, OpenManage (+ iDRAC),       │               │
   read-only ──▶ ttv-collector (15 min) ──┴──────▶ Postgres ──▶ Grafana (dashboards as code)
 ```
@@ -40,20 +40,23 @@ UCS Central, OpenManage (+ iDRAC),       │               │
 - **The ledger stores intervals of physical GPU counts.** Money is computed when queried, from a dated price snapshot, so refreshing prices never rewrites history.
 - **A failing source keeps its last good data** for a grace period, then turns UNKNOWN. A partial listing never deletes anything.
 
-## Status: Release 1, slices 1–4 of 5
+## Status: Release 1, all five slices built; the production dry run is pending
 
 | Area | State | Evidence |
 | --- | --- | --- |
 | server-scan client (`src/ttv/sources/serverscan.py`) | GET-only guard, ETag, detail cache with budget | `fixture-tested`; `lab-tested` against a sandbox (3,008 servers) |
 | Classifier (`classify.py`, `gpu_rows.py`, `cluster_view.py`) | ADR-0002 rows 1–22 | `fixture-tested`, incl. AGENT.md §17's 12 GPU-hour check |
 | Ledger (`ledger.py`, `store.py`, `migrations/`) | Intervals, stage episodes, tombstones, conflicts, milestones | `fixture-tested` on Postgres 17, incl. §17's 24 → 16 overdue check |
-| Engine + API (`engine.py`, `api.py`, `main.py`) | Scan loop, leader lock, dry-run default, per-cluster deadlines and grace | `lab-tested`: sandbox + one cluster in 3.6 s, idempotent re-scan |
+| Engine + API (`engine.py`, `api.py`, `main.py`) | Scan loop, leader lock, dry-run default, per-cluster deadlines and grace; `/decisions` lists every asset's buckets for the dry-run spot check | `lab-tested`: sandbox + one cluster in 3.6 s, idempotent re-scan; `/decisions` `fixture-tested` (`tests/test_api_decisions.py`) and `lab-tested` in the image |
 | Target clusters (`sources/kube.py`, `sources/thanos.py`) | Nodes, GPU pods, owner chains; DCGM, activity, serving counters | `lab-tested` on OpenShift 4.22 with KServe/llm-d; GPU rows on **simulated** GPUs (`deploy/lab/`) |
 | Grafana (`grafana/`) | The R1 pages of §20.11: Home, Queues (E03), Delivery (E02), GPU use (E12), Asset drill-down, Evidence (E18), and the R2/R3 pages in their missing-input state; shared design conventions; a panel contract per panel (`config/panel-contracts/`), checked by `tests/test_panel_contracts.py`; every query run by `tests/test_dashboards_sql.py` | `fixture-tested` on Grafana 12.4; `lab-tested` on the lab ledger and reviewed in a browser at 1440 px with the side menu docked (`tests/test_dashboard_layout.py`) |
 | Profile-less collector (`src/ttv/collector/`, `ttv-collector`) | UCS Central (+ UCS Manager GPU fallback) and OpenManage (+ iDRAC Redfish GPU fallback) readers, read-only in code with TLS verified; the job; rows 3–5 in the engine | `fixture-tested` only (synthetic UCS XML, OME and Redfish JSON); validation gates in ADR-0004 await the production probe |
 | AWS pricing in USD (`src/ttv/pricing/`, `ttv-pricing`) | Offline snapshots (capture, verify, import, rollback), GPU catalogue and instance map, present-day and historical value, `ttv_unpriced_gpus`, Queues value panels | Snapshot of the real us-east-1 price list published 2026-10-29 (`documented`); `fixture-tested` incl. §17 linear pricing; `lab-tested` on the lab ledger and Grafana 12.4. Proxies and size rule approved 2026-10-31 |
 | Alerts (`grafana/provisioning/alerting/`, `docs/runbooks.md`) | 8 Grafana-managed rules on the ledger: engine, sources and collector managers stale, UNKNOWN share high or growing, handover overdue, node not found, stage objective breached per owner. Notification destinations unconfigured and muted until supplied (§14) | `fixture-tested` (`tests/test_alert_rules_pg.py`, `tests/test_alert_rules.py`); `lab-tested`: provisioned in Grafana 12.4 and evaluated on the lab ledger, nothing sent (ADR-0006) |
-| Helm chart, offline bundle, dry-run review | Slice 5: not built | — |
+| Container image (`Containerfile`) | One image for `ttv-engine`, `ttv-collector` and `ttv-pricing`; digest-pinned bases; dependencies by `uv.lock` hash from a mirror or wheelhouse; non-root, read-only root filesystem | `lab-tested`: built with the network off from a wheelhouse; all three entry points ran with no network and an arbitrary UID; a dry run against the sandbox (3,008 servers) served `/readyz`, `/metrics/`, `/decisions`, `/explain` |
+| Helm chart (`deploy/helm/gpu-ttv/`), cluster RBAC (`deploy/gpu-cluster-rbac/`) | Engine and collector Deployments, ConfigMaps, Secrets by name only, `dryRun: true` default, probes, NetworkPolicy, ServiceMonitor, Grafana sidecar ConfigMaps rendered from `grafana/`; per-cluster read-only RBAC with discovered CRD kinds | `fixture-tested` (`helm lint`/`template`, `tests/test_helm_charts.py`); not installed on any cluster |
+| Offline delivery (`offline/`), GitLab CI (`.gitlab-ci.yml`) | Image lock, mirror/import (skopeo, digests preserved), wheelhouse, SBOMs, bundle with `SHA256SUMS`; internal build pipeline | `lab-tested` in parts (wheelhouse, one image mirrored with its digest checked, SBOMs); import `fixture-tested` against a stub; no full bundle or registry import yet |
+| Dry-run review (`docs/dry-run-review.md`) | Procedure, go/no-go criteria, the one change that enables writes, record template | Not yet run against production |
 
 Nothing here is `production-verified` yet. Evidence labels are defined in [`docs/discovery.md`](docs/discovery.md).
 
@@ -80,7 +83,22 @@ uv run ttv-collector                              # every 15 min, store reads fo
 
 Prices are never fetched by the engine. On a connected machine, `uv run ttv-pricing capture --region us-east-1` writes a new snapshot under `config/pricing/snapshots/`; carry it in and restart (or `ttv-pricing import`). Roll back by setting `TTV_PRICING_SNAPSHOT` to an older id ([ADR-0003](docs/adr/0003-aws-pricing.md)).
 
-`TTV_DRY_RUN=true` (the default) classifies and plans without writing the ledger. Turn it off only after a reviewed dry run of at least a day (AGENT.md §20.6). To view the dashboards, see [`grafana/README.md`](grafana/README.md).
+`TTV_DRY_RUN=true` (the default) classifies and plans without writing the ledger. Turn it off only after a reviewed dry run of at least a day: [`docs/dry-run-review.md`](docs/dry-run-review.md) (AGENT.md §20.6). To view the dashboards, see [`grafana/README.md`](grafana/README.md).
+
+## Deployment
+
+```bash
+podman build -t gpu-ttv:dev .                                   # one image, three entry points
+podman run --rm gpu-ttv:dev ttv-collector --print-config
+helm template gpu-ttv deploy/helm/gpu-ttv -f values.yaml          # review what would be installed
+```
+
+- [`deploy/helm/gpu-ttv/`](deploy/helm/gpu-ttv/README.md): the engine and collector chart. It starts in dry run, and its values never hold a secret.
+- [`deploy/gpu-cluster-rbac/`](deploy/gpu-cluster-rbac/README.md): read-only access on each target cluster, with CRD kinds discovered per cluster.
+- [`offline/`](offline/README.md): the air-gapped bundle, from connected preparation through import, install, upgrade and rollback, with the network flows.
+- [`docs/dry-run-review.md`](docs/dry-run-review.md): the at-least-one-day dry run, the go/no-go criteria and the change that enables ledger writes.
+
+Installing into a cluster is always the user's step.
 
 ## Configuration
 
@@ -118,7 +136,11 @@ src/ttv/            engine package
 migrations/         plain SQL schema
 config/             policy and cluster examples; pricing map and snapshots
 grafana/            data sources and dashboards as code
+deploy/helm/        the gpu-ttv Helm chart (engine, collector, Grafana provisioning)
+deploy/gpu-cluster-rbac/  read-only access chart for each target cluster
 deploy/lab/         lab-only manifests (fake GPUs on a cluster without GPUs)
+offline/            image lock, mirror/import, wheelhouse, SBOM and bundle scripts
+Containerfile       the runtime image; .gitlab-ci.yml builds it inside the air-gapped network
 docs/               discovery findings, probe runbooks, ADRs
 tests/              unit, fixture and Postgres tests
 ```
@@ -128,7 +150,9 @@ tests/              unit, fixture and Postgres tests
 - [`AGENT.md`](AGENT.md): the binding brief. Section 0 overrides Section 20, which overrides Sections 1–19.
 - [`docs/discovery.md`](docs/discovery.md): verified source facts, user decisions, contradictions and open questions.
 - [`docs/discovery-probes.md`](docs/discovery-probes.md): read-only probe runbooks for the air-gapped production environment.
-- [`docs/adr/`](docs/adr/): architecture and classification decisions.
+- [`docs/adr/`](docs/adr/): architecture, classification, pricing, collector, delivery-clock, alerting and deployment decisions.
+- [`docs/dry-run-review.md`](docs/dry-run-review.md): the §20.6 dry-run review that gates ledger writes (§20.12).
+- [`offline/README.md`](offline/README.md): air-gapped delivery and install.
 - [`deploy/lab/README.md`](deploy/lab/README.md): exercising the GPU rules on a cluster without GPUs.
 
 ## License

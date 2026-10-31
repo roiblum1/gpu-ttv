@@ -1,0 +1,47 @@
+{{- if .Values.networkPolicy.enabled -}}
+{{- $egress := .Values.networkPolicy.egress -}}
+{{- $types := ternary (list "Ingress" "Egress") (list "Ingress") (not (empty $egress)) -}}
+# The engine accepts its port from the listed peers only; the collector accepts nothing.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "gpu-ttv.fullname" . }}-engine
+  labels:
+    {{- include "gpu-ttv.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "gpu-ttv.selectorLabels" (dict "ctx" . "component" "engine") | nindent 6 }}
+  policyTypes: {{ toJson $types }}
+  ingress:
+    - ports:
+        - port: {{ .Values.engine.port }}
+          protocol: TCP
+      {{- with .Values.networkPolicy.ingressFrom }}
+      from:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  {{- if $egress }}
+  egress:
+    {{- include "gpu-ttv.egressRules" . | nindent 4 }}
+  {{- end }}
+{{- if include "gpu-ttv.collectorEnabled" . }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "gpu-ttv.fullname" . }}-collector
+  labels:
+    {{- include "gpu-ttv.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "gpu-ttv.selectorLabels" (dict "ctx" . "component" "collector") | nindent 6 }}
+  policyTypes: {{ toJson $types }}
+  ingress: []
+  {{- if $egress }}
+  egress:
+    {{- include "gpu-ttv.egressRules" . | nindent 4 }}
+  {{- end }}
+{{- end }}
+{{- end }}

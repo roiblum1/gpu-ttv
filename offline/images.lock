@@ -1,0 +1,14 @@
+# Third-party images, each pinned by its multi-arch index digest (AGENT.md §15, §20.8; ADR-0007).
+# Format: <registry>/<path>:<tag>@<digest> <role>. The tag is for people; the digest decides.
+# The internal copy keeps <path> and the digest: <internal-registry>/<path>@<digest>.
+# The gpu-ttv image itself is built per release; offline/make-bundle.sh records its digest in the
+# bundle's images.lock. tests/test_deploy_packaging.py checks every pinned reference is listed here.
+docker.io/library/python:3.12-slim@sha256:aa943ce411423c7582288f18707ff66eddcbaeb510502d747a72aeb34f30d159 build+runtime base, Containerfile (3.12.16-slim-trixie)
+ghcr.io/astral-sh/uv:0.13.6@sha256:af22a52f5eafef3d78e551599d405c02df61919d18028f0cea8eda93bc9986d0 build stage, Containerfile
+ghcr.io/astral-sh/uv:0.13.6-python3.12-trixie-slim@sha256:bf889bda77474aa50c351caf1538b855ef2b7a30add45f26ca50dcb6ade06402 GitLab CI gate job
+quay.io/buildah/stable:v1.43.5@sha256:baaa8fe50d0e78687fa39ef90d5afcea07a6bec086dfdef99f792b555f98fbcd GitLab CI image build
+docker.io/alpine/helm:4.3.1@sha256:e3f8d5c462d75470fbb1fce79ad5c20063657096d1f98c0fcea869e2600e2e5e GitLab CI chart lint and package
+docker.io/anchore/syft:v1.55.0-debug@sha256:b70ccf4e8b5d95653b4564a4beea3518ccab8017250971a799ba1fab13a276d6 SBOM (offline/sbom.sh fallback, GitLab CI); -debug has the shell CI jobs need
+quay.io/skopeo/stable:v1.22.3@sha256:ad1d2e25cf0234bb50476e753a8fc9debd4f0582cdd2ab6fd7bad9bacdfe3b9b image copy (offline/*-images.sh fallback when no skopeo binary)
+docker.io/grafana/grafana:12.4.14@sha256:ae509d9ae8c1021ca32ec370a9ca975d40165eda9fccd1e1102d317ff8787cd7 Grafana the dashboards and alerts were validated on (not deployed by the chart)
+docker.io/library/postgres:17@sha256:b8faeff7712663c2773a190181e1246e37e364b887611c04658c28b44e2408fe Postgres 17.11: CI test database and the clean-room install test (not deployed by the chart)

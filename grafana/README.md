@@ -16,7 +16,7 @@ Only built-in panels are used (stat, bar gauge, bar chart, table, time series, s
 
 ## Install
 
-Mount `provisioning/datasources/` and `provisioning/dashboards/` under Grafana's provisioning directory (default `/etc/grafana/provisioning/`). Mount `dashboards/` at `/var/lib/grafana/dashboards/gpu-ttv` (the provider's `options.path`). Grafana reads these variables when it starts:
+Mount `provisioning/datasources/` and `provisioning/dashboards/` under Grafana's provisioning directory (default `/etc/grafana/provisioning/`). Mount `dashboards/` at `/var/lib/grafana/dashboards/gpu-ttv` (the provider's `options.path`). For a sidecar-based Grafana on OpenShift, the Helm chart renders these same files as labelled ConfigMaps instead (`grafana.*` in `deploy/helm/gpu-ttv/values.yaml`, ADR-0007). Grafana reads these variables when it starts:
 
 | Variable | Meaning |
 | --- | --- |

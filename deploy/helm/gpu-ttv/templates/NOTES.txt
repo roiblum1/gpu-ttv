@@ -1,0 +1,31 @@
+gpu-ttv {{ .Chart.AppVersion }} in namespace {{ .Release.Namespace }}.
+
+{{- if .Values.dryRun }}
+
+DRY RUN (TTV_DRY_RUN=true): the engine classifies and logs every scan and writes no ledger rows.
+Run it for at least one day against production, review it with docs/dry-run-review.md, and only
+then set dryRun=false (AGENT.md §20.6).
+{{- else }}
+
+LEDGER WRITES ENABLED (dryRun=false). This requires a signed-off dry-run review (docs/dry-run-review.md).
+{{- end }}
+{{- if hasPrefix "sha256:000000000000" .Values.image.digest }}
+
+WARNING: image.digest is the all-zero placeholder; set the digest of the imported release image.
+{{- end }}
+{{- if not .Values.policy }}
+
+WARNING: policy is empty, so the example policy (provisional I1 objectives, example target cluster) is in use.
+{{- end }}
+{{- if contains "example" .Values.serverscan.url }}
+
+WARNING: serverscan.url is still the example placeholder.
+{{- end }}
+{{- if not .Values.database.existingSecret }}
+
+No database.existingSecret: the engine stores nothing (not even scan runs), and no collector runs.
+{{- end }}
+
+Health:   oc -n {{ .Release.Namespace }} port-forward svc/{{ include "gpu-ttv.fullname" . }}-engine 8080 && curl localhost:8080/readyz
+Explain:  curl localhost:8080/explain/<vendor>:<serial>
+Logs:     oc -n {{ .Release.Namespace }} logs deploy/{{ include "gpu-ttv.fullname" . }}-engine | grep scan.done

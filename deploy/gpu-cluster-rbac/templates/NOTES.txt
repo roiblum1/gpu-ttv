@@ -1,0 +1,8 @@
+gpu-ttv read-only access in {{ .Release.Namespace }}: ServiceAccount {{ .Values.serviceAccount.name }} (get/list/watch only).
+{{- if not .Values.discoveredKinds }}
+
+WARNING: discoveredKinds is empty, so Run:ai, KServe and other CRD owners cannot be looked up and their
+GPUs stay HOLDER_UNRESOLVED. Generate the list with ./discover-kinds.sh on this cluster.
+{{- end }}
+
+Hand the token and CA to the gpu-ttv operators (deploy/gpu-cluster-rbac/README.md, "Hand over the token").
