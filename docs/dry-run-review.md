@@ -23,7 +23,7 @@ What this means for the review:
 - **Each scan plans against an empty ledger,** so `opens` in `scan.done` equals the number of buckets classified, and `closes` stays 0. Read `opens` as "buckets", not as churn.
 
 Where the output is:
-- **Logs:** one `scan.done` line per scan, JSON on stdout. httpx request lines are interleaved; keep only lines starting with `{`.
+- **Logs:** one JSON object per line on stdout, with one `scan.done` per scan. Health probes, metric scrapes and each outgoing HTTP request are not logged, so the log stays at a few lines per scan; calls to `/decisions` and `/explain` are logged.
 - **`GET /metrics/`:** `ttv_gpus{category,reason_code,stage_owner,site,cluster,gpu_model}`, `ttv_unknown_gpus`, `ttv_unpriced_gpus`, `ttv_identity_conflicts`, `ttv_scan_duration_seconds`, `ttv_dry_run` (1).
 - **`GET /decisions`:** every asset's buckets from the last scan. It takes `?category=`, `?reason=` and `?limit=` (default 200, at most 10,000), and returns `matched` with the total.
 - **`GET /explain/{asset}`:** the rules evaluated, the matching row, and the evidence.
@@ -56,7 +56,7 @@ Run every command against production as the platform operator; nothing here writ
 4. **After 24 hours, collect the evidence.** Keep these files inside the air-gapped network, because they name assets and topology. Only counts leave it.
    ```bash
    oc -n gpu-ttv port-forward svc/gpu-ttv-engine 8080 &
-   oc -n gpu-ttv logs deploy/gpu-ttv-engine --since=25h | grep '^{' | jq -c 'select(.event=="scan.done")' > scans.jsonl
+   oc -n gpu-ttv logs deploy/gpu-ttv-engine --since=25h | jq -c 'select(.event=="scan.done")' > scans.jsonl
    curl -s localhost:8080/metrics/ | grep -E '^ttv_' > metrics.txt
    curl -s 'localhost:8080/decisions?limit=10000' > decisions.json
    psql "$TTV_DATABASE_URL" -c "SELECT status, count(*), max(finished_at - started_at) AS slowest
