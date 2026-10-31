@@ -1,0 +1,572 @@
+# Panel contracts for grafana/dashboards/ttv-delivery.json (schema: config/panel-contracts/README.md).
+# Clock, lower-bound and insufficient-history rules: docs/adr/0005-delivery-clocks.md.
+dashboard: ttv-delivery
+panels:
+  - id: 2
+    title: Servers waiting in a stage now
+    question: E02
+    status: built
+    audience: CEO, stage owners
+    decision: Whether unfinished delivery work is piling up while completed work looks quick.
+    definition: >-
+      Distinct servers with at least one open IDLE interval in a stage (open stage episodes).
+      The caption gives the idle GPUs in those episodes and the servers UNKNOWN now.
+    unit: servers
+    numerator: count(DISTINCT asset_id) of open IDLE intervals with a stage
+    denominator: null
+    population: Every GPU asset in the ledger.
+    window: now
+    filters: [site, stage_owner]
+    exclusions: UNKNOWN servers (named in the caption, never counted as waiting or not waiting).
+    query: grafana/dashboards/ttv-delivery.json#2
+    lineage: [capacity_intervals.category, capacity_intervals.stage, capacity_intervals.ended_at, capacity_intervals.gpus, assets.site]
+    freshness: Latest engine scan (Queues and Evidence show its age).
+    baseline: null
+    direction: lower_is_better
+    thresholds: null
+    uncertainty: null
+    missing_data: No open interval in the ledger shows "No ledger data yet", never 0.
+    value_kind: observed
+    gate: core
+    privileges: SELECT on capacity_intervals, assets
+    cardinality: one value
+    drilldown: ttv-delivery#7
+    action: Open "Backlog now, by stage owner" and the Queues page.
+    fixture: tests/test_delivery_sql.py
+    expected: Empty ledger gives no value (test_empty_ledger_shows_no_value_not_zero).
+
+  - id: 3
+    title: Overdue servers now
+    question: E02
+    status: built
+    audience: CEO, stage owners
+    decision: Which share of the backlog is already past its stage objective (overdue capacity).
+    definition: >-
+      Servers with an open stage episode whose age (now - stage_entered_at) exceeds the objective
+      for the episode's (stage, policy_version), the same rule as Queues' overdue.
+    unit: servers
+    numerator: open stage episodes with age > objective
+    denominator: null
+    population: Open stage episodes in scope.
+    window: now
+    filters: [site, stage_owner]
+    exclusions: UNKNOWN, PRODUCTIVE and NOT_CHARGED GPUs (no stage).
+    query: grafana/dashboards/ttv-delivery.json#3
+    lineage: [capacity_intervals.stage_entered_at, capacity_intervals.stage_entered_lower_bound, capacity_intervals.policy_version, stage_objectives.objective]
+    freshness: Latest engine scan.
+    baseline: Stage objective of the episode's policy version.
+    direction: lower_is_better
+    thresholds: green 0 only when every clock is known; red from 1; purple when clocks began before observation and none is confirmed overdue.
+    uncertainty: >-
+      An episode whose clock began before observation counts once its minimum age passes the
+      objective; until then it might already be overdue, so the value shows "≥" and the caption
+      gives the count.
+    missing_data: A stage with no objective is named in the caption; no ledger data shows "No ledger data yet".
+    value_kind: observed
+    gate: core
+    privileges: SELECT on capacity_intervals, assets, stage_objectives
+    cardinality: one value
+    drilldown: ttv-delivery#7
+    action: Ask the owner of the overdue stage to clear the oldest episodes (Queues, "Longest waits").
+    fixture: tests/test_delivery_sql.py
+    expected: One Redbull episode 10 d old (≥) and one DC episode 1 h old (≥) give 1 and "+1 may be".
+
+  - id: 4
+    title: Oldest open stage episode
+    question: E02
+    status: built
+    audience: CEO, stage owners
+    decision: Whether some server is stagnating while others move quickly.
+    definition: Age of the oldest open stage episode in scope; the caption names its owner and objective.
+    unit: days (hours under 1 day)
+    numerator: max(now - stage_entered_at) over open stage episodes
+    denominator: null
+    population: Open stage episodes in scope.
+    window: now
+    filters: [site, stage_owner]
+    exclusions: Servers with no stage (UNKNOWN, PRODUCTIVE, NOT_CHARGED).
+    query: grafana/dashboards/ttv-delivery.json#4
+    lineage: [capacity_intervals.stage_entered_at, capacity_intervals.stage_entered_lower_bound, capacity_intervals.stage_owner]
+    freshness: Latest engine scan.
+    baseline: null
+    direction: lower_is_better
+    thresholds: null
+    uncertainty: When any open episode in scope began before observation the true oldest age can only be larger, so the value is "≥" (purple).
+    missing_data: No open stage episode shows "No open stage episode".
+    value_kind: observed
+    gate: core
+    privileges: SELECT on capacity_intervals, assets
+    cardinality: one value
+    drilldown: ttv-delivery#7
+    action: Open Queues, "Longest waits".
+    fixture: tests/test_delivery_sql.py
+    expected: Lab ledger 2026-10-31 showed "≥ 43.5 d" (Redbull, clock from server-scan created_at).
+
+  - id: 5
+    title: Ledger history
+    question: support
+    status: built
+    audience: CEO, analysts
+    decision: Whether there is enough observed history to judge delivery speed at all.
+    definition: Time since the first engine scan in scan_runs.
+    unit: days (hours under 1 day)
+    numerator: now - min(scan_runs.started_at) where kind = 'engine'
+    denominator: null
+    population: Engine scans.
+    window: now
+    filters: []
+    exclusions: Collector and other scan kinds.
+    query: grafana/dashboards/ttv-delivery.json#5
+    lineage: [scan_runs.started_at, scan_runs.kind]
+    freshness: Live.
+    baseline: null
+    direction: neutral
+    thresholds: null
+    uncertainty: null
+    missing_data: No engine scan shows "No scan yet".
+    value_kind: observed
+    gate: history
+    privileges: SELECT on scan_runs
+    cardinality: one value
+    drilldown: ttv-evidence
+    action: null
+    fixture: tests/test_delivery_sql.py
+    expected: Lab ledger 2026-10-31 showed about 4.7 h.
+
+  - id: 6
+    title: Backlog age now, by stage owner
+    question: E02
+    status: built
+    audience: CEO, stage owners
+    decision: Where unfinished work is ageing, so completion-period speed is never read alone (§13 #4).
+    definition: >-
+      Open stage episodes per stage owner (pipeline order) in age bands < 1 d, 1–3 d, 3–7 d,
+      7–30 d, > 30 d, plus "Age unknown" for clocks that began before observation.
+    unit: servers
+    numerator: open stage episodes per owner and age band
+    denominator: null
+    population: Open stage episodes in scope; a server waiting in two stages appears under both owners.
+    window: now
+    filters: [site, stage_owner]
+    exclusions: Servers with no stage.
+    query: grafana/dashboards/ttv-delivery.json#6
+    lineage: [capacity_intervals.stage, capacity_intervals.stage_owner, capacity_intervals.stage_entered_at, capacity_intervals.stage_entered_lower_bound]
+    freshness: Latest engine scan.
+    baseline: null
+    direction: lower_is_better
+    thresholds: null
+    uncertainty: >-
+      A clock that began before observation is a minimum age; it is in "Age unknown" (purple)
+      unless its minimum already exceeds 30 days, in which case "> 30 d" is certain.
+    missing_data: No ledger data returns no rows ("No ledger data yet"); an empty band is blank, not 0.
+    value_kind: observed
+    gate: core
+    privileges: SELECT on capacity_intervals, assets
+    cardinality: 4 owners x 6 bands
+    drilldown: ttv-queues
+    action: Ask the owner with the oldest bands to clear them.
+    fixture: tests/test_delivery_sql.py
+    expected: Redbull 10 d (≥) and DC 1 h (≥) are "Age unknown"; an exact 2-day Serving episode is "1–3 d".
+
+  - id: 7
+    title: Backlog now, by stage owner
+    question: E02
+    status: built
+    audience: Stage owners, CEO
+    decision: Which stage's backlog is past its objective (overdue capacity) and how old it is.
+    definition: >-
+      Per stage owner: servers and idle GPUs waiting, overdue servers and GPUs, clocks that began
+      before observation, the current objective, median and oldest age.
+    unit: servers, GPUs, durations
+    numerator: open stage episodes and their GPUs per owner
+    denominator: null
+    population: Open stage episodes in scope.
+    window: now
+    filters: [site, stage_owner]
+    exclusions: Servers with no stage.
+    query: grafana/dashboards/ttv-delivery.json#7
+    lineage: [capacity_intervals.gpus, capacity_intervals.stage_entered_at, capacity_intervals.stage_entered_lower_bound, capacity_intervals.policy_version, stage_objectives.objective]
+    freshness: Latest engine scan.
+    baseline: Stage objective of the current policy version.
+    direction: lower_is_better
+    thresholds: Overdue cells red from 1; "Clock began before observation" purple from 1.
+    uncertainty: Median and oldest show "≥" when any clock in the row began before observation; overdue is then a minimum.
+    missing_data: An empty overdue cell reads "no objective" (some episode's stage has none), never 0; no ledger data returns no rows.
+    value_kind: observed
+    gate: core
+    privileges: SELECT on capacity_intervals, assets, stage_objectives
+    cardinality: one row per stage (4)
+    drilldown: ttv-queues#14
+    action: Ask the stage owner to clear overdue episodes first.
+    fixture: tests/test_delivery_sql.py
+    expected: Redbull 1 overdue, oldest "≥ 10.0 d"; Serving 6 GPUs, oldest "2.0 d"; a stage never seen is listed by its stage code with 0.
+
+  - id: 9
+    title: "Verdict: is completed work quicker?"
+    question: E02
+    status: built
+    audience: CEO
+    decision: Whether delivery improvements are real and sustained, in one traceable sentence.
+    definition: >-
+      Deterministic sentence per headline clock (time to GPU-ready, time to first genuine request):
+      "Not enough history" unless both periods have 5 exact samples; "Quicker" when p50 is shorter
+      and p90 not longer, "Slower" the reverse, else "Mixed" or "No change". Green "Quicker:" also
+      needs no overdue or possibly-overdue backlog and no fewer completions; otherwise "Quicker on
+      completed work only". Always ends with the backlog now.
+    unit: text (durations, servers)
+    numerator: exact p50/p90 per period (see ADR-0005)
+    denominator: null
+    population: Servers whose clock completed in either period; open stage episodes for the backlog.
+    window: last $period complete UTC days before the end of the time range vs the $period days before
+    filters: [site, period]
+    exclusions: Lower-bound and unusable samples; stage_owner does not apply (the clocks span owners).
+    query: grafana/dashboards/ttv-delivery.json#9
+    lineage: [milestones.milestone, milestones.observed_at, milestones.lower_bound, capacity_intervals.*, scan_runs.status, stage_objectives.objective]
+    freshness: Latest engine scan; periods end at the last complete UTC day.
+    baseline: The prior period of the same length.
+    direction: lower_is_better
+    thresholds: green "Quicker:", orange "Quicker on completed work only", red "Slower", purple "Not enough history".
+    uncertainty: A temporal comparison, not a causal claim; no stratification by mix in the verdict (see panel 19).
+    missing_data: Too few exact samples says "Not enough history to judge" with both n.
+    value_kind: derived
+    gate: history
+    privileges: SELECT on capacity_intervals, milestones, scan_runs, stage_objectives, assets
+    cardinality: 2 rows
+    drilldown: ttv-delivery#14
+    action: Read the Clocks table to find the stage that changed.
+    fixture: tests/test_delivery_sql.py
+    expected: >-
+      2..6 d vs 4..8 d gives "Quicker: p50 2.0 d shorter / 33.3% shorter, p90 2.0 d shorter /
+      26.3% shorter"; an overdue backlog makes it "Quicker on completed work only".
+
+  - id: 10
+    title: Time to GPU-ready · p50
+    question: E02
+    status: built
+    audience: CEO
+    decision: Is typical time from first record to usable GPUs falling?
+    definition: Median of first record → GPU-ready over servers whose clock completed in the last period.
+    unit: days
+    numerator: percentile_cont(0.5) of exact samples (else exact + lower bounds, shown "≥")
+    denominator: null
+    population: Servers with a first record and a gpu_ready milestone completing in the window.
+    window: last $period complete UTC days before the end of the time range
+    filters: [site, period]
+    exclusions: Samples whose GPU-ready was already true at first sight; stage_owner does not apply.
+    query: grafana/dashboards/ttv-delivery.json#10
+    lineage: [milestones.in_serverscan, milestones.first_seen, milestones.gpu_ready, capacity_intervals.ended_at, scan_runs.status]
+    freshness: Periods end at the last complete UTC day.
+    baseline: Prior period (Clocks table, panel 14).
+    direction: lower_is_better
+    thresholds: null
+    uncertainty: Caption gives n; "lower bound" (purple, "≥") when exact samples are fewer than 5.
+    missing_data: Fewer than 5 usable samples shows "no estimate" with "insufficient history · n = k of 5".
+    value_kind: derived
+    gate: history
+    privileges: SELECT on milestones, capacity_intervals, scan_runs, assets
+    cardinality: one value
+    drilldown: ttv-delivery#14
+    action: null
+    fixture: tests/test_delivery_sql.py
+    expected: Exact samples of 2, 3, 4, 5, 6 days give 4.0 d with "n = 5 · last 28 d".
+
+  - id: 11
+    title: Time to GPU-ready · p90
+    question: E02
+    status: built
+    audience: CEO
+    decision: Are the slow deliveries to GPU-ready getting faster too?
+    definition: 90th percentile of first record → GPU-ready over servers whose clock completed in the last period.
+    unit: days
+    numerator: percentile_cont(0.9) of exact samples (else exact + lower bounds, shown "≥")
+    denominator: null
+    population: Servers with a first record and a gpu_ready milestone completing in the window.
+    window: last $period complete UTC days before the end of the time range
+    filters: [site, period]
+    exclusions: Samples whose GPU-ready was already true at first sight; stage_owner does not apply.
+    query: grafana/dashboards/ttv-delivery.json#11
+    lineage: [milestones.in_serverscan, milestones.first_seen, milestones.gpu_ready, capacity_intervals.ended_at, scan_runs.status]
+    freshness: Periods end at the last complete UTC day.
+    baseline: Prior period (panel 14).
+    direction: lower_is_better
+    thresholds: null
+    uncertainty: Caption gives n; with few samples p90 is close to the maximum.
+    missing_data: Fewer than 5 usable samples shows "no estimate".
+    value_kind: derived
+    gate: history
+    privileges: SELECT on milestones, capacity_intervals, scan_runs, assets
+    cardinality: one value
+    drilldown: ttv-delivery#14
+    action: null
+    fixture: tests/test_delivery_sql.py
+    expected: Exact samples of 2..6 days give 5.6 d.
+
+  - id: 12
+    title: Time to first genuine request · p50
+    question: E02
+    status: built
+    audience: CEO
+    decision: Is typical time from first record to real use falling?
+    definition: >-
+      Median of first record → first genuine request, computed per server from its own milestones
+      (never a sum of stage percentiles).
+    unit: days
+    numerator: percentile_cont(0.5) of exact samples (else exact + lower bounds, shown "≥")
+    denominator: null
+    population: Servers whose first genuine request was recorded in the window.
+    window: last $period complete UTC days before the end of the time range
+    filters: [site, period]
+    exclusions: >-
+      Requests already flowing at first sight or after an UNKNOWN traffic state; Run:ai-only
+      servers (never record a genuine request); stage_owner does not apply.
+    query: grafana/dashboards/ttv-delivery.json#12
+    lineage: [milestones.in_serverscan, milestones.first_seen, milestones.first_genuine_request, capacity_intervals.category, scan_runs.status]
+    freshness: Periods end at the last complete UTC day.
+    baseline: Prior period (panel 14).
+    direction: lower_is_better
+    thresholds: null
+    uncertainty: Caption gives n; "≥" when lower bounds were needed.
+    missing_data: Fewer than 5 usable samples shows "no estimate".
+    value_kind: derived
+    gate: history
+    privileges: SELECT on milestones, capacity_intervals, scan_runs, assets
+    cardinality: one value
+    drilldown: ttv-delivery#14
+    action: null
+    fixture: tests/test_delivery_sql.py
+    expected: Lab ledger 2026-10-31 showed "insufficient history · n = 0 of 5" (its only request followed TRAFFIC_UNOBSERVED).
+
+  - id: 13
+    title: Time to first genuine request · p90
+    question: E02
+    status: built
+    audience: CEO
+    decision: Are the slowest paths to real use getting faster?
+    definition: 90th percentile of first record → first genuine request per server.
+    unit: days
+    numerator: percentile_cont(0.9) of exact samples (else exact + lower bounds, shown "≥")
+    denominator: null
+    population: Servers whose first genuine request was recorded in the window.
+    window: last $period complete UTC days before the end of the time range
+    filters: [site, period]
+    exclusions: As panel 12.
+    query: grafana/dashboards/ttv-delivery.json#13
+    lineage: [milestones.in_serverscan, milestones.first_seen, milestones.first_genuine_request, capacity_intervals.category, scan_runs.status]
+    freshness: Periods end at the last complete UTC day.
+    baseline: Prior period (panel 14).
+    direction: lower_is_better
+    thresholds: null
+    uncertainty: Caption gives n; with few samples p90 is close to the maximum.
+    missing_data: Fewer than 5 usable samples shows "no estimate".
+    value_kind: derived
+    gate: history
+    privileges: SELECT on milestones, capacity_intervals, scan_runs, assets
+    cardinality: one value
+    drilldown: ttv-delivery#14
+    action: null
+    fixture: tests/test_delivery_sql.py
+    expected: As panel 12.
+
+  - id: 14
+    title: "Clocks: last vs prior period (p50, p90, n, change)"
+    question: E02
+    status: built
+    audience: CEO, stage owners
+    decision: Which clock or stage made delivery quicker or slower (§13 #1, #2, #7, #8).
+    definition: >-
+      Eight separate clocks (four milestone clocks per server, four stage-episode clocks) with p50,
+      p90 and n per period, the stage objective as target, and the change in p50 and p90.
+    unit: min, h, d
+    numerator: percentiles per clock and period (ADR-0005)
+    denominator: null
+    population: Completed samples per clock in either period.
+    window: last $period complete UTC days before the end of the time range vs the $period days before
+    filters: [site, stage_owner, period]
+    exclusions: >-
+      Lower bounds when 5 exact samples exist; unusable samples (end not exact, rework, out of
+      scope, UNKNOWN, retired); stage_owner hides other owners' stage rows.
+    query: grafana/dashboards/ttv-delivery.json#14
+    lineage: [capacity_intervals.*, milestones.*, scan_runs.status, stage_objectives.objective, assets.site]
+    freshness: Periods end at the last complete UTC day.
+    baseline: The prior period of the same length.
+    direction: lower_is_better
+    thresholds: null
+    uncertainty: '"≥" cells are lower bounds; n shows "x + y ≥" when they were used and "excl." for samples not used.'
+    missing_data: Too few samples show "—", "n · needs 5" and "insufficient history (n = a vs b)"; a zero baseline suppresses the %.
+    value_kind: derived
+    gate: history
+    privileges: SELECT on capacity_intervals, milestones, scan_runs, stage_objectives, assets
+    cardinality: 8 rows
+    drilldown: ttv-delivery#19
+    action: Ask the owner of a slower stage what changed.
+    fixture: tests/test_delivery_sql.py
+    expected: Redbull 12 d → 8 d reads "4.0 d shorter / 33.3% shorter" with n "5 · 2 excl."; DC with 2 exact + 4 ≥ reads "≥ 3.5 d".
+
+  - id: 15
+    title: "Trend: rolling p50 and p90 — $clock"
+    question: E02
+    status: built
+    audience: CEO, analysts
+    decision: Whether a change is a trend or a blip.
+    definition: >-
+      For each day in the time range, p50 and p90 of the selected clock over exact samples
+      completed in the previous $period days, plotted only with at least 5 samples; the stage
+      objective as a dashed red target (stage clocks).
+    unit: days
+    numerator: percentile_cont(0.5 and 0.9) of exact samples in the rolling window
+    denominator: null
+    population: Exact samples of the selected clock.
+    window: selected range, rolling $period days
+    filters: [site, stage_owner, clock, period]
+    exclusions: Lower-bound and unusable samples.
+    query: grafana/dashboards/ttv-delivery.json#15
+    lineage: [capacity_intervals.*, milestones.*, scan_runs.status, stage_objectives.objective]
+    freshness: Latest engine scan.
+    baseline: Stage objective (stage clocks only).
+    direction: lower_is_better
+    thresholds: Target line = stage objective.
+    uncertainty: Rolling windows overlap, so neighbouring points are not independent.
+    missing_data: No window with 5 exact samples shows "Insufficient history", no line.
+    value_kind: derived
+    gate: history
+    privileges: SELECT on capacity_intervals, milestones, scan_runs, stage_objectives, assets
+    cardinality: one point per day in range (≤ 90 by default) x 2 series
+    drilldown: ttv-delivery#19
+    action: null
+    fixture: tests/test_delivery_sql.py
+    expected: Lab ledger shows "Insufficient history"; the synthetic 100-day fixture plots about 90 daily points.
+
+  - id: 16
+    title: "Volume per week: arrivals and completions"
+    question: E02
+    status: built
+    audience: CEO
+    decision: Whether speed comes with volume, so a few quick servers are not mistaken for faster delivery (§13 #6).
+    definition: >-
+      Per UTC week: eligible servers whose first record fell in the week, that became GPU-ready,
+      and that received their first genuine request, counting only transitions with an exact date.
+    unit: servers per week
+    numerator: count of exact first records, GPU-ready and first-request transitions per week
+    denominator: null
+    population: Eligible servers (ever IDLE or PRODUCTIVE).
+    window: selected range, weekly
+    filters: [site]
+    exclusions: Milestones already true at first sight (no date); NOT_CHARGED-only and UNKNOWN-only servers.
+    query: grafana/dashboards/ttv-delivery.json#16
+    lineage: [milestones.*, capacity_intervals.category, capacity_intervals.ended_at, scan_runs.started_at]
+    freshness: Latest engine scan.
+    baseline: null
+    direction: higher_is_better
+    thresholds: null
+    uncertainty: The week containing the first engine scan is partly observed.
+    missing_data: Weeks before the first engine scan have no completion bars (not observed, not 0).
+    value_kind: observed
+    gate: history
+    privileges: SELECT on milestones, capacity_intervals, scan_runs, assets
+    cardinality: one row per week in range (≤ 14 by default) x 3 series
+    drilldown: ttv-delivery#18
+    action: null
+    fixture: tests/test_delivery_sql.py
+    expected: Lab ledger 2026-10-31 showed 138 and 23 eligible arrivals in two September weeks and no completions before 26 Oct.
+
+  - id: 18
+    title: "Intake cohorts: share reaching GPU-ready and first genuine request by age"
+    question: E02
+    status: built
+    audience: CEO, analysts
+    decision: Whether recent intake batches convert to usable and used capacity faster (§13 #4, #5).
+    definition: >-
+      Servers with an exact first record in the range, by UTC intake week, with denominators
+      (eligible, out of scope, never classified) and the share of eligible servers that reached
+      GPU-ready and first genuine request within 1, 7, 14 and 30 days.
+    unit: "% of eligible servers"
+    numerator: eligible servers whose milestone was recorded by that age
+    denominator: eligible servers in the cohort (ever IDLE or PRODUCTIVE)
+    population: Servers with an exact first record in the time range.
+    window: selected range, by intake week
+    filters: [site]
+    exclusions: Servers whose first record is only a lower bound (no intake week); stage_owner does not apply.
+    query: grafana/dashboards/ttv-delivery.json#18
+    lineage: [milestones.*, capacity_intervals.category, capacity_intervals.started_at, capacity_intervals.ended_at]
+    freshness: Latest engine scan.
+    baseline: Earlier cohorts.
+    direction: higher_is_better
+    thresholds: null
+    uncertainty: >-
+      A server whose state at that age is unknown (not observed yet, UNKNOWN or out of scope) counts
+      as not reached, so the share is a minimum ("≥", purple).
+    missing_data: '"not matured" until the youngest server is that old; "unobserved" when no state is known; "—" with no eligible server.'
+    value_kind: derived
+    gate: history
+    privileges: SELECT on milestones, capacity_intervals, assets
+    cardinality: one row per intake week in range (≤ 14 by default)
+    drilldown: null
+    action: null
+    fixture: tests/test_delivery_sql.py
+    expected: A server ready on day 3 and serving on day 10 reads 0% / 100% / 100% / 100% (GPU-ready) and 0% / 0% / 100% / 100% (request).
+
+  - id: 19
+    title: "Strata: $clock by GPU model and site"
+    question: E02
+    status: built
+    audience: Analysts, stage owners
+    decision: Whether an improving fleet mix hides a worsening group (§13 #3).
+    definition: The selected clock's p50 and n per GPU model and site, last vs prior period, with the change.
+    unit: min, h, d
+    numerator: percentiles per (GPU model, site, period) with the rules of panel 14
+    denominator: null
+    population: Completed samples of the selected clock.
+    window: last $period complete UTC days before the end of the time range vs the $period days before
+    filters: [site, stage_owner, clock, period]
+    exclusions: As panel 14; only the 20 groups with most samples.
+    query: grafana/dashboards/ttv-delivery.json#19
+    lineage: [assets.gpu_model, assets.site, capacity_intervals.*, milestones.*]
+    freshness: Periods end at the last complete UTC day.
+    baseline: The prior period of the same length.
+    direction: lower_is_better
+    thresholds: null
+    uncertainty: Small groups mostly read "insufficient history"; deployment method, new vs reused hardware and complexity are not stratified (no R1 source).
+    missing_data: No completed sample shows "No completed samples of this clock in either period".
+    value_kind: derived
+    gate: history
+    privileges: SELECT on capacity_intervals, milestones, scan_runs, assets
+    cardinality: ≤ 20 rows
+    drilldown: null
+    action: null
+    fixture: tests/test_delivery_sql.py
+    expected: Lab ledger 2026-10-31 showed one group (NVIDIA H100 80GB, tlv) with "1 · needs 5".
+
+  - id: 21
+    title: E07 · Are we clearing the backlog or growing it?
+    question: E07
+    status: missing_input
+    audience: CEO, stage owners
+    decision: Adjust the process before the queue becomes a crisis.
+    definition: >-
+      Missing: per-period arrivals into and completions out of each stage, cancellations, rework,
+      work in progress over time, net change, and a conditional burn-down scenario.
+    unit: none (text)
+    numerator: null
+    denominator: null
+    population: Stage episodes per owner (when built).
+    window: selected range (when built)
+    filters: []
+    exclusions: null
+    query: grafana/dashboards/ttv-delivery.json#21
+    lineage: [capacity_intervals.stage, capacity_intervals.stage_entered_at, capacity_intervals.ended_at]
+    freshness: Not applicable until built (static text).
+    baseline: null
+    direction: neutral
+    thresholds: null
+    uncertainty: null
+    missing_data: >-
+      Cancellations, rework reasons and intervention dates need the R2 action and commitment
+      ledger; a burn-down needs several weeks of stable history. The panel never shows a number.
+    value_kind: business_input
+    gate: history
+    privileges: null
+    cardinality: null
+    drilldown: ttv-queues
+    action: R2 backlog-flow view and action-ledger import.
+    fixture: null
+    expected: Text only.
