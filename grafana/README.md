@@ -92,11 +92,13 @@ The links bar titles are the short names (Home, Queues, Delivery, GPU use, Asset
   - "Historical" columns value each interval at the snapshot in force when it started, so importing a newer snapshot never changes them. Intervals older than every snapshot are unpriced historically.
   - **Unpriced is never $0.** GPUs whose model has no rate are counted in "Unpriced idle GPUs now" (purple), listed with the reason in "Unpriced idle GPUs now, by model", and shown as unpriced GPU-h beside every USD column. A USD cell reading "unpriced" means nothing in that row could be priced. The value-per-hour stat excludes unpriced GPUs, so it is a lower bound whenever that count is above 0.
   - Dollars use the unit `prefix:$` so they are exact, not abbreviated to K/M.
+- **Delivery (E02).** Clocks stay separate: first record → GPU-ready → workload running → first genuine request, end-to-end per server from its own milestones, and one clock per stage episode (DC, Redbull, POPAI, Serving). The comparison is the last `$period` complete UTC days (default 28) against the period before. Percentiles use exact samples, whose ends the engine saw happen. With fewer than 5, they use exact plus lower-bound samples and show `≥`; with fewer still, "insufficient history (n = …)". Samples whose end was already true at first sight, rework and episodes that ended UNKNOWN are left out and counted as "excl.". "Quicker" is green only when nothing in the backlog is overdue. Cohort cells read "not matured" or `≥` rather than guess. Rules: `docs/adr/0005-delivery-clocks.md`. E07 (backlog flow) is Release 2.
 
 Assumptions the SQL makes about the engine:
 1. All intervals of one stage episode carry the same `stage_entered_at`.
 2. Scan kinds are whatever `scan_runs.kind` contains.
 3. The source-health State column assumes the default `unknown_grace_scans = 2`.
+4. Milestones, `scan_runs.started_at` and interval boundaries written by one scan carry the same timestamp (Delivery dates a transition exactly only when an interval ended at that scan).
 
 ## Validation record (fixture-tested, not production evidence)
 
