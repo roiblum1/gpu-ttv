@@ -1,0 +1,89 @@
+# Panel contracts for ttv-economics.json (schema: config/panel-contracts/README.md).
+# Every panel is a missing-input text card (AGENT.md §0.6): it names the missing inputs and the
+# onboarding path and shows no number. value_kind and direction describe the future answer.
+dashboard: ttv-economics
+panels:
+  - id: 1
+    title: E13 · What does a useful outcome cost?
+    question: E13
+    status: missing_input
+    audience: CEO, finance
+    decision: Find efficiency changes that preserve service quality.
+    definition: >-
+      Not built (R3). Will show energy cost and internal cost per comparable successful request,
+      token category or approved outcome, with shared and idle overhead separate and the AWS
+      comparison apart. Missing inputs: goodput per service (R2), measured energy and a tariff
+      (E15), the internal cost policy, comparable categories and any business outcome measures.
+    unit: cost per successful request (energy and internal cost, separately)
+    numerator: Energy or internal cost of a category.
+    denominator: Successful useful requests or tokens of the same category.
+    population: Serving deployments with goodput measures.
+    window: selected range
+    filters: []
+    exclusions: AWS-equivalent value, which is a comparison and never our cost.
+    query: grafana/dashboards/ttv-economics.json#1
+    lineage: [goodput (R2), energy (R2), tariff (missing), internal cost policy (missing)]
+    freshness: Static text until the inputs exist.
+    baseline: null
+    direction: lower_is_better
+    thresholds: null
+    uncertainty: Mix changes (model, context length, caching) are exposed beside the unit cost.
+    missing_data: >-
+      The card lists the missing inputs, where they come from and the onboarding step; it shows no
+      number.
+    value_kind: derived
+    gate: business_input
+    privileges: None today (static text).
+    cardinality: One text panel.
+    drilldown: ttv-queues#17
+    action: >-
+      After E10 and E15, load the tariff and internal cost policy; define comparable categories.
+    fixture: tests/test_panel_contracts.py
+    expected: >-
+      Text card titled 'E13 · What does a useful outcome cost?' naming goodput, energy, tariff and
+      cost policy as missing; no number. When built (§17): an AWS proxy never appears as internal
+      spend.
+
+  - id: 2
+    title: E15 · Is power or facility capacity limiting growth?
+    question: E15
+    status: missing_input
+    audience: CEO, facilities, infrastructure leads
+    decision: Surface infrastructure limits before new servers arrive.
+    definition: >-
+      Not built (R2). Will show measured server and GPU power and energy (never added together),
+      idle-state energy, trends, and approved site or rack power and cooling budgets. Missing
+      inputs: server power with a defined boundary, GPU power and energy counters (DCGM, versioned
+      mapping), the electricity tariff and optional PUE, and approved facility budgets.
+    unit: kW; kWh
+    numerator: null
+    denominator: null
+    population: Every GPU server with a power source.
+    window: selected range
+    filters: []
+    exclusions: GPU power is a component of server power and is never added to it.
+    query: grafana/dashboards/ttv-economics.json#2
+    lineage:
+      - BMC/Redfish power (R2)
+      - DCGM power and energy via Thanos (R2)
+      - facility budgets (missing)
+      - tariff (missing)
+    freshness: Static text until R2; then the telemetry interval with coverage shown.
+    baseline: null
+    direction: neutral
+    thresholds: null
+    uncertainty: Measurement boundary stated; gaps are shown as coverage, never as zero watts.
+    missing_data: >-
+      The card lists the missing inputs, where they come from and the onboarding step; it shows no
+      number.
+    value_kind: observed
+    gate: business_input
+    privileges: None today (static text).
+    cardinality: One text panel.
+    drilldown: ttv-gpu-use
+    action: "R2: collect power and energy with coverage; facilities import approved budgets."
+    fixture: tests/test_panel_contracts.py
+    expected: >-
+      Text card titled 'E15 · Is power or facility capacity limiting growth?' naming power
+      telemetry, tariff and budgets as missing; no number. When built (§17): 1,000 W for 3 h = 3
+      kWh; GPU 1.8 kWh is a component, never 4.8 kWh in total.

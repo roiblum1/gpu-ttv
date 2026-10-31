@@ -81,6 +81,8 @@ The links bar titles are the short names (Home, Queues, Delivery, GPU use, Asset
 
 **Panel contracts.** Every non-row panel has a contract in `config/panel-contracts/<dashboard-uid>.yaml`; `tests/test_panel_contracts.py` checks the files against the dashboards (schema in `config/panel-contracts/README.md`).
 
+**Missing-input pages, question map and query tests.** `dashboards/ttv-actions.json`, `ttv-capacity.json`, `ttv-service.json` and `ttv-economics.json` hold one text card per R2/R3 question: the missing inputs, where they would come from, the onboarding step, the release and the R1 page that answers the nearest question today. They have no variables and run no queries. `docs/executive-question-map.md` maps E01–E18 to pages and panels. `tests/test_dashboards_sql.py` runs every panel and variable query of every page against a migrated, seeded Postgres (`TTV_TEST_DSN`); `tests/grafana_sql.py` substitutes macros and variables the way Grafana's Postgres datasource does.
+
 ## Reading the dashboards
 
 - **Home** answers the main story in a minute: six cards (idle GPUs, their AWS-equivalent value per hour, productive share of eligible GPUs, unknown and not-measured GPUs, data age), the four stage queues in pipeline order with their oldest wait, every GPU by category, the ten longest waits, installed GPUs by model (E01, purchase dates "input missing"), and idle/overdue time and value in the selected period with a trend. Set `GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/gpu-ttv/ttv-home.json` to open it first.
