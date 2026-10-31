@@ -14,7 +14,10 @@
     - the engine ran under the `restricted-v2` SCC with an assigned UID, applied the migrations on Postgres 15 and passed its probes (ready after the first scan), and the dry run wrote no assets, intervals or milestones;
     - user-workload monitoring scraped `/metrics/` through the chart's NetworkPolicy, and the series reached Thanos;
     - sizes: the Helm release Secret stores about 0.4 MB of the 1 MiB limit, because it holds the dashboards twice (chart files and rendered ConfigMaps); the largest dashboard ConfigMap, Delivery, is 218 KiB as JSON, under client-side apply's 256 KiB annotation limit;
-    - not covered: `deploy/gpu-cluster-rbac` (installing it grants cluster permissions, which awaits the user's approval), so no target cluster was read; the collector (no managers in the lab); egress rules (`networkPolicy.egress` was empty).
+    - `deploy/gpu-cluster-rbac` on the same cluster, approved by the user: with its token the engine read nodes, pods, owner chains up to KServe's LLMInferenceService, and Thanos, and gave the same GPU counts per category, reason and cluster as an engine reading the cluster as admin; the read-only proof (`docs/dry-run-review.md`, step 2) showed only get/list/watch plus `prometheuses/api` from `cluster-monitoring-view`; the token's `ca.crt` verified the external API name;
+    - `networkPolicy.egress` limited to Postgres, server-scan, and the target's API and Thanos route: a full scan read every source; other hosts, and other ports on the allowed addresses, timed out;
+    - the first egress attempt failed, because inside the cluster the target's API and route names resolved to an internal address, not the public one a laptop sees (split-horizon DNS). The engine reported `cluster.read_failed` and `cluster_sources_failed: 2`, as the source alert expects;
+    - not covered: the collector (no managers in the lab).
   - Nothing here has run against production.
 - **Context:** AGENT.md §20.8 (air-gapped: internal registry and Python mirror, digest-pinned images, no runtime downloads, GitLab CI, Helm, Argo CD; per-cluster RBAC with no write verbs), §20.9 (layout), §15 (offline release process), §20.6 (dry run before writes), §20.12 (read-only verified, offline install test).
 - **Files:** `Containerfile`, `.containerignore`, `deploy/helm/gpu-ttv/`, `deploy/gpu-cluster-rbac/`, `offline/`, `.gitlab-ci.yml`, `docs/dry-run-review.md`.
@@ -83,7 +86,7 @@
 
 **NetworkPolicy:**
 - Ingress to the engine's port is allowed only from the listed peers (default: user-workload monitoring and the same namespace). The collector accepts no ingress.
-- Egress is not restricted by default, because the destinations (server-scan, kube APIs, Thanos routes, managers, Postgres) are site-specific CIDRs. Setting `networkPolicy.egress` restricts it, and DNS is then added.
+- Egress is not restricted by default, because the destinations (server-scan, kube APIs, Thanos routes, managers, Postgres) are site-specific CIDRs. Setting `networkPolicy.egress` restricts it, and DNS is then added. Resolve each destination from a pod in the gpu-ttv namespace: with split-horizon DNS, pods can get an internal address that a laptop never sees (lab, 2026-10-31).
 
 **Grafana provisioning, for a sidecar-based Grafana:**
 - **Opt-in ConfigMaps** with the k8s-sidecar labels `grafana_dashboard`, `grafana_datasource` and `grafana_alert`, rendered from the repo's `grafana/` files. `files/grafana` and `files/policy.example.yaml` are symbolic links into the repo, which Helm follows when it renders and packages the chart, so there is no copy to drift. A test compares every rendered file byte for byte.

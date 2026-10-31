@@ -165,6 +165,7 @@ networkPolicy:
     - podSelector: {}
   # Egress rules for both workloads. Empty: egress is not restricted. When set, DNS is added and
   # every source needs a rule: Postgres, server-scan, each kube API and Thanos route, each manager.
+  # Resolve each name from a pod in this namespace: split-horizon DNS can give pods another address.
   egress: []
 
 # Provisioning ConfigMaps for a sidecar-based Grafana (e.g. the grafana chart's k8s-sidecar), rendered

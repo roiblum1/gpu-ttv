@@ -14,7 +14,7 @@ The verbs are fixed in the template, so values cannot add a write verb. The char
 
 CRD names differ by version and by cluster, and Run:ai is installed on some target clusters only. So they are discovered on each cluster, never typed by hand.
 
-Evidence: `fixture-tested` only (`tests/test_helm_charts.py`, `tests/test_deploy_packaging.py`). It has not been installed on a cluster.
+Evidence: `fixture-tested` (`tests/test_helm_charts.py`, `tests/test_deploy_packaging.py`) and `lab-tested` on an OpenShift 4.22 workshop cluster (2026-10-31). There gpu-ttv read nodes, pods, owner chains up to KServe's LLMInferenceService, and Thanos, with this chart's token, and the checks below gave the expected output (ADR-0007).
 
 ## Install (the cluster's platform owners)
 
@@ -42,7 +42,7 @@ oc -n gpu-ttv create secret generic ttv-reader-<cluster> --from-file=token --fro
 shred -u token ca.crt
 ```
 
-That Secret's `ca.crt` is the cluster's service CA bundle. If the API's external name uses a certificate from another CA, put that CA in `ca.crt` instead.
+On OpenShift 4.22 that Secret's `ca.crt` holds the kube-apiserver signers, including `kube-apiserver-lb-signer`, which signs the external `api.` name, so it verifies `api_url` as is (lab, 2026-10-31). Replace it only if the API serves a custom certificate from another CA.
 
 Then add the cluster to the gpu-ttv values:
 
@@ -59,11 +59,15 @@ The engine reads the token file again on every scan. To rotate the token, delete
 
 ## Verify read-only (§20.12)
 
+Compare the reader with the namespace's `default` ServiceAccount, which has no bindings, so only what this chart grants is left:
+
 ```bash
 SA=system:serviceaccount:gpu-ttv-reader:gpu-ttv-reader
+BASE=system:serviceaccount:gpu-ttv-reader:default
+diff <(oc auth can-i --list -n gpu-ttv-reader --as=$BASE | sort -u) \
+     <(oc auth can-i --list -n gpu-ttv-reader --as=$SA | sort -u) | grep '^[<>]'
 for verb in create update patch delete; do oc auth can-i $verb pods --as=$SA; done   # "no" four times
 oc auth can-i get secrets --as=$SA                                                     # "no"
-oc auth can-i list nodes --as=$SA                                                      # "yes"
 ```
 
-Paste the output into the dry-run record (`docs/dry-run-review.md`).
+The diff shows only `>` lines: the kinds above with `[get list watch]`, and `prometheuses.monitoring.coreos.com/api [k8s] [get create update]`. That line is OpenShift's `cluster-monitoring-view`, which authorizes Thanos queries and cannot change the Prometheus object (`docs/dry-run-review.md`, step 2). Paste the output into the dry-run record.

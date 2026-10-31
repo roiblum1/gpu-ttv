@@ -41,13 +41,19 @@ Run every command against production as the platform operator; nothing here writ
    - `database.existingSecret`.
 
    Keep `dryRun: true`. Install the chart (`deploy/helm/gpu-ttv/README.md`) and note the time: the 24-hour window starts at the first `scan.done` after the last configuration or image change.
-2. **Prove the access is read-only** on each target cluster, and paste the output into the record:
+2. **Prove the access is read-only** on each target cluster, and paste the output into the record. The `default` ServiceAccount of the same namespace has no bindings, so comparing against it leaves only what the chart grants:
    ```bash
    SA=system:serviceaccount:gpu-ttv-reader:gpu-ttv-reader
-   oc auth can-i --list --as=$SA   # only get/list/watch, besides what every authenticated user has (self reviews)
+   BASE=system:serviceaccount:gpu-ttv-reader:default
+   diff <(oc auth can-i --list -n gpu-ttv-reader --as=$BASE | sort -u) \
+        <(oc auth can-i --list -n gpu-ttv-reader --as=$SA | sort -u) | grep '^[<>]'
    for verb in create update patch delete; do oc auth can-i $verb pods --as=$SA; done   # "no" four times
    oc auth can-i get secrets --as=$SA     # "no"
    ```
+   Expect only `>` lines: the chart's kinds with `[get list watch]`, and `prometheuses.monitoring.coreos.com/api [k8s] [get create update]`.
+   - That last line comes from OpenShift's `cluster-monitoring-view`, bound for Thanos. Its proxy authorizes metric queries as verbs on that virtual subresource; it cannot change the Prometheus object.
+   - A plain `--list` also shows what OpenShift gives every authenticated user, such as `create` on `builds/*` and `buildconfigs/webhooks`. The diff leaves those out.
+   - Seen on OpenShift 4.22 in the lab, 2026-10-31.
 3. **Run the collector probe** once, in the collector pod. It reads every manager, prints every record and stores nothing:
    ```bash
    oc -n gpu-ttv exec deploy/gpu-ttv-collector -- ttv-collector --once --dry-run --servers > collector-probe.json
