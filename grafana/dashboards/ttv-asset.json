@@ -210,7 +210,7 @@
     {
       "type": "stat",
       "id": 2,
-      "title": "GPUs in inventory",
+      "title": "GPUs",
       "description": "Definition: assets.gpu_count, the GPUs inventory reports for this server (`E`: server-scan hardware.gpus, or the collector's GPU evidence). Every open bucket of the asset sums to it.\nUnits: physical GPUs.\nFilters: asset_id.\nUnknown vs zero: 'unread' = the source did not read the GPU inventory, never 0 GPUs.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
@@ -271,7 +271,7 @@
     {
       "type": "stat",
       "id": 3,
-      "title": "Productive GPUs now",
+      "title": "Productive",
       "description": "Definition: sum(gpus) of this asset's open PRODUCTIVE intervals.\nUnits: physical GPUs.\nFilters: asset_id.\nUnknown vs zero: 0 = the latest scan put none of this asset's GPUs in the category; 'No open interval' = the ledger has no current state for this asset (not classified yet, or retired). Current state = the asset's intervals still open in the ledger (ended_at IS NULL), i.e. the latest engine scan.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
@@ -332,7 +332,7 @@
     {
       "type": "stat",
       "id": 4,
-      "title": "Idle GPUs now",
+      "title": "Idle",
       "description": "Definition: sum(gpus) of this asset's open IDLE intervals.\nUnits: physical GPUs.\nFilters: asset_id.\nUnknown vs zero: 0 = the latest scan put none of this asset's GPUs in the category; 'No open interval' = the ledger has no current state for this asset (not classified yet, or retired). Current state = the asset's intervals still open in the ledger (ended_at IS NULL), i.e. the latest engine scan.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
@@ -393,7 +393,7 @@
     {
       "type": "stat",
       "id": 5,
-      "title": "Unknown GPUs now",
+      "title": "Unknown",
       "description": "Definition: sum(gpus) of this asset's open UNKNOWN intervals.\nUnits: physical GPUs.\nFilters: asset_id.\nUnknown vs zero: 0 = the latest scan put none of this asset's GPUs in the category; 'No open interval' = the ledger has no current state for this asset (not classified yet, or retired). Current state = the asset's intervals still open in the ledger (ended_at IS NULL), i.e. the latest engine scan.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
@@ -454,7 +454,7 @@
     {
       "type": "stat",
       "id": 6,
-      "title": "Not charged GPUs now",
+      "title": "Not charged",
       "description": "Definition: sum(gpus) of this asset's open NOT_CHARGED intervals.\nUnits: physical GPUs.\nFilters: asset_id.\nUnknown vs zero: 0 = the latest scan put none of this asset's GPUs in the category; 'No open interval' = the ledger has no current state for this asset (not classified yet, or retired). Current state = the asset's intervals still open in the ledger (ended_at IS NULL), i.e. the latest engine scan.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
@@ -515,7 +515,7 @@
     {
       "type": "text",
       "id": 7,
-      "title": "Why is it classified this way?",
+      "title": "Why this result?",
       "description": "Opens the engine's /explain/{asset_id} for this asset: rules evaluated in order, the matching row, its evidence and recent intervals, from the engine's last scan. The link uses the dashboard variable ttv_api (default http://ttv-engine:8080; set it to a URL your browser can reach, e.g. the engine's Route, by editing the variable default in grafana/dashboards/ttv-asset.json or adding &var-ttv_api=<url> to the page URL).",
       "gridPos": {
         "x": 20,
@@ -746,7 +746,7 @@
         "x": 0,
         "y": 9,
         "w": 24,
-        "h": 9
+        "h": 12
       },
       "targets": [
         {
@@ -1016,10 +1016,10 @@
       "title": "Now: lifecycle, identity and next actions",
       "collapsed": false,
       "gridPos": {
-        "h": 1,
-        "w": 24,
         "x": 0,
-        "y": 18
+        "y": 21,
+        "w": 24,
+        "h": 1
       },
       "panels": []
     },
@@ -1034,9 +1034,9 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 19,
+        "y": 22,
         "w": 12,
-        "h": 10
+        "h": 12
       },
       "targets": [
         {
@@ -1120,7 +1120,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 185
+                "value": 230
               }
             ]
           },
@@ -1170,9 +1170,9 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 19,
+        "y": 22,
         "w": 12,
-        "h": 5
+        "h": 6
       },
       "targets": [
         {
@@ -1317,9 +1317,9 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 24,
+        "y": 28,
         "w": 12,
-        "h": 5
+        "h": 6
       },
       "targets": [
         {
@@ -1485,7 +1485,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 29,
+        "y": 34,
         "w": 24,
         "h": 5
       },
@@ -1512,7 +1512,7 @@
             "inspect": false,
             "filterable": false
           },
-          "noValue": "No collector record for this asset"
+          "noValue": "—"
         },
         "overrides": [
           {
@@ -1700,10 +1700,10 @@
       "title": "Selected period: category over time",
       "collapsed": false,
       "gridPos": {
-        "h": 1,
-        "w": 24,
         "x": 0,
-        "y": 34
+        "y": 39,
+        "w": 24,
+        "h": 1
       },
       "panels": []
     },
@@ -1718,7 +1718,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 35,
+        "y": 40,
         "w": 16,
         "h": 9
       },
@@ -1845,7 +1845,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 35,
+        "y": 40,
         "w": 8,
         "h": 9
       },

@@ -228,7 +228,7 @@
     {
       "type": "stat",
       "id": 2,
-      "title": "Useful work (% of measured GPUs)",
+      "title": "Useful work",
       "description": "Definition: GPUs doing useful work now (PRODUCTIVE and not flagged allocated_idle) divided by GPUs in measured clusters (use classes 1-5; 'Not measured' is excluded from the denominator).\nUnits: share of physical GPUs.\nFilters: site, cluster (cluster = the interval's cluster, else the cluster named in its evidence or NODE_CLAIM conflict; '(none)' when there is none).\nUnknown vs zero: no value = no GPU in a measured cluster for this scope, never 0%. A loaded model or busy hardware is not useful work (§13): serving GPUs count only with genuine requests. Current state = intervals still open in the ledger (ended_at IS NULL), i.e. the result of the latest engine scan; 'Data age' shows how old it is.\nUse classes (E12, AGENT.md §13): Useful work = PRODUCTIVE (Run:ai workload, or serving with genuine requests); Allocated, inactive = PRODUCTIVE but flagged allocated_idle (activity under the policy threshold for the policy window); Waste candidate = NO_REAL_DEMAND, LOW_USE, OTHER_WORKLOAD, NO_WORKLOAD; Constrained or failed = any other IDLE GPU on a matched node (WORKLOAD_NOT_READY, GPU_MISSING, GPU_PLATFORM_NOT_READY, NODE_NOT_READY, ...); Use unknown = in a measured cluster but the evidence is missing (TRAFFIC_UNOBSERVED, HOLDER_UNRESOLVED, NODE_NOT_FOUND, CLUSTER_UNREACHABLE, a NODE_CLAIM identity conflict); Not measured = everything else (not in a cluster yet, outside the target clusters, target cluster not configured, stale source).",
       "datasource": {
         "type": "grafana-postgresql-datasource",
@@ -289,7 +289,7 @@
     {
       "type": "stat",
       "id": 3,
-      "title": "Waste candidates (GPUs)",
+      "title": "Waste candidates",
       "description": "Definition: GPUs now in 'Waste candidate' (NO_REAL_DEMAND, LOW_USE, OTHER_WORKLOAD, NO_WORKLOAD) plus 'Allocated, inactive' (PRODUCTIVE with the allocated_idle flag; the ledger still counts those as PRODUCTIVE).\nUnits: physical GPUs.\nFilters: site, cluster (cluster = the interval's cluster, else the cluster named in its evidence or NODE_CLAIM conflict; '(none)' when there is none).\nUnknown vs zero: 0 = measured clusters have no waste candidate now; no value = no GPU in a measured cluster. Candidates, not verdicts: headroom, failover and batch schedules need review before reclaiming (§8). Current state = intervals still open in the ledger (ended_at IS NULL), i.e. the result of the latest engine scan; 'Data age' shows how old it is.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
@@ -350,7 +350,7 @@
     {
       "type": "stat",
       "id": 4,
-      "title": "Constrained or failed (GPUs)",
+      "title": "Constrained or failed",
       "description": "Definition: GPUs now on a matched node of a measured cluster that cannot do work: WORKLOAD_NOT_READY, GPU_MISSING, GPU_PLATFORM_NOT_READY, NODE_NOT_READY, NODE_UNSCHEDULABLE, or hardware critical on a not-Ready node.\nUnits: physical GPUs.\nFilters: site, cluster (cluster = the interval's cluster, else the cluster named in its evidence or NODE_CLAIM conflict; '(none)' when there is none).\nUnknown vs zero: 0 = none in measured clusters now; no value = no GPU in a measured cluster. Current state = intervals still open in the ledger (ended_at IS NULL), i.e. the result of the latest engine scan; 'Data age' shows how old it is.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
@@ -411,7 +411,7 @@
     {
       "type": "stat",
       "id": 5,
-      "title": "Use unknown (GPUs)",
+      "title": "Use unknown",
       "description": "Definition: GPUs now in a measured cluster whose use cannot be determined: serving workloads with no request-counter series (TRAFFIC_UNOBSERVED), holders whose owner chain is unreadable (HOLDER_UNRESOLVED), servers with no matching node (NODE_NOT_FOUND), several servers claiming one node (NODE_CLAIM conflict) or a cluster read that failed (CLUSTER_UNREACHABLE).\nUnits: physical GPUs.\nFilters: site, cluster (cluster = the interval's cluster, else the cluster named in its evidence or NODE_CLAIM conflict; '(none)' when there is none).\nUnknown vs zero: these GPUs are never counted as useful or as waste. Current state = intervals still open in the ledger (ended_at IS NULL), i.e. the result of the latest engine scan; 'Data age' shows how old it is.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
@@ -472,7 +472,7 @@
     {
       "type": "stat",
       "id": 6,
-      "title": "Not measured (% of all GPUs)",
+      "title": "Not measured",
       "description": "Definition: GPUs outside measured clusters divided by all GPUs in open intervals. Not measured = not in a cluster yet (DC/Redbull queue), installed in a cluster outside the target list (I7), in a target cluster with no clusters-file entry (CLUSTER_NOT_OBSERVED), excluded, or in an unknown state before cluster matching (stale source, identity, contested). 'Why GPUs are not measured' splits it.\nUnits: share of physical GPUs.\nFilters: site, cluster (cluster = the interval's cluster, else the cluster named in its evidence or NODE_CLAIM conflict; '(none)' when there is none).\nUnknown vs zero: GPU use is unmeasured for these GPUs, not zero; no value = no ledger data for this scope. Current state = intervals still open in the ledger (ended_at IS NULL), i.e. the result of the latest engine scan; 'Data age' shows how old it is.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
@@ -533,7 +533,7 @@
     {
       "type": "stat",
       "id": 7,
-      "title": "Data age (engine scan)",
+      "title": "Data age",
       "description": "Definition: now minus the finish time of the most recent 'ok' engine scan (scan_runs.kind = 'engine').\nUnits: duration. Colour: green under 20 min, orange from 20 min, red from 60 min; purple = never succeeded.\nFilters: none.\nUnknown vs zero: no successful engine scan shows no value, never an age of 0.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
@@ -894,7 +894,8 @@
               "type": "auto"
             },
             "inspect": false,
-            "filterable": false
+            "filterable": false,
+            "wrapHeaderText": true
           },
           "noValue": "Every GPU in scope is in a measured cluster"
         },
@@ -958,7 +959,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 90
+                "value": 100
               }
             ]
           },
@@ -1054,7 +1055,8 @@
               "type": "auto"
             },
             "inspect": false,
-            "filterable": false
+            "filterable": false,
+            "wrapHeaderText": true
           },
           "noValue": "No GPU in a measured cluster"
         },
@@ -1203,7 +1205,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 170
+                "value": 190
               }
             ]
           }
@@ -1248,7 +1250,7 @@
       "gridPos": {
         "x": 0,
         "y": 25,
-        "w": 16,
+        "w": 24,
         "h": 8
       },
       "targets": [
@@ -1503,10 +1505,10 @@
         "uid": "ttv-postgres"
       },
       "gridPos": {
-        "x": 16,
-        "y": 25,
-        "w": 8,
-        "h": 8
+        "x": 0,
+        "y": 33,
+        "w": 24,
+        "h": 7
       },
       "targets": [
         {
@@ -1628,7 +1630,7 @@
         "orientation": "horizontal",
         "xField": "Team or namespace",
         "stacking": "normal",
-        "showValue": "auto",
+        "showValue": "never",
         "groupWidth": 0.7,
         "barWidth": 0.9,
         "barRadius": 0,
@@ -1659,7 +1661,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 33,
+        "y": 40,
         "w": 24,
         "h": 10
       },
@@ -1684,7 +1686,8 @@
               "type": "auto"
             },
             "inspect": false,
-            "filterable": false
+            "filterable": false,
+            "wrapHeaderText": true
           },
           "noValue": "No workload holds a GPU in a measured cluster"
         },
@@ -1842,12 +1845,12 @@
                 "value": "right"
               },
               {
-                "id": "custom.width",
-                "value": 105
-              },
-              {
                 "id": "noValue",
                 "value": "—"
+              },
+              {
+                "id": "custom.width",
+                "value": 120
               }
             ]
           },
@@ -1863,6 +1866,10 @@
                   "type": "auto",
                   "wrapText": true
                 }
+              },
+              {
+                "id": "custom.width",
+                "value": 340
               }
             ]
           },
@@ -1873,10 +1880,6 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 165
-              },
-              {
                 "id": "noValue",
                 "value": "—"
               },
@@ -1886,6 +1889,10 @@
                   "type": "auto",
                   "wrapText": true
                 }
+              },
+              {
+                "id": "custom.width",
+                "value": 190
               }
             ]
           },
@@ -1930,7 +1937,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 43
+        "y": 50
       },
       "panels": []
     },
@@ -1945,7 +1952,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 44,
+        "y": 51,
         "w": 12,
         "h": 9
       },
@@ -2105,7 +2112,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 44,
+        "y": 51,
         "w": 12,
         "h": 9
       },
@@ -2221,7 +2228,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 53,
+        "y": 60,
         "w": 24,
         "h": 11
       },
@@ -2246,7 +2253,8 @@
               "type": "auto"
             },
             "inspect": false,
-            "filterable": false
+            "filterable": false,
+            "wrapHeaderText": true
           },
           "noValue": "No ledger data in the time range"
         },
@@ -2400,7 +2408,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 64
+        "y": 71
       },
       "panels": []
     },
@@ -2411,7 +2419,7 @@
       "description": "Missing input: R1 has no data source for this E12 dimension, so the page shows what is missing instead of a number.",
       "gridPos": {
         "x": 0,
-        "y": 65,
+        "y": 72,
         "w": 8,
         "h": 10
       },
@@ -2432,7 +2440,7 @@
       "description": "Missing input: R1 has no data source for this E12 dimension, so the page shows what is missing instead of a number.",
       "gridPos": {
         "x": 8,
-        "y": 65,
+        "y": 72,
         "w": 8,
         "h": 10
       },
@@ -2453,7 +2461,7 @@
       "description": "Missing input: R1 has no data source for this E12 dimension, so the page shows what is missing instead of a number.",
       "gridPos": {
         "x": 16,
-        "y": 65,
+        "y": 72,
         "w": 8,
         "h": 10
       },

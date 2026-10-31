@@ -4,23 +4,21 @@
 dashboard: ttv-gpu-use
 panels:
 - id: 2
-  title: Useful work (% of measured GPUs)
+  title: Useful work
   question: E12
   status: built
   audience: CEO, Serving, POPAI
   decision: Whether measured GPUs are doing useful work or the fleet needs action.
-  definition: >-
-    Use class per open interval: 1 Useful work (PRODUCTIVE, no allocated_idle), 2 Allocated, inactive
-    (PRODUCTIVE + allocated_idle), 3 Waste candidate (NO_REAL_DEMAND, LOW_USE, OTHER_WORKLOAD, NO_WORKLOAD),
-    4 Constrained or failed (other IDLE on a matched node), 5 Use unknown (TRAFFIC_UNOBSERVED, HOLDER_UNRESOLVED,
-    NODE_NOT_FOUND, CLUSTER_UNREACHABLE, NODE_CLAIM identity conflict), 6 Not measured (everything else).
-    Value = class 1 GPUs / classes 1-5 GPUs.
+  definition: 'Use class per open interval: 1 Useful work (PRODUCTIVE, no allocated_idle), 2 Allocated,
+    inactive (PRODUCTIVE + allocated_idle), 3 Waste candidate (NO_REAL_DEMAND, LOW_USE, OTHER_WORKLOAD,
+    NO_WORKLOAD), 4 Constrained or failed (other IDLE on a matched node), 5 Use unknown (TRAFFIC_UNOBSERVED,
+    HOLDER_UNRESOLVED, NODE_NOT_FOUND, CLUSTER_UNREACHABLE, NODE_CLAIM identity conflict), 6 Not measured
+    (everything else). Value = class 1 GPUs / classes 1-5 GPUs.'
   unit: share of physical GPUs
   numerator: sum(gpus) of open intervals in use class 1
   denominator: sum(gpus) of open intervals in use classes 1-5 (measured)
-  population: >-
-    Every GPU in an open ledger interval (server-scan and the profile-less collector); 'measured' = GPUs
-    whose node is in a target cluster the engine reads.
+  population: Every GPU in an open ledger interval (server-scan and the profile-less collector); 'measured'
+    = GPUs whose node is in a target cluster the engine reads.
   window: now
   filters:
   - site
@@ -37,16 +35,13 @@ panels:
   - assets.site
   - identity_conflicts.key
   - identity_conflicts.candidates
-  freshness: >-
-    Latest engine scan (5 min cadence); 'Data age (engine scan)' shows its age.
+  freshness: Latest engine scan (5 min cadence); 'Data age (engine scan)' shows its age.
   baseline: null
   direction: higher_is_better
   thresholds: null
-  uncertainty: >-
-    Before I2 is approved any genuine request qualifies (low_use_unverified); counters without a synthetic
-    filter are user_attribution_unverified.
-  missing_data: >-
-    No GPU in a measured cluster shows 'No GPU in a measured cluster', never 0%.
+  uncertainty: Before I2 is approved any genuine request qualifies (low_use_unverified); counters without
+    a synthetic filter are user_attribution_unverified.
+  missing_data: No GPU in a measured cluster shows 'No GPU in a measured cluster', never 0%.
   value_kind: derived
   gate: core
   privileges: SELECT on capacity_intervals, assets, identity_conflicts
@@ -56,20 +51,18 @@ panels:
   fixture: tests/test_dashboards_gpu_use_asset_pg.py
   expected: 0.125 (2 of 16 measured GPUs) with the fixture.
 - id: 3
-  title: Waste candidates (GPUs)
+  title: Waste candidates
   question: E12
   status: built
   audience: CEO, Serving, POPAI
   decision: How many GPUs could be reclaimed or put to use after review.
-  definition: >-
-    GPUs in use classes 2 and 3: PRODUCTIVE with the allocated_idle flag, plus NO_REAL_DEMAND, LOW_USE,
-    OTHER_WORKLOAD and NO_WORKLOAD.
+  definition: 'GPUs in use classes 2 and 3: PRODUCTIVE with the allocated_idle flag, plus NO_REAL_DEMAND,
+    LOW_USE, OTHER_WORKLOAD and NO_WORKLOAD.'
   unit: GPUs
   numerator: sum(gpus) of open intervals in use classes 2-3
   denominator: null
-  population: >-
-    Every GPU in an open ledger interval (server-scan and the profile-less collector); 'measured' = GPUs
-    whose node is in a target cluster the engine reads.
+  population: Every GPU in an open ledger interval (server-scan and the profile-less collector); 'measured'
+    = GPUs whose node is in a target cluster the engine reads.
   window: now
   filters:
   - site
@@ -86,13 +79,11 @@ panels:
   - assets.site
   - identity_conflicts.key
   - identity_conflicts.candidates
-  freshness: >-
-    Latest engine scan (5 min cadence); 'Data age (engine scan)' shows its age.
+  freshness: Latest engine scan (5 min cadence); 'Data age (engine scan)' shows its age.
   baseline: null
   direction: lower_is_better
   thresholds: null
-  uncertainty: >-
-    Candidates, not verdicts: headroom, failover and batch schedules need review (§8).
+  uncertainty: 'Candidates, not verdicts: headroom, failover and batch schedules need review (§8).'
   missing_data: No measured GPU shows 'No GPU in a measured cluster', never 0.
   value_kind: derived
   gate: core
@@ -101,24 +92,21 @@ panels:
   drilldown: ttv-gpu-use#15
   action: Review 'Workloads holding GPUs now' with Serving.
   fixture: tests/test_dashboards_gpu_use_asset_pg.py
-  expected: >-
-    4 GPUs (2 allocated-inactive Run:ai + 1 NO_REAL_DEMAND + 1 NO_WORKLOAD) with the fixture.
+  expected: 4 GPUs (2 allocated-inactive Run:ai + 1 NO_REAL_DEMAND + 1 NO_WORKLOAD) with the fixture.
 - id: 4
-  title: Constrained or failed (GPUs)
+  title: Constrained or failed
   question: E12
   status: built
   audience: CEO, POPAI, Serving, Redbull
   decision: Which technical failures keep measured GPUs from working.
-  definition: >-
-    GPUs in use class 4: IDLE on a matched node of a measured cluster and not a waste reason (WORKLOAD_NOT_READY,
-    GPU_MISSING, GPU_PLATFORM_NOT_READY, NODE_NOT_READY, NODE_UNSCHEDULABLE, hardware critical on a not-Ready
-    node).
+  definition: 'GPUs in use class 4: IDLE on a matched node of a measured cluster and not a waste reason
+    (WORKLOAD_NOT_READY, GPU_MISSING, GPU_PLATFORM_NOT_READY, NODE_NOT_READY, NODE_UNSCHEDULABLE, hardware
+    critical on a not-Ready node).'
   unit: GPUs
   numerator: sum(gpus) of open intervals in use class 4
   denominator: null
-  population: >-
-    Every GPU in an open ledger interval (server-scan and the profile-less collector); 'measured' = GPUs
-    whose node is in a target cluster the engine reads.
+  population: Every GPU in an open ledger interval (server-scan and the profile-less collector); 'measured'
+    = GPUs whose node is in a target cluster the engine reads.
   window: now
   filters:
   - site
@@ -135,8 +123,7 @@ panels:
   - assets.site
   - identity_conflicts.key
   - identity_conflicts.candidates
-  freshness: >-
-    Latest engine scan (5 min cadence); 'Data age (engine scan)' shows its age.
+  freshness: Latest engine scan (5 min cadence); 'Data age (engine scan)' shows its age.
   baseline: null
   direction: lower_is_better
   thresholds: null
@@ -147,25 +134,23 @@ panels:
   privileges: SELECT on capacity_intervals, assets, identity_conflicts
   cardinality: one value
   drilldown: ttv-gpu-use#11
-  action: >-
-    Owners of the listed reasons fix the platform or workload (Queues has the stage clock).
+  action: Owners of the listed reasons fix the platform or workload (Queues has the stage clock).
   fixture: tests/test_dashboards_gpu_use_asset_pg.py
   expected: 1 GPU (GPU_MISSING) with the fixture.
 - id: 5
-  title: Use unknown (GPUs)
+  title: Use unknown
   question: E12
   status: built
   audience: CEO, platform owners
   decision: Where evidence is missing before trusting the use split.
-  definition: >-
-    GPUs in use class 5: in a measured cluster but use cannot be determined (TRAFFIC_UNOBSERVED, HOLDER_UNRESOLVED,
-    NODE_NOT_FOUND, CLUSTER_UNREACHABLE, IDENTITY_CONFLICT from a NODE_CLAIM on that cluster).
+  definition: 'GPUs in use class 5: in a measured cluster but use cannot be determined (TRAFFIC_UNOBSERVED,
+    HOLDER_UNRESOLVED, NODE_NOT_FOUND, CLUSTER_UNREACHABLE, IDENTITY_CONFLICT from a NODE_CLAIM on that
+    cluster).'
   unit: GPUs
   numerator: sum(gpus) of open intervals in use class 5
   denominator: null
-  population: >-
-    Every GPU in an open ledger interval (server-scan and the profile-less collector); 'measured' = GPUs
-    whose node is in a target cluster the engine reads.
+  population: Every GPU in an open ledger interval (server-scan and the profile-less collector); 'measured'
+    = GPUs whose node is in a target cluster the engine reads.
   window: now
   filters:
   - site
@@ -182,40 +167,33 @@ panels:
   - assets.site
   - identity_conflicts.key
   - identity_conflicts.candidates
-  freshness: >-
-    Latest engine scan (5 min cadence); 'Data age (engine scan)' shows its age.
+  freshness: Latest engine scan (5 min cadence); 'Data age (engine scan)' shows its age.
   baseline: null
   direction: lower_is_better
   thresholds: null
-  uncertainty: >-
-    NODE_CLAIM conflicts are tied to a cluster through identity_conflicts.key (<cluster>/<node>).
-  missing_data: >-
-    Never counted as useful or as waste; no measured GPU shows 'No GPU in a measured cluster'.
+  uncertainty: NODE_CLAIM conflicts are tied to a cluster through identity_conflicts.key (<cluster>/<node>).
+  missing_data: Never counted as useful or as waste; no measured GPU shows 'No GPU in a measured cluster'.
   value_kind: observed
   gate: core
   privileges: SELECT on capacity_intervals, assets, identity_conflicts
   cardinality: one value
   drilldown: ttv-evidence
-  action: >-
-    Fix counters of record, node names or identity conflicts (Evidence page).
+  action: Fix counters of record, node names or identity conflicts (Evidence page).
   fixture: tests/test_dashboards_gpu_use_asset_pg.py
-  expected: >-
-    9 GPUs (1 TRAFFIC_UNOBSERVED + 4 NODE_NOT_FOUND + 4 NODE_CLAIM) with the fixture.
+  expected: 9 GPUs (1 TRAFFIC_UNOBSERVED + 4 NODE_NOT_FOUND + 4 NODE_CLAIM) with the fixture.
 - id: 6
-  title: Not measured (% of all GPUs)
+  title: Not measured
   question: E12
   status: built
   audience: CEO, Serving, POPAI
   decision: How much of the fleet the GPU-use answer covers.
-  definition: >-
-    Use class 6 GPUs / all GPUs in open intervals. Not measured = not in a cluster yet, outside the target
-    clusters (I7), target cluster not configured, excluded, or unknown before cluster matching.
+  definition: Use class 6 GPUs / all GPUs in open intervals. Not measured = not in a cluster yet, outside
+    the target clusters (I7), target cluster not configured, excluded, or unknown before cluster matching.
   unit: share of physical GPUs
   numerator: sum(gpus) of open intervals in use class 6
   denominator: sum(gpus) of all open intervals in scope
-  population: >-
-    Every GPU in an open ledger interval (server-scan and the profile-less collector); 'measured' = GPUs
-    whose node is in a target cluster the engine reads.
+  population: Every GPU in an open ledger interval (server-scan and the profile-less collector); 'measured'
+    = GPUs whose node is in a target cluster the engine reads.
   window: now
   filters:
   - site
@@ -232,31 +210,27 @@ panels:
   - assets.site
   - identity_conflicts.key
   - identity_conflicts.candidates
-  freshness: >-
-    Latest engine scan (5 min cadence); 'Data age (engine scan)' shows its age.
+  freshness: Latest engine scan (5 min cadence); 'Data age (engine scan)' shows its age.
   baseline: null
   direction: lower_is_better
   thresholds: null
   uncertainty: null
-  missing_data: >-
-    Not measured is not zero use; no ledger data shows 'No ledger data for this scope'.
+  missing_data: Not measured is not zero use; no ledger data shows 'No ledger data for this scope'.
   value_kind: derived
   gate: core
   privileges: SELECT on capacity_intervals, assets, identity_conflicts
   cardinality: one value
   drilldown: ttv-gpu-use#10
-  action: >-
-    Onboard target clusters (clusters file) or move servers through the pipeline (Queues).
+  action: Onboard target clusters (clusters file) or move servers through the pipeline (Queues).
   fixture: tests/test_dashboards_gpu_use_asset_pg.py
   expected: 0.5 (16 of 32 GPUs) with the fixture.
 - id: 7
-  title: Data age (engine scan)
+  title: Data age
   question: support
   status: built
   audience: Everyone
   decision: Whether the current-state panels are fresh enough to act on.
-  definition: >-
-    now() minus the finish time of the newest scan_runs row with kind 'engine' and status 'ok'.
+  definition: now() minus the finish time of the newest scan_runs row with kind 'engine' and status 'ok'.
   unit: seconds (shown as a duration)
   numerator: null
   denominator: null
@@ -272,8 +246,7 @@ panels:
   freshness: Computed at query time.
   baseline: null
   direction: lower_is_better
-  thresholds: >-
-    green < 20 min, orange from 20 min, red from 60 min; purple = never succeeded
+  thresholds: green < 20 min, orange from 20 min, red from 60 min; purple = never succeeded
   uncertainty: null
   missing_data: No successful engine scan shows 'No successful engine scan', never 0.
   value_kind: observed
@@ -290,18 +263,16 @@ panels:
   status: built
   audience: CEO, Serving, POPAI
   decision: Which use class dominates the measured GPUs.
-  definition: >-
-    Use class per open interval: 1 Useful work (PRODUCTIVE, no allocated_idle), 2 Allocated, inactive
-    (PRODUCTIVE + allocated_idle), 3 Waste candidate (NO_REAL_DEMAND, LOW_USE, OTHER_WORKLOAD, NO_WORKLOAD),
-    4 Constrained or failed (other IDLE on a matched node), 5 Use unknown (TRAFFIC_UNOBSERVED, HOLDER_UNRESOLVED,
-    NODE_NOT_FOUND, CLUSTER_UNREACHABLE, NODE_CLAIM identity conflict), 6 Not measured (everything else).
-    One bar per class 1-5; mutually exclusive, so they sum to the measured GPUs.
+  definition: 'Use class per open interval: 1 Useful work (PRODUCTIVE, no allocated_idle), 2 Allocated,
+    inactive (PRODUCTIVE + allocated_idle), 3 Waste candidate (NO_REAL_DEMAND, LOW_USE, OTHER_WORKLOAD,
+    NO_WORKLOAD), 4 Constrained or failed (other IDLE on a matched node), 5 Use unknown (TRAFFIC_UNOBSERVED,
+    HOLDER_UNRESOLVED, NODE_NOT_FOUND, CLUSTER_UNREACHABLE, NODE_CLAIM identity conflict), 6 Not measured
+    (everything else). One bar per class 1-5; mutually exclusive, so they sum to the measured GPUs.'
   unit: GPUs
   numerator: sum(gpus) per use class 1-5
   denominator: null
-  population: >-
-    Every GPU in an open ledger interval (server-scan and the profile-less collector); 'measured' = GPUs
-    whose node is in a target cluster the engine reads.
+  population: Every GPU in an open ledger interval (server-scan and the profile-less collector); 'measured'
+    = GPUs whose node is in a target cluster the engine reads.
   window: now
   filters:
   - site
@@ -318,14 +289,12 @@ panels:
   - assets.site
   - identity_conflicts.key
   - identity_conflicts.candidates
-  freshness: >-
-    Latest engine scan (5 min cadence); 'Data age (engine scan)' shows its age.
+  freshness: Latest engine scan (5 min cadence); 'Data age (engine scan)' shows its age.
   baseline: null
   direction: neutral
   thresholds: null
   uncertainty: null
-  missing_data: >-
-    0 bars are measured zeros; no measured GPU shows 'No GPU in a measured cluster'.
+  missing_data: 0 bars are measured zeros; no measured GPU shows 'No GPU in a measured cluster'.
   value_kind: derived
   gate: core
   privileges: SELECT on capacity_intervals, assets, identity_conflicts
@@ -333,24 +302,20 @@ panels:
   drilldown: ttv-gpu-use#11
   action: Open the reason table below.
   fixture: tests/test_dashboards_gpu_use_asset_pg.py
-  expected: >-
-    Useful 2, Allocated inactive 2, Waste 2, Constrained 1, Unknown 9 with the fixture.
+  expected: Useful 2, Allocated inactive 2, Waste 2, Constrained 1, Unknown 9 with the fixture.
 - id: 9
   title: From allocation to useful work, GPUs now
   question: E12
   status: built
   audience: CEO, Serving, POPAI
-  decision: >-
-    Whether allocated or loaded GPUs actually deliver value (§13: a loaded model is not value).
-  definition: >-
-    On Ready, GPU-ready nodes (rows 15-22): all GPUs, healthy (not GPU_MISSING), held by a pod (not NO_WORKLOAD),
-    held by a Ready pod (not WORKLOAD_NOT_READY), PRODUCTIVE, PRODUCTIVE without allocated_idle. Each
-    bar is a subset of the previous one.
+  decision: 'Whether allocated or loaded GPUs actually deliver value (§13: a loaded model is not value).'
+  definition: 'On Ready, GPU-ready nodes (rows 15-22): all GPUs, healthy (not GPU_MISSING), held by a
+    pod (not NO_WORKLOAD), held by a Ready pod (not WORKLOAD_NOT_READY), PRODUCTIVE, PRODUCTIVE without
+    allocated_idle. Each bar is a subset of the previous one.'
   unit: GPUs
   numerator: sum(gpus) passing each condition
   denominator: null
-  population: >-
-    GPUs of open intervals with a GPU-level reason (rows 15-22 of ADR-0002).
+  population: GPUs of open intervals with a GPU-level reason (rows 15-22 of ADR-0002).
   window: now
   filters:
   - site
@@ -367,17 +332,14 @@ panels:
   - assets.site
   - identity_conflicts.key
   - identity_conflicts.candidates
-  freshness: >-
-    Latest engine scan (5 min cadence); 'Data age (engine scan)' shows its age.
+  freshness: Latest engine scan (5 min cadence); 'Data age (engine scan)' shows its age.
   baseline: null
   direction: neutral
   thresholds: null
-  uncertainty: >-
-    Physical activity is only the allocated_idle flag in R1; memory pressure and SLO compliance are missing
-    inputs (#21-#23).
-  missing_data: >-
-    TRAFFIC_UNOBSERVED and HOLDER_UNRESOLVED stay in the 'Held' bars and never in 'Useful work'; no GPU-ready
-    node shows 'No GPU on a GPU-ready node'.
+  uncertainty: Physical activity is only the allocated_idle flag in R1; memory pressure and SLO compliance
+    are missing inputs (#21-#23).
+  missing_data: TRAFFIC_UNOBSERVED and HOLDER_UNRESOLVED stay in the 'Held' bars and never in 'Useful
+    work'; no GPU-ready node shows 'No GPU on a GPU-ready node'.
   value_kind: derived
   gate: core
   privileges: SELECT on capacity_intervals, assets, identity_conflicts
@@ -391,18 +353,15 @@ panels:
   question: E12
   status: built
   audience: CEO, Serving, POPAI
-  decision: >-
-    Why the GPU-use answer does not cover the rest of the fleet, and where to look.
-  definition: >-
-    Use class 6 GPUs grouped by why: not in a cluster yet (IDLE pipeline queue), outside the target list
-    (I7), target cluster not configured (CLUSTER_NOT_OBSERVED), excluded or other intended use, unknown
-    before cluster matching.
+  decision: Why the GPU-use answer does not cover the rest of the fleet, and where to look.
+  definition: 'Use class 6 GPUs grouped by why: not in a cluster yet (IDLE pipeline queue), outside the
+    target list (I7), target cluster not configured (CLUSTER_NOT_OBSERVED), excluded or other intended
+    use, unknown before cluster matching.'
   unit: GPUs; share of all GPUs
   numerator: sum(gpus) of class 6 per group
   denominator: sum(gpus) of all open intervals in scope
-  population: >-
-    Every GPU in an open ledger interval (server-scan and the profile-less collector); 'measured' = GPUs
-    whose node is in a target cluster the engine reads.
+  population: Every GPU in an open ledger interval (server-scan and the profile-less collector); 'measured'
+    = GPUs whose node is in a target cluster the engine reads.
   window: now
   filters:
   - site
@@ -419,8 +378,7 @@ panels:
   - assets.site
   - identity_conflicts.key
   - identity_conflicts.candidates
-  freshness: >-
-    Latest engine scan (5 min cadence); 'Data age (engine scan)' shows its age.
+  freshness: Latest engine scan (5 min cadence); 'Data age (engine scan)' shows its age.
   baseline: null
   direction: lower_is_better
   thresholds: null
@@ -440,14 +398,13 @@ panels:
   status: built
   audience: CEO, Serving, POPAI
   decision: Which reasons make up each use class and who owns them.
-  definition: >-
-    Measured GPUs (classes 1-5) by use class, reason code and stage owner, with plain words for each reason.
+  definition: Measured GPUs (classes 1-5) by use class, reason code and stage owner, with plain words
+    for each reason.
   unit: GPUs; share of measured GPUs
   numerator: sum(gpus) per (class, reason, owner)
   denominator: sum(gpus) of classes 1-5
-  population: >-
-    Every GPU in an open ledger interval (server-scan and the profile-less collector); 'measured' = GPUs
-    whose node is in a target cluster the engine reads.
+  population: Every GPU in an open ledger interval (server-scan and the profile-less collector); 'measured'
+    = GPUs whose node is in a target cluster the engine reads.
   window: now
   filters:
   - site
@@ -465,14 +422,12 @@ panels:
   - identity_conflicts.key
   - identity_conflicts.candidates
   - capacity_intervals.stage_owner
-  freshness: >-
-    Latest engine scan (5 min cadence); 'Data age (engine scan)' shows its age.
+  freshness: Latest engine scan (5 min cadence); 'Data age (engine scan)' shows its age.
   baseline: null
   direction: neutral
   thresholds: null
   uncertainty: null
-  missing_data: >-
-    An absent reason has 0 measured GPUs now; Use unknown rows stay visible.
+  missing_data: An absent reason has 0 measured GPUs now; Use unknown rows stay visible.
   value_kind: derived
   gate: core
   privileges: SELECT on capacity_intervals, assets, identity_conflicts
@@ -487,10 +442,9 @@ panels:
   status: built
   audience: CEO, platform owners
   decision: Which clusters are measured and how each uses its GPUs.
-  definition: >-
-    Per cluster: GPUs, measurement status (Measured, Read failed, Target not configured, Outside target
-    list) and, for measured clusters, GPUs per use class and the useful share. Clusters outside the target
-    list are summed into one row.
+  definition: 'Per cluster: GPUs, measurement status (Measured, Read failed, Target not configured, Outside
+    target list) and, for measured clusters, GPUs per use class and the useful share. Clusters outside
+    the target list are summed into one row.'
   unit: GPUs; useful share
   numerator: sum(gpus) per class per cluster
   denominator: sum(gpus) of classes 1-5 per cluster (useful share)
@@ -511,8 +465,7 @@ panels:
   - assets.site
   - identity_conflicts.key
   - identity_conflicts.candidates
-  freshness: >-
-    Latest engine scan (5 min cadence); 'Data age (engine scan)' shows its age.
+  freshness: Latest engine scan (5 min cadence); 'Data age (engine scan)' shows its age.
   baseline: null
   direction: neutral
   thresholds: null
@@ -525,17 +478,15 @@ panels:
   drilldown: ttv-gpu-use (cluster variable)
   action: Configure unread target clusters in the clusters file.
   fixture: tests/test_dashboards_gpu_use_asset_pg.py
-  expected: >-
-    c1 Measured 16 GPUs (useful 12.5%); '1 cluster outside the target list' 4 GPUs with the fixture.
+  expected: c1 Measured 16 GPUs (useful 12.5%); '1 cluster outside the target list' 4 GPUs with the fixture.
 - id: 14
   title: GPUs on GPU-ready nodes, by team or namespace
   question: E12
   status: built
   audience: Serving, team leads
   decision: Which consuming teams hold idle or inactive GPUs.
-  definition: >-
-    GPUs on GPU-ready nodes by consuming team (team_map, productive only), else the holder's namespace
-    ('ns: ...'), else '(no workload)'; stacked by use class 1-5. Top 15, most waste first.
+  definition: 'GPUs on GPU-ready nodes by consuming team (team_map, productive only), else the holder''s
+    namespace (''ns: ...''), else ''(no workload)''; stacked by use class 1-5. Top 15, most waste first.'
   unit: GPUs
   numerator: sum(gpus) per team or namespace and class
   denominator: null
@@ -558,13 +509,11 @@ panels:
   - identity_conflicts.candidates
   - capacity_intervals.team
   - capacity_intervals.holder_ref
-  freshness: >-
-    Latest engine scan (5 min cadence); 'Data age (engine scan)' shows its age.
+  freshness: Latest engine scan (5 min cadence); 'Data age (engine scan)' shows its age.
   baseline: null
   direction: neutral
   thresholds: null
-  uncertainty: >-
-    team is set only on productive buckets (§20.2); idle holders show their namespace.
+  uncertainty: team is set only on productive buckets (§20.2); idle holders show their namespace.
   missing_data: No GPU-ready node shows 'No GPU on a GPU-ready node'.
   value_kind: derived
   gate: core
@@ -573,22 +522,19 @@ panels:
   drilldown: ttv-gpu-use#15
   action: Ask the team with the most waste to release or use its GPUs.
   fixture: tests/test_dashboards_gpu_use_asset_pg.py
-  expected: >-
-    research 2 allocated-inactive; Applai 2 useful; ns: ns1 1 waste with the fixture.
+  expected: 'research 2 allocated-inactive; Applai 2 useful; ns: ns1 1 waste with the fixture.'
 - id: 15
   title: Workloads holding GPUs now
   question: E12
   status: built
   audience: Serving, POPAI
   decision: 'Which workload to act on: scale down, fix, or add a counter of record.'
-  definition: >-
-    One row per open interval held by a workload in a measured cluster: workload (holder_ref), cluster,
-    asset, use class, reason, GPUs, genuine requests per GPU-hour from the counter of record, the evidence
-    in plain words, flags and since when.
+  definition: 'One row per open interval held by a workload in a measured cluster: workload (holder_ref),
+    cluster, asset, use class, reason, GPUs, genuine requests per GPU-hour from the counter of record,
+    the evidence in plain words, flags and since when.'
   unit: GPUs; requests per GPU-hour
-  numerator: >-
-    evidence.requests_per_gpu_hour = increase(counter of record over demand_window) / (deployment GPUs
-    × window hours)
+  numerator: evidence.requests_per_gpu_hour = increase(counter of record over demand_window) / (deployment
+    GPUs × window hours)
   denominator: null
   population: Open intervals with holder_ref in measured clusters.
   window: now
@@ -609,43 +555,37 @@ panels:
   - identity_conflicts.candidates
   - capacity_intervals.holder_ref
   - capacity_intervals.started_at
-  freshness: >-
-    Latest engine scan (5 min cadence); 'Data age (engine scan)' shows its age. Evidence is refreshed
+  freshness: Latest engine scan (5 min cadence); 'Data age (engine scan)' shows its age. Evidence is refreshed
     on open intervals every scan.
   baseline: null
   direction: neutral
   thresholds: null
-  uncertainty: >-
-    One counter of record per logical deployment, never summed across gateway, frontend and workers; 'synthetic
-    traffic not excluded' = user attribution unverified (§7).
-  missing_data: >-
-    '—' requests = not a serving reason or demand not observed (TRAFFIC_UNOBSERVED says so), never 0.
+  uncertainty: One counter of record per logical deployment, never summed across gateway, frontend and
+    workers; 'synthetic traffic not excluded' = user attribution unverified (§7).
+  missing_data: '''—'' requests = not a serving reason or demand not observed (TRAFFIC_UNOBSERVED says
+    so), never 0.'
   value_kind: observed
   gate: core
   privileges: SELECT on capacity_intervals, assets, identity_conflicts
   cardinality: ≤ 100 rows
   drilldown: ttv-asset (asset cells)
-  action: >-
-    Serving scales down or consolidates NO_REAL_DEMAND deployments; owners fix not-Ready pods.
+  action: Serving scales down or consolidates NO_REAL_DEMAND deployments; owners fix not-Ready pods.
   fixture: tests/test_dashboards_gpu_use_asset_pg.py
-  expected: >-
-    First row ns1/Deployment/idle-chat, Waste candidate, 0 requests per GPU-hour; last row useful work
-    with the fixture.
+  expected: First row ns1/Deployment/idle-chat, Waste candidate, 0 requests per GPU-hour; last row useful
+    work with the fixture.
 - id: 17
   title: Measured GPUs by use class over time
   question: E12
   status: built
   audience: CEO, Serving, POPAI
   decision: Whether useful use of measured GPUs is improving over the period.
-  definition: >-
-    At each grid time t (step max($__interval, 1 min)), sum(gpus) of intervals open at t (started_at <=
-    t < ended_at) per use class 1-5.
+  definition: At each grid time t (step max($__interval, 1 min)), sum(gpus) of intervals open at t (started_at
+    <= t < ended_at) per use class 1-5.
   unit: GPUs
   numerator: sum(gpus) per class at t
   denominator: null
-  population: >-
-    Every GPU in an open ledger interval (server-scan and the profile-less collector); 'measured' = GPUs
-    whose node is in a target cluster the engine reads.
+  population: Every GPU in an open ledger interval (server-scan and the profile-less collector); 'measured'
+    = GPUs whose node is in a target cluster the engine reads.
   window: selected range
   filters:
   - site
@@ -668,9 +608,8 @@ panels:
   baseline: null
   direction: neutral
   thresholds: null
-  uncertainty: >-
-    Sampling: a state shorter than the grid step can fall between samples. NODE_CLAIM conflicts are matched
-    without their time window.
+  uncertainty: 'Sampling: a state shorter than the grid step can fall between samples. NODE_CLAIM conflicts
+    are matched without their time window.'
   missing_data: A gap = nothing measured at that time or no ledger yet, never 0.
   value_kind: derived
   gate: history
@@ -679,23 +618,20 @@ panels:
   drilldown: null
   action: null
   fixture: tests/test_dashboards_gpu_use_asset_pg.py
-  expected: >-
-    03:00: constrained 8, unknown 8; 09:00: useful 2, constrained 1 with the fixture.
+  expected: '03:00: constrained 8, unknown 8; 09:00: useful 2, constrained 1 with the fixture.'
 - id: 18
   title: Useful-work share and not-measured share over time
   question: E12
   status: built
   audience: CEO, Serving, POPAI
   decision: Whether coverage and useful share are moving the right way.
-  definition: >-
-    At each grid time: class 1 / classes 1-5 (green) and class 6 / all GPUs (purple). Different denominators,
-    never added.
+  definition: 'At each grid time: class 1 / classes 1-5 (green) and class 6 / all GPUs (purple). Different
+    denominators, never added.'
   unit: share of physical GPUs
   numerator: class 1 GPUs; class 6 GPUs
   denominator: classes 1-5 GPUs; all GPUs
-  population: >-
-    Every GPU in an open ledger interval (server-scan and the profile-less collector); 'measured' = GPUs
-    whose node is in a target cluster the engine reads.
+  population: Every GPU in an open ledger interval (server-scan and the profile-less collector); 'measured'
+    = GPUs whose node is in a target cluster the engine reads.
   window: selected range
   filters:
   - site
@@ -727,23 +663,20 @@ panels:
   drilldown: null
   action: null
   fixture: tests/test_dashboards_gpu_use_asset_pg.py
-  expected: >-
-    Not measured 0.5 throughout; useful 0 before 06:00, 0.125 after with the fixture.
+  expected: Not measured 0.5 throughout; useful 0 before 06:00, 0.125 after with the fixture.
 - id: 19
   title: GPU-hours in the selected range, by use class and reason
   question: E12
   status: built
   audience: CEO, Serving
   decision: How many GPU-hours each use class and reason consumed in the period.
-  definition: >-
-    sum(gpus × hours of each interval clipped to the range; open intervals end at now) by use class and
-    reason for measured classes, one total row for not measured.
+  definition: sum(gpus × hours of each interval clipped to the range; open intervals end at now) by use
+    class and reason for measured classes, one total row for not measured.
   unit: GPU-hours
   numerator: clipped GPU-hours per class and reason
   denominator: GPU-hours of classes 1-5 (share column)
-  population: >-
-    Every GPU in an open ledger interval (server-scan and the profile-less collector); 'measured' = GPUs
-    whose node is in a target cluster the engine reads.
+  population: Every GPU in an open ledger interval (server-scan and the profile-less collector); 'measured'
+    = GPUs whose node is in a target cluster the engine reads.
   window: selected range
   filters:
   - site
@@ -767,8 +700,7 @@ panels:
   direction: neutral
   thresholds: null
   uncertainty: Time before the ledger first observed an asset is not counted.
-  missing_data: >-
-    Unknown and not-measured hours are separate rows, never valued or counted as waste.
+  missing_data: Unknown and not-measured hours are separate rows, never valued or counted as waste.
   value_kind: derived
   gate: history
   privileges: SELECT on capacity_intervals, assets, identity_conflicts
@@ -776,17 +708,16 @@ panels:
   drilldown: ttv-queues
   action: 'Value of idle hours: Queues.'
   fixture: tests/test_dashboards_gpu_use_asset_pg.py
-  expected: >-
-    GPU_PLATFORM_NOT_READY 48, NO_REAL_DEMAND 6, not measured 192 GPU-h for 00:00-12:00 with the fixture.
+  expected: GPU_PLATFORM_NOT_READY 48, NO_REAL_DEMAND 6, not measured 192 GPU-h for 00:00-12:00 with the
+    fixture.
 - id: 21
   title: E12 · Is allocated hardware physically busy?
   question: E12
   status: missing_input
   audience: CEO, Serving, POPAI
   decision: Whether allocated GPUs are physically busy.
-  definition: >-
-    Missing input: per-GPU graphics-engine/SM activity over time for measured GPUs (DCGM_FI_PROF_GR_ENGINE_ACTIVE,
-    else DCGM_FI_DEV_GPU_UTIL from each target cluster's Thanos). R1 only stores the allocated_idle flag.
+  definition: 'Missing input: per-GPU graphics-engine/SM activity over time for measured GPUs (DCGM_FI_PROF_GR_ENGINE_ACTIVE,
+    else DCGM_FI_DEV_GPU_UTIL from each target cluster''s Thanos). R1 only stores the allocated_idle flag.'
   unit: share of time active (when built)
   numerator: null
   denominator: null
@@ -801,12 +732,10 @@ panels:
   direction: neutral
   thresholds: null
   uncertainty: null
-  missing_data: >-
-    Text panel naming the missing input, source, onboarding step and release; never a number.
+  missing_data: Text panel naming the missing input, source, onboarding step and release; never a number.
   value_kind: observed
   gate: history
-  privileges: >-
-    Read-only Prometheus data source per cluster Thanos (cluster-monitoring-view)
+  privileges: Read-only Prometheus data source per cluster Thanos (cluster-monitoring-view)
   cardinality: null
   drilldown: null
   action: Add the per-cluster Thanos data source (R2).
@@ -818,9 +747,8 @@ panels:
   status: missing_input
   audience: CEO, Serving
   decision: Whether memory, not compute, limits the GPUs.
-  definition: >-
-    Missing input: frame-buffer use per GPU (DCGM_FI_DEV_FB_USED / DCGM_FI_DEV_FB_FREE) and KV-cache pressure
-    per serving deployment (engine gauge, versioned name).
+  definition: 'Missing input: frame-buffer use per GPU (DCGM_FI_DEV_FB_USED / DCGM_FI_DEV_FB_FREE) and
+    KV-cache pressure per serving deployment (engine gauge, versioned name).'
   unit: share of memory (when built)
   numerator: null
   denominator: null
@@ -850,10 +778,9 @@ panels:
   status: missing_input
   audience: CEO, Serving
   decision: Whether the useful work meets the service objectives (goodput).
-  definition: >-
-    Missing input: successful requests meeting the chosen service criteria and SLO compliance per logical
-    deployment; needs approved I2 and latency objectives (business inputs) and success/latency series
-    of the counter of record.
+  definition: 'Missing input: successful requests meeting the chosen service criteria and SLO compliance
+    per logical deployment; needs approved I2 and latency objectives (business inputs) and success/latency
+    series of the counter of record.'
   unit: share of requests within SLO (when built)
   numerator: null
   denominator: null
@@ -867,8 +794,7 @@ panels:
   baseline: null
   direction: higher_is_better
   thresholds: null
-  uncertainty: >-
-    Combined latency-and-success compliance is never inferred from separate p95 values.
+  uncertainty: Combined latency-and-success compliance is never inferred from separate p95 values.
   missing_data: Text panel naming the missing input; never a number.
   value_kind: business_input
   gate: business_input
