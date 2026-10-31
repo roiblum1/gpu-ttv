@@ -1,0 +1,11 @@
+apiVersion: v2
+name: gpu-ttv
+description: >-
+  GPU Time-to-Value: ttv-engine (scan loop, read API, metrics) and the profile-less collector.
+  Read-only toward every source; writes only its own Postgres, and the ledger only once dry run is off.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/roiblum1/gpu-ttv
+sources:
+  - https://github.com/roiblum1/gpu-ttv

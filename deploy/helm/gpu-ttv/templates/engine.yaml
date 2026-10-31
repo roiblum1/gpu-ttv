@@ -1,0 +1,184 @@
+{{- $sel := dict "ctx" . "component" "engine" -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "gpu-ttv.fullname" . }}-engine
+  labels:
+    {{- include "gpu-ttv.labels" . | nindent 4 }}
+    app.kubernetes.io/component: engine
+spec:
+  replicas: {{ .Values.engine.replicaCount }}
+  # Recreate: a new pod waits for the old one's leader lock, so a rolling update would never finish.
+  strategy:
+    type: Recreate
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      {{- include "gpu-ttv.selectorLabels" $sel | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "gpu-ttv.selectorLabels" $sel | nindent 8 }}
+      annotations:
+        checksum/config: {{ include "gpu-ttv.engineChecksum" . }}
+    spec:
+      serviceAccountName: {{ include "gpu-ttv.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      # The pause container becomes PID 1, so SIGTERM stops Python promptly (ADR-0007, "Shutdown").
+      shareProcessNamespace: true
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: engine
+          image: {{ include "gpu-ttv.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["ttv-engine"]
+          ports:
+            - name: http
+              containerPort: {{ .Values.engine.port }}
+              protocol: TCP
+          env:
+            # AGENT.md §20.6: stays "true" until docs/dry-run-review.md signs the dry run off.
+            - name: TTV_DRY_RUN
+              value: {{ .Values.dryRun | toString | quote }}
+            - name: TTV_SERVERSCAN_URL
+              value: {{ .Values.serverscan.url | quote }}
+            {{- if .Values.serverscan.tokenSecret.name }}
+            - name: TTV_SERVERSCAN_TOKEN_FILE
+              value: /var/run/secrets/ttv/serverscan/{{ .Values.serverscan.tokenSecret.key }}
+            {{- end }}
+            - name: TTV_POLICY_FILE
+              value: /etc/ttv/policy/policy.yaml
+            {{- if .Values.clusters }}
+            - name: TTV_CLUSTERS_FILE
+              value: /etc/ttv/clusters/clusters.yaml
+            {{- end }}
+            - name: TTV_API_PORT
+              value: {{ .Values.engine.port | quote }}
+            {{- include "gpu-ttv.commonEnv" . | nindent 12 }}
+            {{- with .Values.engine.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            {{- toYaml .Values.engine.startupProbe | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            {{- toYaml .Values.engine.livenessProbe | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            {{- toYaml .Values.engine.readinessProbe | nindent 12 }}
+          resources:
+            {{- toYaml .Values.engine.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          volumeMounts:
+            - name: policy
+              mountPath: /etc/ttv/policy
+              readOnly: true
+            {{- if .Values.clusters }}
+            - name: clusters
+              mountPath: /etc/ttv/clusters
+              readOnly: true
+            {{- end }}
+            {{- if .Values.serverscan.tokenSecret.name }}
+            - name: serverscan-token
+              mountPath: /var/run/secrets/ttv/serverscan
+              readOnly: true
+            {{- end }}
+            {{- range $i, $c := .Values.clusters }}
+            - name: cluster-{{ $i }}
+              mountPath: {{ include "gpu-ttv.clusterDir" $c.name }}
+              readOnly: true
+            {{- end }}
+            {{- include "gpu-ttv.commonMounts" . | nindent 12 }}
+            {{- with .Values.engine.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: policy
+          configMap:
+            name: {{ include "gpu-ttv.fullname" . }}-policy
+        {{- if .Values.clusters }}
+        - name: clusters
+          configMap:
+            name: {{ include "gpu-ttv.fullname" . }}-clusters
+        {{- end }}
+        {{- if .Values.serverscan.tokenSecret.name }}
+        - name: serverscan-token
+          secret:
+            secretName: {{ .Values.serverscan.tokenSecret.name }}
+            defaultMode: 0440
+        {{- end }}
+        {{- range $i, $c := .Values.clusters }}
+        - name: cluster-{{ $i }}
+          secret:
+            secretName: {{ $c.tokenSecret }}
+            defaultMode: 0440
+        {{- end }}
+        {{- include "gpu-ttv.commonVolumes" . | nindent 8 }}
+        {{- with .Values.engine.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.engine.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.engine.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.engine.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "gpu-ttv.fullname" . }}-engine
+  labels:
+    {{- include "gpu-ttv.labels" . | nindent 4 }}
+    app.kubernetes.io/component: engine
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    {{- include "gpu-ttv.selectorLabels" $sel | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.engine.port }}
+      targetPort: http
+      protocol: TCP
+{{- if .Values.serviceMonitor.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "gpu-ttv.fullname" . }}-engine
+  labels:
+    {{- include "gpu-ttv.labels" . | nindent 4 }}
+    app.kubernetes.io/component: engine
+    {{- with .Values.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "gpu-ttv.selectorLabels" $sel | nindent 6 }}
+  endpoints:
+    # The trailing slash: /metrics answers 307 to /metrics/ (the ASGI mount).
+    - port: http
+      path: /metrics/
+      interval: {{ .Values.serviceMonitor.interval }}
+      scrapeTimeout: {{ .Values.serviceMonitor.scrapeTimeout }}
+{{- end }}

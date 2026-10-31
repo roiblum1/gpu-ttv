@@ -1,0 +1,148 @@
+# Internal GitLab CI (AGENT.md §20.8): the gate, the image build, chart checks and the SBOM, all
+# inside the air-gapped network. The public repo's CI is .github/workflows/ci.yml (unchanged).
+#
+# Every job image comes from INTERNAL_REGISTRY by digest (offline/images.lock, imported with
+# offline/import-images.sh), and Python packages from PIP_INDEX_URL (the internal mirror, seeded
+# from offline/build-wheelhouse.sh). Set both as CI/CD variables; the defaults are placeholders.
+# Registry credentials are masked CI/CD variables: REGISTRY_USER, REGISTRY_PASSWORD.
+# References carry no tag next to the digest (CRI-O and skopeo refuse both); the tag is in the lock.
+
+variables:
+  INTERNAL_REGISTRY: registry.internal.example
+  PIP_INDEX_URL: https://pypi.internal.example/simple
+  IMAGE: ${INTERNAL_REGISTRY}/gpu-ttv/gpu-ttv
+
+stages: [test, build, package]
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG
+
+# helm is a static binary: copy it out of the helm image so the gate can render the charts.
+helm-binary:
+  stage: test
+  image:
+    name: ${INTERNAL_REGISTRY}/alpine/helm@sha256:e3f8d5c462d75470fbb1fce79ad5c20063657096d1f98c0fcea869e2600e2e5e  # 4.3.1
+    entrypoint: [""]
+  script:
+    - mkdir -p .ci-bin && cp "$(command -v helm)" .ci-bin/helm
+  artifacts:
+    paths: [.ci-bin/helm]
+    expire_in: 1 day
+
+# The same checks as .claude/skills/gate/gate.sh, with Postgres; the chart tests use helm-binary's helm.
+gate:
+  stage: test
+  needs: [helm-binary]
+  image: ${INTERNAL_REGISTRY}/astral-sh/uv@sha256:bf889bda77474aa50c351caf1538b855ef2b7a30add45f26ca50dcb6ade06402  # 0.13.6-python3.12-trixie-slim
+  services:
+    - name: ${INTERNAL_REGISTRY}/library/postgres@sha256:b8faeff7712663c2773a190181e1246e37e364b887611c04658c28b44e2408fe  # 17.11
+      alias: postgres
+  variables:
+    POSTGRES_USER: ttv
+    POSTGRES_PASSWORD: ttvtest  # throwaway CI database
+    POSTGRES_DB: ttv
+    TTV_TEST_DSN: postgresql://ttv:ttvtest@postgres:5432/ttv
+    UV_PYTHON_DOWNLOADS: never
+    UV_NO_SYNC: "1"
+  script:
+    - export PATH="$CI_PROJECT_DIR/.ci-bin:$PATH"
+    # uv sync would fetch the URLs in uv.lock; install the same hashes from the mirror instead.
+    - uv export --quiet --frozen --all-groups --no-emit-project --format requirements-txt > /tmp/requirements.txt
+    - uv venv
+    - 'uv pip install --require-hashes --no-deps --only-binary :all: --index-url "$PIP_INDEX_URL" -r /tmp/requirements.txt'
+    - uv run ruff check .
+    - uv run ruff format --check .
+    - uv run ty check src tests
+    - uv run pytest -q
+
+charts:
+  stage: test
+  image:
+    name: ${INTERNAL_REGISTRY}/alpine/helm@sha256:e3f8d5c462d75470fbb1fce79ad5c20063657096d1f98c0fcea869e2600e2e5e  # 4.3.1
+    entrypoint: [""]
+  script:
+    - helm lint deploy/helm/gpu-ttv
+    - helm lint deploy/helm/gpu-ttv -f deploy/helm/gpu-ttv/ci/full-values.yaml
+    - helm lint deploy/gpu-cluster-rbac
+    - mkdir -p rendered
+    - helm template gpu-ttv deploy/helm/gpu-ttv -f deploy/helm/gpu-ttv/ci/full-values.yaml > rendered/gpu-ttv.yaml
+    - helm template gpu-ttv-reader deploy/gpu-cluster-rbac > rendered/gpu-cluster-rbac.yaml
+  artifacts:
+    paths: [rendered/]
+    expire_in: 1 week
+
+# Builds from the internal mirrors: the base images are the Containerfile's pinned digests, rehomed
+# to INTERNAL_REGISTRY, so the digests are written down once (in the Containerfile).
+build-image:
+  stage: build
+  needs: [gate]
+  image: ${INTERNAL_REGISTRY}/buildah/stable@sha256:baaa8fe50d0e78687fa39ef90d5afcea07a6bec086dfdef99f792b555f98fbcd  # v1.43.5
+  variables:
+    STORAGE_DRIVER: vfs
+    BUILDAH_ISOLATION: chroot
+  script:
+    - python_image=$(sed -n 's/^ARG PYTHON_IMAGE=//p' Containerfile)
+    - uv_image=$(sed -n 's/^ARG UV_IMAGE=//p' Containerfile)
+    - version=$(sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml | head -1)
+    - >-
+      buildah build
+      --build-arg "PYTHON_IMAGE=${INTERNAL_REGISTRY}/${python_image#*/}"
+      --build-arg "UV_IMAGE=${INTERNAL_REGISTRY}/${uv_image#*/}"
+      --build-arg "PIP_INDEX_URL=${PIP_INDEX_URL}"
+      --build-arg "VERSION=${version}"
+      --build-arg "REVISION=${CI_COMMIT_SHA}"
+      -t "${IMAGE}:${CI_COMMIT_SHORT_SHA}" .
+    - |
+      if [ "$CI_COMMIT_BRANCH" = "$CI_DEFAULT_BRANCH" ] || [ -n "$CI_COMMIT_TAG" ]; then
+        echo "$REGISTRY_PASSWORD" | buildah login -u "$REGISTRY_USER" --password-stdin "$INTERNAL_REGISTRY"
+        buildah push --digestfile image.digest "${IMAGE}:${CI_COMMIT_SHORT_SHA}"
+        [ -z "$CI_COMMIT_TAG" ] || buildah push "${IMAGE}:${CI_COMMIT_SHORT_SHA}" "docker://${IMAGE}:${CI_COMMIT_TAG}"
+        echo "IMAGE_DIGEST=$(cat image.digest)" > image.env
+        echo "image: ${IMAGE}@$(cat image.digest) (set image.digest in the chart values)"
+      else
+        echo "IMAGE_DIGEST=" > image.env
+      fi
+  artifacts:
+    reports:
+      dotenv: image.env
+
+sbom:
+  stage: package
+  needs: [build-image]
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG
+  image:
+    name: ${INTERNAL_REGISTRY}/anchore/syft@sha256:b70ccf4e8b5d95653b4564a4beea3518ccab8017250971a799ba1fab13a276d6  # v1.55.0-debug (has a shell)
+    entrypoint: [""]
+  variables:
+    SYFT_REGISTRY_AUTH_AUTHORITY: ${INTERNAL_REGISTRY}
+    SYFT_REGISTRY_AUTH_USERNAME: ${REGISTRY_USER}
+    SYFT_REGISTRY_AUTH_PASSWORD: ${REGISTRY_PASSWORD}
+    SYFT_CHECK_FOR_APP_UPDATE: "false"
+  script:
+    - /syft scan "registry:${IMAGE}@${IMAGE_DIGEST}" -o "spdx-json=sbom-gpu-ttv.spdx.json" -o "cyclonedx-json=sbom-gpu-ttv.cdx.json"
+  artifacts:
+    paths: [sbom-gpu-ttv.spdx.json, sbom-gpu-ttv.cdx.json]
+
+chart-package:
+  stage: package
+  needs: [charts, build-image]
+  rules:
+    - if: $CI_COMMIT_TAG
+  image:
+    name: ${INTERNAL_REGISTRY}/alpine/helm@sha256:e3f8d5c462d75470fbb1fce79ad5c20063657096d1f98c0fcea869e2600e2e5e  # 4.3.1
+    entrypoint: [""]
+  script:
+    - mkdir -p charts
+    - helm package deploy/helm/gpu-ttv -d charts
+    - helm package deploy/gpu-cluster-rbac -d charts
+    - |
+      printf 'image:\n  registry: %s\n  repository: gpu-ttv/gpu-ttv\n  digest: "%s"\n' \
+        "$INTERNAL_REGISTRY" "$IMAGE_DIGEST" > charts/values-image.yaml
+    - (cd charts && sha256sum ./*.tgz values-image.yaml > SHA256SUMS)
+  artifacts:
+    paths: [charts/]

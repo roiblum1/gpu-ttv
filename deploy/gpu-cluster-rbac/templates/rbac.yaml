@@ -1,0 +1,84 @@
+{{- /*
+Read-only access for gpu-ttv on this cluster. Verbs are fixed here; resources come from values and
+are refused when they are credentials, subresources or wildcards (src/ttv/sources/kube.py refuses
+the same plurals in code).
+*/ -}}
+{{- $name := .Values.serviceAccount.name -}}
+{{- $refused := list "secrets" "serviceaccounts" "oauthaccesstokens" "oauthauthorizetokens" "useroauthaccesstokens" "oauthclients" "tokenreviews" -}}
+{{- $kinds := concat .Values.builtinKinds .Values.discoveredKinds -}}
+{{- range $kinds }}
+{{- range .resources }}
+{{- if or (has . $refused) (contains "/" .) (contains "*" .) (not (regexMatch "^[a-z0-9][a-z0-9.-]*$" .)) }}
+{{- fail (printf "gpu-cluster-rbac: refusing resource %q: credentials, subresources and wildcards are never readable" .) }}
+{{- end }}
+{{- end }}
+{{- end -}}
+{{- $labels := dict "app.kubernetes.io/name" "gpu-ttv-cluster-reader" "app.kubernetes.io/instance" .Release.Name "app.kubernetes.io/part-of" "gpu-ttv" "app.kubernetes.io/managed-by" .Release.Service -}}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- toYaml $labels | nindent 4 }}
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- toYaml $labels | nindent 4 }}
+rules:
+  {{- range $kinds }}
+  - apiGroups: [{{ .apiGroup | quote }}]
+    resources: {{ toJson .resources }}
+    verbs: ["get", "list", "watch"]
+  {{- end }}
+  # API discovery, which the owner walk uses to map a kind to its plural (most clusters grant it already).
+  - nonResourceURLs: ["/api", "/api/*", "/apis", "/apis/*"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- toYaml $labels | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $name }}-monitoring-view
+  labels:
+    {{- toYaml $labels | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ .Values.monitoringClusterRole }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ .Release.Namespace }}
+{{- if .Values.tokenSecret.create }}
+---
+# Filled by the token controller; this manifest carries no data.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $name }}-token
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- toYaml $labels | nindent 4 }}
+  annotations:
+    kubernetes.io/service-account.name: {{ $name }}
+type: kubernetes.io/service-account-token
+{{- end }}

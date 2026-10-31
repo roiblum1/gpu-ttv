@@ -28,4 +28,4 @@ Three small components and one database. server-scan stays the inventory source 
 2. Target clusters: kube API and Thanos (POPAI, Serving, productive).
 3. `ttv-collector` (DC no-profile queue).
 4. Pricing, home and queue dashboards, alerts.
-5. Offline packaging (Helm, digest-pinned images), then at least one day of read-only dry run reviewed with the user before ledger writes are enabled.
+5. Offline packaging (Helm, digest-pinned images; ADR-0007), then at least one day of read-only dry run reviewed with the user before ledger writes are enabled (`docs/dry-run-review.md`).

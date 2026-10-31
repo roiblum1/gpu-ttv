@@ -1,0 +1,54 @@
+{{- /*
+Grafana provisioning for a sidecar-based Grafana, rendered byte for byte from the repo's grafana/
+(files/grafana is a link to it; ADR-0007). One ConfigMap per dashboard keeps each under the 1 MiB limit.
+*/ -}}
+{{- $g := .Values.grafana -}}
+{{- $ns := include "gpu-ttv.grafanaNamespace" . -}}
+{{- if $g.dashboards.enabled }}
+{{- range $path, $_ := .Files.Glob "files/grafana/dashboards/*.json" }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "gpu-ttv.fullname" $ }}-dashboard-{{ base $path | trimSuffix ".json" }}
+  namespace: {{ $ns }}
+  labels:
+    {{- include "gpu-ttv.labels" $ | nindent 4 }}
+    {{- toYaml $g.dashboards.labels | nindent 4 }}
+  {{- with $g.dashboards.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+data:
+  {{ base $path }}: {{ $.Files.Get $path | toJson }}
+{{- end }}
+{{- end }}
+{{- if $g.datasource.enabled }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "gpu-ttv.fullname" . }}-grafana-datasource
+  namespace: {{ $ns }}
+  labels:
+    {{- include "gpu-ttv.labels" . | nindent 4 }}
+    {{- toYaml $g.datasource.labels | nindent 4 }}
+data:
+  ttv.yaml: {{ .Files.Get "files/grafana/provisioning/datasources/ttv.yaml" | toJson }}
+{{- end }}
+{{- if $g.alerting.enabled }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "gpu-ttv.fullname" . }}-grafana-alerting
+  namespace: {{ $ns }}
+  labels:
+    {{- include "gpu-ttv.labels" . | nindent 4 }}
+    {{- toYaml $g.alerting.labels | nindent 4 }}
+data:
+  ttv-rules.yaml: {{ .Files.Get "files/grafana/provisioning/alerting/ttv-rules.yaml" | toJson }}
+  {{- if $g.alerting.notifications }}
+  ttv-notifications.yaml: {{ .Files.Get "files/grafana/provisioning/alerting/ttv-notifications.yaml" | toJson }}
+  {{- end }}
+{{- end }}

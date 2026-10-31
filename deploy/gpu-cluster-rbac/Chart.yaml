@@ -1,0 +1,8 @@
+apiVersion: v2
+name: gpu-ttv-cluster-reader
+description: >-
+  Read-only access for gpu-ttv on one target GPU cluster (AGENT.md §20.8): a ServiceAccount,
+  get/list/watch on the kinds the engine reads, cluster-monitoring-view, and a long-lived token.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

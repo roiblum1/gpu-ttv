@@ -1,0 +1,116 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "gpu-ttv values",
+  "description": "Checks the values that would otherwise fail only at runtime. tests/test_helm_chart.py keeps settings in step with ttv.config.Settings.",
+  "type": "object",
+  "required": ["image", "dryRun", "settings", "serverscan", "database", "engine", "collector"],
+  "properties": {
+    "dryRun": {
+      "type": "boolean",
+      "description": "TTV_DRY_RUN; false only after the review in docs/dry-run-review.md."
+    },
+    "image": {
+      "type": "object",
+      "required": ["registry", "repository", "digest"],
+      "properties": {
+        "registry": {"type": "string", "minLength": 1},
+        "repository": {"type": "string", "minLength": 1},
+        "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "pullPolicy": {"enum": ["IfNotPresent", "Always", "Never"]}
+      }
+    },
+    "serverscan": {
+      "type": "object",
+      "required": ["url"],
+      "properties": {
+        "url": {"type": "string", "pattern": "^https://"},
+        "tokenSecret": {
+          "type": "object",
+          "properties": {"name": {"type": "string"}, "key": {"type": "string", "minLength": 1}}
+        }
+      }
+    },
+    "database": {
+      "type": "object",
+      "properties": {"existingSecret": {"type": "string"}, "urlKey": {"type": "string", "minLength": 1}}
+    },
+    "policy": {"type": "object"},
+    "clusters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "api_url", "thanos_url", "tokenSecret"],
+        "properties": {
+          "name": {"type": "string", "pattern": "^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$"},
+          "api_url": {"type": "string", "pattern": "^https://"},
+          "thanos_url": {"type": "string", "pattern": "^https://"},
+          "tokenSecret": {"type": "string", "minLength": 1},
+          "tokenKey": {"type": "string", "minLength": 1},
+          "caKey": {"type": "string"},
+          "thanosCaKey": {"type": "string"}
+        }
+      }
+    },
+    "settings": {
+      "type": "object",
+      "description": "Scalar TTV_* settings the chart does not set itself; see .env.example.",
+      "additionalProperties": false,
+      "properties": {
+        "TTV_CLUSTER_TIMEOUT_SECONDS": {"type": ["number", "string"]},
+        "TTV_OWNER_LOOKUP_CONCURRENCY": {"type": ["integer", "string"]},
+        "TTV_HTTP_TIMEOUT_SECONDS": {"type": ["number", "string"]},
+        "TTV_SCAN_INTERVAL_SECONDS": {"type": ["integer", "string"]},
+        "TTV_DETAIL_TTL": {"type": ["number", "string"]},
+        "TTV_DETAIL_MAX_PER_SCAN": {"type": ["integer", "string"]},
+        "TTV_DETAIL_CONCURRENCY": {"type": ["integer", "string"]},
+        "TTV_UNKNOWN_GRACE_SCANS": {"type": ["integer", "string"]},
+        "TTV_TOMBSTONE_AFTER": {"type": ["number", "string"]},
+        "TTV_PRICING_SNAPSHOT": {"type": "string"},
+        "TTV_COLLECTOR_TIMEOUT_SECONDS": {"type": ["number", "string"]},
+        "TTV_COLLECTOR_INTERVAL_SECONDS": {"type": ["integer", "string"]},
+        "TTV_COLLECTOR_STALE_AFTER": {"type": ["number", "string"]}
+      }
+    },
+    "engine": {
+      "type": "object",
+      "properties": {
+        "replicaCount": {"type": "integer", "minimum": 0},
+        "port": {"type": "integer", "minimum": 1024, "maximum": 65535}
+      }
+    },
+    "collector": {
+      "type": "object",
+      "required": ["managers"],
+      "properties": {
+        "managers": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "ucs_central": {"type": "array", "items": {"type": "object"}},
+            "openmanage": {"type": "array", "items": {"type": "object"}}
+          }
+        },
+        "secretMounts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["secret", "mountPath"],
+            "additionalProperties": false,
+            "properties": {
+              "secret": {"type": "string", "minLength": 1},
+              "mountPath": {"type": "string", "pattern": "^/"}
+            }
+          }
+        }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "ingressFrom": {"type": "array"},
+        "egress": {"type": "array"}
+      }
+    }
+  }
+}

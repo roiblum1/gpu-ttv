@@ -1,0 +1,31 @@
+{{- include "gpu-ttv.validate" . }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "gpu-ttv.fullname" . }}-policy
+  labels:
+    {{- include "gpu-ttv.labels" . | nindent 4 }}
+data:
+  policy.yaml: {{ include "gpu-ttv.policy" . | quote }}
+{{- if .Values.clusters }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "gpu-ttv.fullname" . }}-clusters
+  labels:
+    {{- include "gpu-ttv.labels" . | nindent 4 }}
+data:
+  clusters.yaml: {{ include "gpu-ttv.clustersFile" . | quote }}
+{{- end }}
+{{- if include "gpu-ttv.collectorEnabled" . }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "gpu-ttv.fullname" . }}-managers
+  labels:
+    {{- include "gpu-ttv.labels" . | nindent 4 }}
+data:
+  managers.yaml: {{ toYaml .Values.collector.managers | quote }}
+{{- end }}

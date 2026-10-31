@@ -1,0 +1,8 @@
+# files/grafana links to the repo's grafana/ and files/policy.example.yaml to config/ (ADR-0007):
+# the chart renders them, so nothing is copied and nothing drifts. Only these leave the chart.
+files/grafana/README.md
+ci/
+.DS_Store
+*.swp
+*.bak
+*.tmp

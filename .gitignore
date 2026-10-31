@@ -13,3 +13,6 @@ build/
 *.egg-info/
 .claude/worktrees/
 .playwright-mcp/
+# Offline build outputs (offline/README.md)
+offline/wheelhouse/
+offline/bundle/

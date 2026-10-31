@@ -1,0 +1,95 @@
+{{- if include "gpu-ttv.collectorEnabled" . -}}
+{{- $sel := dict "ctx" . "component" "collector" -}}
+# The profile-less collector (ADR-0004): read-only toward UCS Central and OpenManage; it stores its
+# reads in Postgres whatever TTV_DRY_RUN says, because the engine's dry run needs them.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "gpu-ttv.fullname" . }}-collector
+  labels:
+    {{- include "gpu-ttv.labels" . | nindent 4 }}
+    app.kubernetes.io/component: collector
+spec:
+  # One collector: it holds its own advisory lock, and a second replica would only wait for it.
+  replicas: 1
+  strategy:
+    type: Recreate
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      {{- include "gpu-ttv.selectorLabels" $sel | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "gpu-ttv.selectorLabels" $sel | nindent 8 }}
+      annotations:
+        checksum/config: {{ include "gpu-ttv.collectorChecksum" . }}
+    spec:
+      serviceAccountName: {{ include "gpu-ttv.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      # The pause container becomes PID 1, so SIGTERM stops Python promptly (ADR-0007, "Shutdown").
+      shareProcessNamespace: true
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        # No probes: the job serves no HTTP, a crash restarts it, and a stalled one shows as the
+        # "TTV collector manager stale" alert (docs/runbooks.md).
+        - name: collector
+          image: {{ include "gpu-ttv.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["ttv-collector"]
+          env:
+            - name: TTV_MANAGERS_FILE
+              value: /etc/ttv/managers/managers.yaml
+            {{- include "gpu-ttv.commonEnv" . | nindent 12 }}
+            {{- with .Values.collector.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.collector.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          volumeMounts:
+            - name: managers
+              mountPath: /etc/ttv/managers
+              readOnly: true
+            {{- range $i, $m := .Values.collector.secretMounts }}
+            - name: secret-{{ $i }}
+              mountPath: {{ $m.mountPath }}
+              readOnly: true
+            {{- end }}
+            {{- include "gpu-ttv.commonMounts" . | nindent 12 }}
+            {{- with .Values.collector.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: managers
+          configMap:
+            name: {{ include "gpu-ttv.fullname" . }}-managers
+        {{- range $i, $m := .Values.collector.secretMounts }}
+        - name: secret-{{ $i }}
+          secret:
+            secretName: {{ $m.secret }}
+            defaultMode: 0440
+        {{- end }}
+        {{- include "gpu-ttv.commonVolumes" . | nindent 8 }}
+        {{- with .Values.collector.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.collector.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.collector.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.collector.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

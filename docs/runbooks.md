@@ -46,7 +46,7 @@ Grafana treats a rule as NoData when **any** of its queries returns no rows, or 
 
 - **Means:** no engine scan with status `ok` or `partial` has finished for more than 15 minutes (three missed 5-minute scans). With no engine scan at all, the age counts from when the ledger schema was created. Fires after 5 more minutes; severity `critical`.
 - **Evidence:** Evidence (`/d/ttv-evidence`), "Data age" (panel 40), "Engine scans per hour, by result" (panel 17) and "Recent partial or failed scans" (panel 19). The description gives the newest scan's status and errors.
-- **Likely causes:** the ttv-engine pod is down or crash-looping; it lost Postgres; another replica holds the advisory lock but is stuck; every scan ends `failed` (server-scan unreachable from a cold start); the engine runs with `TTV_DRY_RUN=true` (status `dry_run` never updates the ledger, so this alert fires by design during the §20.6 dry run).
+- **Likely causes:** the ttv-engine pod is down or crash-looping; it lost Postgres; another replica holds the advisory lock but is stuck; every scan ends `failed` (server-scan unreachable from a cold start); the engine runs with `TTV_DRY_RUN=true` (status `dry_run` never updates the ledger, so this alert fires by design during the §20.6 dry run; see `docs/dry-run-review.md`).
 - **Next step:** check the pod's logs (`scan.done`, `serverscan.fetch_failed`), `/readyz`, and `SELECT status, started_at, errors FROM scan_runs WHERE kind = 'engine' ORDER BY id DESC LIMIT 5`.
 - **Who acts:** platform operators.
 - **While it fires:** stage-breach alerts hold their last state; every "now" panel is as old as "Data age".
