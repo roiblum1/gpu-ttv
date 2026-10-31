@@ -237,7 +237,7 @@
       "gridPos": {
         "x": 0,
         "y": 1,
-        "w": 4,
+        "w": 5,
         "h": 5
       },
       "targets": [
@@ -296,9 +296,9 @@
         "uid": "ttv-postgres"
       },
       "gridPos": {
-        "x": 4,
+        "x": 5,
         "y": 1,
-        "w": 4,
+        "w": 5,
         "h": 5
       },
       "targets": [
@@ -349,67 +349,6 @@
     },
     {
       "type": "stat",
-      "id": 4,
-      "title": "Constrained or failed",
-      "description": "Definition: GPUs now on a matched node of a measured cluster that cannot do work: WORKLOAD_NOT_READY, GPU_MISSING, GPU_PLATFORM_NOT_READY, NODE_NOT_READY, NODE_UNSCHEDULABLE, or hardware critical on a not-Ready node.\nUnits: physical GPUs.\nFilters: site, cluster (cluster = the interval's cluster, else the cluster named in its evidence or NODE_CLAIM conflict; '(none)' when there is none).\nUnknown vs zero: 0 = none in measured clusters now; no value = no GPU in a measured cluster. Current state = intervals still open in the ledger (ended_at IS NULL), i.e. the result of the latest engine scan; 'Data age' shows how old it is.",
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "ttv-postgres"
-      },
-      "gridPos": {
-        "x": 8,
-        "y": 1,
-        "w": 4,
-        "h": 5
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "ttv-postgres"
-          },
-          "editorMode": "code",
-          "format": "table",
-          "rawQuery": true,
-          "rawSql": "WITH cur AS (\n  SELECT i.asset_id, i.category, i.reason_code, i.stage_owner, i.gpus, i.flags, i.holder_ref,\n         i.team, i.gpu_model, i.started_at, i.evidence,\n         coalesce(i.cluster, i.evidence->>'cluster', nc.cluster, i.evidence->>'cluster_name') AS cluster,\n         CASE\n           WHEN i.category = 'PRODUCTIVE' AND 'allocated_idle' = ANY (i.flags) THEN 2\n           WHEN i.category = 'PRODUCTIVE' THEN 1\n           WHEN i.reason_code IN ('NO_REAL_DEMAND', 'LOW_USE', 'NO_WORKLOAD', 'OTHER_WORKLOAD') THEN 3\n           WHEN i.cluster IS NOT NULL AND i.category = 'IDLE' THEN 4\n           WHEN i.cluster IS NOT NULL OR nc.cluster IS NOT NULL\n             OR i.reason_code IN ('CLUSTER_UNREACHABLE', 'NODE_NOT_FOUND') THEN 5\n           ELSE 6\n         END AS use_rank\n  FROM capacity_intervals i\n  JOIN assets a ON a.asset_id = i.asset_id\n  LEFT JOIN LATERAL (\n    SELECT split_part(c.key, '/', 1) AS cluster\n    FROM identity_conflicts c\n    WHERE i.reason_code = 'IDENTITY_CONFLICT' AND c.kind = 'NODE_CLAIM'\n      AND c.candidates @> jsonb_build_array(i.asset_id)\n    ORDER BY c.resolved_at IS NULL DESC, c.last_seen DESC\n    LIMIT 1\n  ) nc ON true\n  WHERE i.ended_at IS NULL\n    AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))\n), scope AS (\n  SELECT * FROM cur WHERE ('__all__' IN ($cluster) OR coalesce(cluster, '(none)') IN ($cluster))\n)\nSELECT CASE WHEN coalesce(sum(gpus) FILTER (WHERE use_rank <= 5), 0) = 0 THEN NULL\n            ELSE coalesce(sum(gpus) FILTER (WHERE use_rank = 4), 0) END AS constrained_gpus\nFROM scope"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "decimals": 0,
-          "noValue": "No GPU in a measured cluster",
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "red"
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "reduceOptions": {
-          "values": false,
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": ""
-        },
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "center",
-        "textMode": "value",
-        "orientation": "auto",
-        "wideLayout": true,
-        "showPercentChange": false,
-        "text": {
-          "titleSize": 14,
-          "valueSize": 40
-        }
-      }
-    },
-    {
-      "type": "stat",
       "id": 5,
       "title": "Use unknown",
       "description": "Definition: GPUs now in a measured cluster whose use cannot be determined: serving workloads with no request-counter series (TRAFFIC_UNOBSERVED), holders whose owner chain is unreadable (HOLDER_UNRESOLVED), servers with no matching node (NODE_NOT_FOUND), several servers claiming one node (NODE_CLAIM conflict) or a cluster read that failed (CLUSTER_UNREACHABLE).\nUnits: physical GPUs.\nFilters: site, cluster (cluster = the interval's cluster, else the cluster named in its evidence or NODE_CLAIM conflict; '(none)' when there is none).\nUnknown vs zero: these GPUs are never counted as useful or as waste. Current state = intervals still open in the ledger (ended_at IS NULL), i.e. the result of the latest engine scan; 'Data age' shows how old it is.",
@@ -418,9 +357,9 @@
         "uid": "ttv-postgres"
       },
       "gridPos": {
-        "x": 12,
+        "x": 10,
         "y": 1,
-        "w": 4,
+        "w": 5,
         "h": 5
       },
       "targets": [
@@ -479,9 +418,9 @@
         "uid": "ttv-postgres"
       },
       "gridPos": {
-        "x": 16,
+        "x": 15,
         "y": 1,
-        "w": 4,
+        "w": 5,
         "h": 5
       },
       "targets": [
@@ -614,7 +553,7 @@
     {
       "type": "bargauge",
       "id": 8,
-      "title": "Measured GPUs now, by use class",
+      "title": "Measured GPUs by use class",
       "description": "Definition: GPUs in measured clusters split into mutually exclusive use classes (each GPU in exactly one). This is a current-state partition, not a funnel.\nUnits: physical GPUs.\nFilters: site, cluster (cluster = the interval's cluster, else the cluster named in its evidence or NODE_CLAIM conflict; '(none)' when there is none).\nUnknown vs zero: a 0 bar is a measured zero; the panel says 'No GPU in a measured cluster' when nothing is measured, and 'Use unknown' is never folded into the other classes. Current state = intervals still open in the ledger (ended_at IS NULL), i.e. the result of the latest engine scan; 'Data age' shows how old it is.\nUse classes (E12, AGENT.md §13): Useful work = PRODUCTIVE (Run:ai workload, or serving with genuine requests); Allocated, inactive = PRODUCTIVE but flagged allocated_idle (activity under the policy threshold for the policy window); Waste candidate = NO_REAL_DEMAND, LOW_USE, OTHER_WORKLOAD, NO_WORKLOAD; Constrained or failed = any other IDLE GPU on a matched node (WORKLOAD_NOT_READY, GPU_MISSING, GPU_PLATFORM_NOT_READY, NODE_NOT_READY, ...); Use unknown = in a measured cluster but the evidence is missing (TRAFFIC_UNOBSERVED, HOLDER_UNRESOLVED, NODE_NOT_FOUND, CLUSTER_UNREACHABLE, a NODE_CLAIM identity conflict); Not measured = everything else (not in a cluster yet, outside the target clusters, target cluster not configured, stale source).",
       "datasource": {
         "type": "grafana-postgresql-datasource",
@@ -623,8 +562,8 @@
       "gridPos": {
         "x": 0,
         "y": 6,
-        "w": 8,
-        "h": 8
+        "w": 7,
+        "h": 9
       },
       "targets": [
         {
@@ -732,7 +671,7 @@
         "displayMode": "basic",
         "orientation": "horizontal",
         "valueMode": "color",
-        "namePlacement": "left",
+        "namePlacement": "top",
         "showUnfilled": true,
         "sizing": "auto",
         "minVizHeight": 16,
@@ -760,17 +699,17 @@
     {
       "type": "bargauge",
       "id": 9,
-      "title": "From allocation to useful work, GPUs now",
+      "title": "Allocation → useful work, GPUs now",
       "description": "Definition: on Ready, GPU-ready nodes (GPU-level rows 15-22 of ADR-0002), how many GPUs pass each successive condition: healthy (not GPU_MISSING), held by a pod (not NO_WORKLOAD), held by a Ready pod (not WORKLOAD_NOT_READY), doing useful work (PRODUCTIVE: Run:ai workload, or serving with genuine requests), and useful without the allocated_idle flag. Each bar is a subset of the one above. The drop between 'Held by a Ready workload' and 'Useful work' is loaded models with no or low demand, other workloads and unknown traffic: a loaded model or busy hardware is not delivered value (§13).\nUnits: physical GPUs.\nFilters: site, cluster (cluster = the interval's cluster, else the cluster named in its evidence or NODE_CLAIM conflict; '(none)' when there is none).\nUnknown vs zero: TRAFFIC_UNOBSERVED and HOLDER_UNRESOLVED GPUs stay in 'Held' bars but never in 'Useful work'; 'No GPU on a GPU-ready node' when there is none. Per-GPU activity, memory pressure and SLO compliance are not in R1 (see the missing-input panels). Current state = intervals still open in the ledger (ended_at IS NULL), i.e. the result of the latest engine scan; 'Data age' shows how old it is.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "ttv-postgres"
       },
       "gridPos": {
-        "x": 8,
+        "x": 7,
         "y": 6,
         "w": 8,
-        "h": 8
+        "h": 9
       },
       "targets": [
         {
@@ -833,7 +772,7 @@
         "displayMode": "basic",
         "orientation": "horizontal",
         "valueMode": "color",
-        "namePlacement": "left",
+        "namePlacement": "top",
         "showUnfilled": true,
         "sizing": "auto",
         "minVizHeight": 16,
@@ -868,10 +807,10 @@
         "uid": "ttv-postgres"
       },
       "gridPos": {
-        "x": 16,
+        "x": 15,
         "y": 6,
-        "w": 8,
-        "h": 8
+        "w": 9,
+        "h": 9
       },
       "targets": [
         {
@@ -912,6 +851,10 @@
                   "type": "auto",
                   "wrapText": true
                 }
+              },
+              {
+                "id": "custom.minWidth",
+                "value": 120
               }
             ]
           },
@@ -935,7 +878,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 70
+                "value": 60
               }
             ]
           },
@@ -959,7 +902,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 100
+                "value": 75
               }
             ]
           },
@@ -969,10 +912,6 @@
               "options": "See"
             },
             "properties": [
-              {
-                "id": "custom.width",
-                "value": 95
-              },
               {
                 "id": "mappings",
                 "value": [
@@ -1000,6 +939,10 @@
                     "targetBlank": false
                   }
                 ]
+              },
+              {
+                "id": "custom.width",
+                "value": 90
               }
             ]
           }
@@ -1030,9 +973,9 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 14,
+        "y": 15,
         "w": 24,
-        "h": 10
+        "h": 12
       },
       "targets": [
         {
@@ -1109,7 +1052,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 170
+                "value": 150
               }
             ]
           },
@@ -1121,7 +1064,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 200
+                "value": 180
               }
             ]
           },
@@ -1133,7 +1076,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 105
+                "value": 95
               }
             ]
           },
@@ -1157,7 +1100,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 80
+                "value": 65
               }
             ]
           },
@@ -1181,7 +1124,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 80
+                "value": 65
               }
             ]
           },
@@ -1205,7 +1148,19 @@
               },
               {
                 "id": "custom.width",
-                "value": 190
+                "value": 110
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "What it means"
+            },
+            "properties": [
+              {
+                "id": "custom.minWidth",
+                "value": 200
               }
             ]
           }
@@ -1234,7 +1189,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 24
+        "y": 27
       },
       "panels": []
     },
@@ -1249,7 +1204,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 25,
+        "y": 28,
         "w": 24,
         "h": 8
       },
@@ -1274,7 +1229,8 @@
               "type": "auto"
             },
             "inspect": false,
-            "filterable": false
+            "filterable": false,
+            "wrapHeaderText": true
           },
           "noValue": "No GPU is in a cluster for this scope"
         },
@@ -1287,7 +1243,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 200
+                "value": 225
               }
             ]
           },
@@ -1331,7 +1287,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 175
+                "value": 165
               }
             ]
           },
@@ -1355,7 +1311,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 70
+                "value": 65
               }
             ]
           },
@@ -1380,6 +1336,10 @@
               {
                 "id": "noValue",
                 "value": "—"
+              },
+              {
+                "id": "custom.width",
+                "value": 110
               }
             ]
           },
@@ -1404,6 +1364,10 @@
               {
                 "id": "noValue",
                 "value": "—"
+              },
+              {
+                "id": "custom.width",
+                "value": 110
               }
             ]
           },
@@ -1428,6 +1392,10 @@
               {
                 "id": "noValue",
                 "value": "—"
+              },
+              {
+                "id": "custom.width",
+                "value": 110
               }
             ]
           },
@@ -1452,6 +1420,10 @@
               {
                 "id": "noValue",
                 "value": "—"
+              },
+              {
+                "id": "custom.width",
+                "value": 110
               }
             ]
           },
@@ -1476,6 +1448,10 @@
               {
                 "id": "noValue",
                 "value": "—"
+              },
+              {
+                "id": "custom.minWidth",
+                "value": 100
               }
             ]
           }
@@ -1506,7 +1482,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 33,
+        "y": 36,
         "w": 24,
         "h": 7
       },
@@ -1661,7 +1637,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 40,
+        "y": 43,
         "w": 24,
         "h": 10
       },
@@ -1712,7 +1688,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 80
+                "value": 75
               }
             ]
           },
@@ -1723,10 +1699,6 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 150
-              },
-              {
                 "id": "links",
                 "value": [
                   {
@@ -1735,6 +1707,10 @@
                     "targetBlank": false
                   }
                 ]
+              },
+              {
+                "id": "custom.width",
+                "value": 135
               }
             ]
           },
@@ -1786,7 +1762,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 140
+                "value": 150
               }
             ]
           },
@@ -1798,7 +1774,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 165
+                "value": 170
               }
             ]
           },
@@ -1822,7 +1798,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 55
+                "value": 50
               }
             ]
           },
@@ -1850,7 +1826,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 120
+                "value": 75
               }
             ]
           },
@@ -1868,8 +1844,8 @@
                 }
               },
               {
-                "id": "custom.width",
-                "value": 340
+                "id": "custom.minWidth",
+                "value": 180
               }
             ]
           },
@@ -1891,8 +1867,8 @@
                 }
               },
               {
-                "id": "custom.width",
-                "value": 190
+                "id": "custom.hidden",
+                "value": true
               }
             ]
           },
@@ -1907,8 +1883,8 @@
                 "value": "dateTimeAsIso"
               },
               {
-                "id": "custom.width",
-                "value": 150
+                "id": "custom.hidden",
+                "value": true
               }
             ]
           }
@@ -1937,7 +1913,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 50
+        "y": 53
       },
       "panels": []
     },
@@ -1952,7 +1928,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 51,
+        "y": 54,
         "w": 12,
         "h": 9
       },
@@ -2112,7 +2088,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 51,
+        "y": 54,
         "w": 12,
         "h": 9
       },
@@ -2228,9 +2204,9 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 60,
+        "y": 63,
         "w": 24,
-        "h": 11
+        "h": 14
       },
       "targets": [
         {
@@ -2307,7 +2283,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 170
+                "value": 150
               }
             ]
           },
@@ -2318,8 +2294,8 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 210
+                "id": "custom.minWidth",
+                "value": 180
               }
             ]
           },
@@ -2331,7 +2307,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 110
+                "value": 100
               }
             ]
           },
@@ -2355,7 +2331,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 120
+                "value": 110
               }
             ]
           },
@@ -2379,7 +2355,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 210
+                "value": 150
               }
             ]
           }
@@ -2408,18 +2384,18 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 71
+        "y": 77
       },
       "panels": []
     },
     {
       "type": "text",
       "id": 21,
-      "title": "E12 · Is allocated hardware physically busy?",
+      "title": "E12 · Is allocated hardware busy?",
       "description": "Missing input: R1 has no data source for this E12 dimension, so the page shows what is missing instead of a number.",
       "gridPos": {
         "x": 0,
-        "y": 72,
+        "y": 78,
         "w": 8,
         "h": 10
       },
@@ -2440,7 +2416,7 @@
       "description": "Missing input: R1 has no data source for this E12 dimension, so the page shows what is missing instead of a number.",
       "gridPos": {
         "x": 8,
-        "y": 72,
+        "y": 78,
         "w": 8,
         "h": 10
       },
@@ -2457,11 +2433,11 @@
     {
       "type": "text",
       "id": 23,
-      "title": "E12 · Is the work useful and within SLO?",
+      "title": "E12 · Is the work within SLO?",
       "description": "Missing input: R1 has no data source for this E12 dimension, so the page shows what is missing instead of a number.",
       "gridPos": {
         "x": 16,
-        "y": 72,
+        "y": 78,
         "w": 8,
         "h": 10
       },

@@ -282,7 +282,7 @@
       "type": "stat",
       "id": 41,
       "title": "Known state",
-      "description": "Definition: share of all GPUs in the ledger now whose state is known (not UNKNOWN). Below 90% many totals elsewhere are lower bounds; the tables below say why.\nFilters: site.",
+      "description": "Definition: share of all GPUs in the ledger now whose state is known (not UNKNOWN). Below 90% many totals elsewhere are lower bounds; the tables below say why.\nFilters: site.\nThe label gives the UNKNOWN GPUs and all GPUs.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "ttv-postgres"
@@ -290,7 +290,7 @@
       "gridPos": {
         "x": 4,
         "y": 1,
-        "w": 4,
+        "w": 5,
         "h": 4
       },
       "targets": [
@@ -303,7 +303,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT CASE WHEN sum(i.gpus) > 0\n            THEN 100.0 * coalesce(sum(i.gpus) FILTER (WHERE i.category <> 'UNKNOWN'), 0) / sum(i.gpus) END AS \"Known\"\nFROM capacity_intervals i\nJOIN assets a ON a.asset_id = i.asset_id\nWHERE i.ended_at IS NULL AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))"
+          "rawSql": "SELECT CASE WHEN sum(i.gpus) > 0\n            THEN 100.0 * coalesce(sum(i.gpus) FILTER (WHERE i.category <> 'UNKNOWN'), 0) / sum(i.gpus) END AS \"Known\",\n       coalesce(sum(i.gpus) FILTER (WHERE i.category = 'UNKNOWN'), 0) || ' of '\n       || coalesce(sum(i.gpus), 0) || ' GPUs unknown' AS label\nFROM capacity_intervals i\nJOIN assets a ON a.asset_id = i.asset_id\nWHERE i.ended_at IS NULL AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))"
         }
       ],
       "options": {
@@ -318,7 +318,7 @@
         "colorMode": "value",
         "graphMode": "none",
         "justifyMode": "center",
-        "textMode": "value",
+        "textMode": "value_and_name",
         "orientation": "auto",
         "wideLayout": true,
         "showPercentChange": false,
@@ -351,75 +351,8 @@
                 "value": 90
               }
             ]
-          }
-        },
-        "overrides": []
-      }
-    },
-    {
-      "type": "stat",
-      "id": 42,
-      "title": "Unknown GPUs",
-      "description": "Definition: GPUs in open UNKNOWN intervals: a stale or failing source, an identity conflict, a cluster not observed, a node not found, missing telemetry. Never counted as idle or productive; Evidence explains each reason.\nFilters: site.",
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "ttv-postgres"
-      },
-      "gridPos": {
-        "x": 8,
-        "y": 1,
-        "w": 4,
-        "h": 4
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "ttv-postgres"
           },
-          "editorMode": "code",
-          "format": "table",
-          "rawQuery": true,
-          "rawSql": "SELECT CASE WHEN EXISTS (SELECT 1 FROM capacity_intervals i0 JOIN assets a0 ON a0.asset_id = i0.asset_id WHERE i0.ended_at IS NULL AND ('__all__' IN ($site) OR coalesce(a0.site, '(none)') IN ($site))) THEN coalesce((\n  SELECT sum(i.gpus) FROM capacity_intervals i\nJOIN assets a ON a.asset_id = i.asset_id\n  WHERE i.ended_at IS NULL AND i.category = 'UNKNOWN' AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))), 0) END AS \"Unknown GPUs\""
-        }
-      ],
-      "options": {
-        "reduceOptions": {
-          "values": true,
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "limit": 1
-        },
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "center",
-        "textMode": "value",
-        "orientation": "auto",
-        "wideLayout": true,
-        "showPercentChange": false,
-        "text": {
-          "titleSize": 14,
-          "valueSize": 40
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "purple"
-          },
-          "noValue": "no GPUs in scope",
-          "decimals": 0,
-          "links": [
-            {
-              "title": "Evidence",
-              "url": "/d/ttv-evidence?${__url_time_range}&${site:queryparam}"
-            }
-          ]
+          "displayName": "${__data.fields.label}"
         },
         "overrides": []
       }
@@ -434,9 +367,9 @@
         "uid": "ttv-postgres"
       },
       "gridPos": {
-        "x": 12,
+        "x": 9,
         "y": 1,
-        "w": 4,
+        "w": 5,
         "h": 4
       },
       "targets": [
@@ -508,9 +441,9 @@
         "uid": "ttv-postgres"
       },
       "gridPos": {
-        "x": 16,
+        "x": 14,
         "y": 1,
-        "w": 4,
+        "w": 5,
         "h": 4
       },
       "targets": [
@@ -582,9 +515,9 @@
         "uid": "ttv-postgres"
       },
       "gridPos": {
-        "x": 20,
+        "x": 19,
         "y": 1,
-        "w": 4,
+        "w": 5,
         "h": 4
       },
       "targets": [
@@ -687,7 +620,8 @@
               "type": "auto"
             },
             "inspect": false,
-            "filterable": false
+            "filterable": false,
+            "wrapHeaderText": true
           }
         },
         "overrides": [
@@ -698,8 +632,12 @@
             },
             "properties": [
               {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
                 "id": "custom.width",
-                "value": 190
+                "value": 100
               }
             ]
           },
@@ -719,7 +657,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 180
+                "value": 160
               }
             ]
           },
@@ -735,7 +673,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 180
+                "value": 160
               }
             ]
           },
@@ -795,7 +733,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 150
+                "value": 110
               }
             ]
           },
@@ -808,6 +746,10 @@
               {
                 "id": "noValue",
                 "value": "—"
+              },
+              {
+                "id": "custom.minWidth",
+                "value": 150
               }
             ]
           },
@@ -863,7 +805,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 210
+                "value": 190
               }
             ]
           },
@@ -875,71 +817,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 170
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Last error"
-            },
-            "properties": [
-              {
-                "id": "noValue",
-                "value": "—"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Consecutive failed scans"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 180
-              },
-              {
-                "id": "custom.align",
-                "value": "right"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Last success"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 170
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Since last success"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
                 "value": 150
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Last attempt"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 170
               }
             ]
           }
@@ -1009,7 +887,7 @@
             },
             "inspect": false,
             "filterable": false,
-            "wrapHeaderText": false
+            "wrapHeaderText": true
           },
           "noValue": "no manager read yet (TTV_MANAGERS_FILE unset or ttv-collector not running)"
         },
@@ -1022,7 +900,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 220
+                "value": 170
               }
             ]
           },
@@ -1034,7 +912,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 110
+                "value": 90
               }
             ]
           },
@@ -1094,7 +972,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 210
+                "value": 165
               }
             ]
           },
@@ -1126,7 +1004,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 80
+                "value": 65
               }
             ]
           },
@@ -1142,7 +1020,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 100
+                "value": 65
               }
             ]
           },
@@ -1157,10 +1035,6 @@
                 "value": "right"
               },
               {
-                "id": "custom.width",
-                "value": 100
-              },
-              {
                 "id": "custom.cellOptions",
                 "value": {
                   "type": "color-text"
@@ -1187,6 +1061,10 @@
                     }
                   ]
                 }
+              },
+              {
+                "id": "custom.width",
+                "value": 70
               }
             ]
           },
@@ -1201,10 +1079,6 @@
                 "value": "right"
               },
               {
-                "id": "custom.width",
-                "value": 130
-              },
-              {
                 "id": "custom.cellOptions",
                 "value": {
                   "type": "color-text"
@@ -1231,6 +1105,10 @@
                     }
                   ]
                 }
+              },
+              {
+                "id": "custom.width",
+                "value": 80
               }
             ]
           },
@@ -1246,7 +1124,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 140
+                "value": 65
               }
             ]
           },
@@ -1259,6 +1137,10 @@
               {
                 "id": "noValue",
                 "value": "—"
+              },
+              {
+                "id": "custom.minWidth",
+                "value": 150
               }
             ]
           }
@@ -1277,8 +1159,8 @@
       "gridPos": {
         "x": 0,
         "y": 16,
-        "w": 12,
-        "h": 9
+        "w": 10,
+        "h": 10
       },
       "targets": [
         {
@@ -1301,7 +1183,8 @@
               "type": "auto"
             },
             "inspect": false,
-            "filterable": false
+            "filterable": false,
+            "wrapHeaderText": true
           },
           "unit": "none",
           "decimals": 0
@@ -1327,6 +1210,10 @@
                   "mode": "fixed",
                   "fixedColor": "purple"
                 }
+              },
+              {
+                "id": "custom.width",
+                "value": 160
               }
             ]
           },
@@ -1337,8 +1224,8 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 220
+                "id": "custom.minWidth",
+                "value": 170
               }
             ]
           },
@@ -1354,7 +1241,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 80
+                "value": 65
               }
             ]
           }
@@ -1384,10 +1271,10 @@
         "uid": "ttv-postgres"
       },
       "gridPos": {
-        "x": 12,
+        "x": 10,
         "y": 16,
-        "w": 12,
-        "h": 9
+        "w": 14,
+        "h": 10
       },
       "targets": [
         {
@@ -1410,7 +1297,8 @@
               "type": "auto"
             },
             "inspect": false,
-            "filterable": false
+            "filterable": false,
+            "wrapHeaderText": true
           },
           "unit": "none",
           "decimals": 0
@@ -1424,7 +1312,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 70
+                "value": 65
               }
             ]
           },
@@ -1439,8 +1327,12 @@
                 "value": "unread"
               },
               {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
                 "id": "custom.width",
-                "value": 125
+                "value": 80
               }
             ]
           },
@@ -1477,6 +1369,14 @@
                     }
                   ]
                 }
+              },
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "custom.width",
+                "value": 80
               }
             ]
           },
@@ -1513,6 +1413,10 @@
                     }
                   ]
                 }
+              },
+              {
+                "id": "custom.minWidth",
+                "value": 90
               }
             ]
           },
@@ -1524,7 +1428,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 180
+                "value": 150
               }
             ]
           },
@@ -1541,38 +1445,6 @@
               {
                 "id": "custom.width",
                 "value": 120
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "GPUs (inventory)"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 120
-              },
-              {
-                "id": "custom.align",
-                "value": "right"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "GPU count unread"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 130
-              },
-              {
-                "id": "custom.align",
-                "value": "right"
               }
             ]
           }
@@ -1603,7 +1475,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 25,
+        "y": 26,
         "w": 24,
         "h": 10
       },
@@ -1628,7 +1500,8 @@
               "type": "auto"
             },
             "inspect": false,
-            "filterable": false
+            "filterable": false,
+            "wrapHeaderText": true
           }
         },
         "overrides": [
@@ -1641,6 +1514,10 @@
               {
                 "id": "unit",
                 "value": "dateTimeAsIso"
+              },
+              {
+                "id": "custom.width",
+                "value": 160
               }
             ]
           },
@@ -1657,6 +1534,10 @@
               {
                 "id": "decimals",
                 "value": 0
+              },
+              {
+                "id": "custom.width",
+                "value": 90
               }
             ]
           },
@@ -1668,7 +1549,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 200
+                "value": 180
               }
             ]
           },
@@ -1680,7 +1561,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 280
+                "value": 220
               }
             ]
           },
@@ -1696,31 +1577,19 @@
               },
               {
                 "id": "custom.width",
-                "value": 120
+                "value": 90
               }
             ]
           },
           {
             "matcher": {
               "id": "byName",
-              "options": "Open for"
+              "options": "Candidates"
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 110
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "First seen"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 170
+                "id": "custom.minWidth",
+                "value": 200
               }
             ]
           }
@@ -1746,7 +1615,7 @@
       "title": "Selected period: scans and coverage over time",
       "gridPos": {
         "x": 0,
-        "y": 35,
+        "y": 36,
         "w": 24,
         "h": 1
       },
@@ -1764,7 +1633,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 36,
+        "y": 37,
         "w": 12,
         "h": 8
       },
@@ -1880,7 +1749,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 36,
+        "y": 37,
         "w": 12,
         "h": 8
       },
@@ -2008,7 +1877,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 44,
+        "y": 45,
         "w": 24,
         "h": 6
       },
@@ -2033,7 +1902,8 @@
               "type": "auto"
             },
             "inspect": false,
-            "filterable": false
+            "filterable": false,
+            "wrapHeaderText": true
           },
           "noValue": "no partial or failed scans in the time range"
         },
@@ -2079,6 +1949,10 @@
                     }
                   }
                 ]
+              },
+              {
+                "id": "custom.width",
+                "value": 100
               }
             ]
           },
@@ -2094,7 +1968,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 180
+                "value": 170
               }
             ]
           },
@@ -2106,19 +1980,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 110
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Status"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 90
+                "value": 100
               }
             ]
           },
@@ -2145,36 +2007,12 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Kind"
+              "options": "Errors"
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 100
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Status"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 100
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Started"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 170
+                "id": "custom.minWidth",
+                "value": 200
               }
             ]
           }

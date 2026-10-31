@@ -280,7 +280,7 @@
       "gridPos": {
         "x": 4,
         "y": 1,
-        "w": 4,
+        "w": 5,
         "h": 4
       },
       "targets": [
@@ -339,9 +339,9 @@
         "uid": "ttv-postgres"
       },
       "gridPos": {
-        "x": 8,
+        "x": 9,
         "y": 1,
-        "w": 4,
+        "w": 5,
         "h": 4
       },
       "targets": [
@@ -400,9 +400,9 @@
         "uid": "ttv-postgres"
       },
       "gridPos": {
-        "x": 12,
+        "x": 14,
         "y": 1,
-        "w": 4,
+        "w": 5,
         "h": 4
       },
       "targets": [
@@ -461,9 +461,9 @@
         "uid": "ttv-postgres"
       },
       "gridPos": {
-        "x": 16,
+        "x": 19,
         "y": 1,
-        "w": 4,
+        "w": 5,
         "h": 4
       },
       "targets": [
@@ -518,10 +518,10 @@
       "title": "Why this result?",
       "description": "Opens the engine's /explain/{asset_id} for this asset: rules evaluated in order, the matching row, its evidence and recent intervals, from the engine's last scan. The link uses the dashboard variable ttv_api (default http://ttv-engine:8080; set it to a URL your browser can reach, e.g. the engine's Route, by editing the variable default in grafana/dashboards/ttv-asset.json or adding &var-ttv_api=<url> to the page URL).",
       "gridPos": {
-        "x": 20,
-        "y": 1,
-        "w": 4,
-        "h": 4
+        "x": 19,
+        "y": 5,
+        "w": 5,
+        "h": 5
       },
       "options": {
         "mode": "markdown",
@@ -545,8 +545,8 @@
       "gridPos": {
         "x": 0,
         "y": 5,
-        "w": 24,
-        "h": 4
+        "w": 19,
+        "h": 5
       },
       "targets": [
         {
@@ -569,7 +569,8 @@
               "type": "auto"
             },
             "inspect": false,
-            "filterable": false
+            "filterable": false,
+            "wrapHeaderText": true
           },
           "noValue": "Unknown asset: not in the ledger"
         },
@@ -582,7 +583,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 160
+                "value": 150
               }
             ]
           },
@@ -594,7 +595,11 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 190
+                "value": 140
+              },
+              {
+                "id": "custom.wrapText",
+                "value": true
               }
             ]
           },
@@ -605,8 +610,8 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 70
+                "id": "custom.hidden",
+                "value": true
               }
             ]
           },
@@ -617,8 +622,8 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 115
+                "id": "custom.hidden",
+                "value": true
               }
             ]
           },
@@ -630,7 +635,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 70
+                "value": 65
               }
             ]
           },
@@ -642,7 +647,11 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 135
+                "value": 100
+              },
+              {
+                "id": "custom.wrapText",
+                "value": true
               }
             ]
           },
@@ -653,16 +662,16 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 60
-              },
-              {
                 "id": "custom.align",
                 "value": "right"
               },
               {
                 "id": "noValue",
                 "value": "unread"
+              },
+              {
+                "id": "custom.width",
+                "value": 55
               }
             ]
           },
@@ -673,8 +682,8 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 140
+                "id": "custom.hidden",
+                "value": true
               }
             ]
           },
@@ -690,7 +699,11 @@
               },
               {
                 "id": "custom.width",
-                "value": 155
+                "value": 95
+              },
+              {
+                "id": "custom.wrapText",
+                "value": true
               }
             ]
           },
@@ -706,7 +719,27 @@
               },
               {
                 "id": "custom.width",
-                "value": 155
+                "value": 95
+              },
+              {
+                "id": "custom.wrapText",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Server model"
+            },
+            "properties": [
+              {
+                "id": "custom.minWidth",
+                "value": 100
+              },
+              {
+                "id": "custom.wrapText",
+                "value": true
               }
             ]
           }
@@ -744,7 +777,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 9,
+        "y": 10,
         "w": 24,
         "h": 12
       },
@@ -769,7 +802,8 @@
               "type": "auto"
             },
             "inspect": false,
-            "filterable": false
+            "filterable": false,
+            "wrapHeaderText": true
           },
           "noValue": "No open interval for this asset"
         },
@@ -814,7 +848,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 110
+                "value": 105
               }
             ]
           },
@@ -826,7 +860,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 175
+                "value": 140
               }
             ]
           },
@@ -862,7 +896,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 55
+                "value": 50
               }
             ]
           },
@@ -874,7 +908,11 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 125
+                "value": 100
+              },
+              {
+                "id": "custom.wrapText",
+                "value": true
               }
             ]
           },
@@ -885,12 +923,12 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 80
-              },
-              {
                 "id": "noValue",
                 "value": "—"
+              },
+              {
+                "id": "custom.width",
+                "value": 80
               }
             ]
           },
@@ -901,10 +939,6 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 200
-              },
-              {
                 "id": "noValue",
                 "value": "—"
               },
@@ -914,6 +948,14 @@
                   "type": "auto",
                   "wrapText": true
                 }
+              },
+              {
+                "id": "custom.width",
+                "value": 100
+              },
+              {
+                "id": "custom.wrapText",
+                "value": true
               }
             ]
           },
@@ -924,10 +966,6 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 150
-              },
-              {
                 "id": "noValue",
                 "value": "—"
               },
@@ -937,6 +975,14 @@
                   "type": "auto",
                   "wrapText": true
                 }
+              },
+              {
+                "id": "custom.width",
+                "value": 90
+              },
+              {
+                "id": "custom.wrapText",
+                "value": true
               }
             ]
           },
@@ -952,6 +998,14 @@
                   "type": "auto",
                   "wrapText": true
                 }
+              },
+              {
+                "id": "custom.minWidth",
+                "value": 140
+              },
+              {
+                "id": "custom.wrapText",
+                "value": true
               }
             ]
           },
@@ -967,7 +1021,11 @@
               },
               {
                 "id": "custom.width",
-                "value": 150
+                "value": 95
+              },
+              {
+                "id": "custom.wrapText",
+                "value": true
               }
             ]
           },
@@ -978,12 +1036,16 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 140
-              },
-              {
                 "id": "noValue",
                 "value": "—"
+              },
+              {
+                "id": "custom.width",
+                "value": 95
+              },
+              {
+                "id": "custom.wrapText",
+                "value": true
               }
             ]
           }
@@ -1017,7 +1079,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 21,
+        "y": 22,
         "w": 24,
         "h": 1
       },
@@ -1034,9 +1096,9 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 22,
-        "w": 12,
-        "h": 12
+        "y": 23,
+        "w": 24,
+        "h": 10
       },
       "targets": [
         {
@@ -1059,7 +1121,8 @@
               "type": "auto"
             },
             "inspect": false,
-            "filterable": false
+            "filterable": false,
+            "wrapHeaderText": true
           },
           "noValue": "No milestone recorded"
         },
@@ -1072,7 +1135,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 230
+                "value": 260
               }
             ]
           },
@@ -1084,7 +1147,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 160
+                "value": 170
               }
             ]
           },
@@ -1120,7 +1183,14 @@
               },
               {
                 "id": "custom.width",
-                "value": 230
+                "value": 210
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
               }
             ]
           },
@@ -1140,6 +1210,10 @@
                   "type": "auto",
                   "wrapText": true
                 }
+              },
+              {
+                "id": "custom.minWidth",
+                "value": 200
               }
             ]
           }
@@ -1169,10 +1243,10 @@
         "uid": "ttv-postgres"
       },
       "gridPos": {
-        "x": 12,
-        "y": 22,
+        "x": 0,
+        "y": 33,
         "w": 12,
-        "h": 6
+        "h": 7
       },
       "targets": [
         {
@@ -1195,7 +1269,8 @@
               "type": "auto"
             },
             "inspect": false,
-            "filterable": false
+            "filterable": false,
+            "wrapHeaderText": true
           },
           "noValue": "No open identity conflict names this asset"
         },
@@ -1208,7 +1283,11 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 130
+                "value": 110
+              },
+              {
+                "id": "custom.wrapText",
+                "value": true
               }
             ]
           },
@@ -1224,6 +1303,14 @@
                   "type": "auto",
                   "wrapText": true
                 }
+              },
+              {
+                "id": "custom.minWidth",
+                "value": 100
+              },
+              {
+                "id": "custom.wrapText",
+                "value": true
               }
             ]
           },
@@ -1235,7 +1322,11 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 200
+                "value": 110
+              },
+              {
+                "id": "custom.wrapText",
+                "value": true
               }
             ]
           },
@@ -1255,6 +1346,14 @@
                   "type": "auto",
                   "wrapText": true
                 }
+              },
+              {
+                "id": "custom.width",
+                "value": 90
+              },
+              {
+                "id": "custom.wrapText",
+                "value": true
               }
             ]
           },
@@ -1270,7 +1369,11 @@
               },
               {
                 "id": "custom.width",
-                "value": 165
+                "value": 95
+              },
+              {
+                "id": "custom.wrapText",
+                "value": true
               }
             ]
           },
@@ -1285,8 +1388,8 @@
                 "value": "dateTimeAsIso"
               },
               {
-                "id": "custom.width",
-                "value": 165
+                "id": "custom.hidden",
+                "value": true
               }
             ]
           }
@@ -1317,9 +1420,9 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 28,
+        "y": 33,
         "w": 12,
-        "h": 6
+        "h": 7
       },
       "targets": [
         {
@@ -1342,7 +1445,8 @@
               "type": "auto"
             },
             "inspect": false,
-            "filterable": false
+            "filterable": false,
+            "wrapHeaderText": true
           },
           "noValue": "No next-action annotation for this asset"
         },
@@ -1379,7 +1483,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 95
+                "value": 80
               }
             ]
           },
@@ -1391,7 +1495,11 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 140
+                "value": 100
+              },
+              {
+                "id": "custom.wrapText",
+                "value": true
               }
             ]
           },
@@ -1411,6 +1519,14 @@
               {
                 "id": "noValue",
                 "value": "—"
+              },
+              {
+                "id": "custom.minWidth",
+                "value": 80
+              },
+              {
+                "id": "custom.wrapText",
+                "value": true
               }
             ]
           },
@@ -1422,7 +1538,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 110
+                "value": 70
               }
             ]
           },
@@ -1438,7 +1554,11 @@
               },
               {
                 "id": "custom.width",
-                "value": 165
+                "value": 95
+              },
+              {
+                "id": "custom.wrapText",
+                "value": true
               }
             ]
           },
@@ -1454,7 +1574,11 @@
               },
               {
                 "id": "custom.width",
-                "value": 165
+                "value": 95
+              },
+              {
+                "id": "custom.wrapText",
+                "value": true
               }
             ]
           }
@@ -1485,9 +1609,9 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 34,
+        "y": 40,
         "w": 24,
-        "h": 5
+        "h": 7
       },
       "targets": [
         {
@@ -1510,7 +1634,8 @@
               "type": "auto"
             },
             "inspect": false,
-            "filterable": false
+            "filterable": false,
+            "wrapHeaderText": true
           },
           "noValue": "—"
         },
@@ -1523,7 +1648,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 140
+                "value": 130
               }
             ]
           },
@@ -1535,7 +1660,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 95
+                "value": 90
               }
             ]
           },
@@ -1547,7 +1672,11 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 140
+                "value": 110
+              },
+              {
+                "id": "custom.wrapText",
+                "value": true
               }
             ]
           },
@@ -1559,7 +1688,11 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 160
+                "value": 130
+              },
+              {
+                "id": "custom.wrapText",
+                "value": true
               }
             ]
           },
@@ -1571,7 +1704,11 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 150
+                "value": 120
+              },
+              {
+                "id": "custom.wrapText",
+                "value": true
               }
             ]
           },
@@ -1582,16 +1719,16 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 60
-              },
-              {
                 "id": "custom.align",
                 "value": "right"
               },
               {
                 "id": "noValue",
                 "value": "unread"
+              },
+              {
+                "id": "custom.width",
+                "value": 55
               }
             ]
           },
@@ -1607,6 +1744,14 @@
                   "type": "auto",
                   "wrapText": true
                 }
+              },
+              {
+                "id": "custom.minWidth",
+                "value": 120
+              },
+              {
+                "id": "custom.wrapText",
+                "value": true
               }
             ]
           },
@@ -1617,12 +1762,16 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 140
-              },
-              {
                 "id": "noValue",
                 "value": "—"
+              },
+              {
+                "id": "custom.width",
+                "value": 100
+              },
+              {
+                "id": "custom.wrapText",
+                "value": true
               }
             ]
           },
@@ -1638,7 +1787,11 @@
               },
               {
                 "id": "custom.width",
-                "value": 155
+                "value": 95
+              },
+              {
+                "id": "custom.wrapText",
+                "value": true
               }
             ]
           },
@@ -1701,7 +1854,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 39,
+        "y": 47,
         "w": 24,
         "h": 1
       },
@@ -1718,7 +1871,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 40,
+        "y": 48,
         "w": 16,
         "h": 9
       },
@@ -1845,7 +1998,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 40,
+        "y": 48,
         "w": 8,
         "h": 9
       },
@@ -1870,7 +2023,8 @@
               "type": "auto"
             },
             "inspect": false,
-            "filterable": false
+            "filterable": false,
+            "wrapHeaderText": true
           },
           "noValue": "No interval for this asset in the time range"
         },
@@ -1940,6 +2094,18 @@
               {
                 "id": "custom.width",
                 "value": 95
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Reason"
+            },
+            "properties": [
+              {
+                "id": "custom.minWidth",
+                "value": 100
               }
             ]
           }

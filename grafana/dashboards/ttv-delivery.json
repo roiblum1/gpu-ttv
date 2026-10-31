@@ -350,7 +350,7 @@
     {
       "type": "stat",
       "id": 2,
-      "title": "Servers waiting in a stage now",
+      "title": "Servers waiting",
       "description": "Definition: servers with at least one open IDLE interval in a stage (DC, Redbull, POPAI or Serving): open stage episodes, counted once per server. The caption gives the idle GPUs in those episodes and the servers that are UNKNOWN now, which are not in this count.\nUnits: servers.\nFilters: site, stage_owner.\nUnknown vs zero: 'No ledger data yet' when the ledger has no open interval; UNKNOWN servers are never counted as waiting or as not waiting. Current state = intervals still open in the ledger (ended_at IS NULL), i.e. the latest engine scan; Queues and Evidence show its age.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
@@ -513,7 +513,7 @@
     {
       "type": "stat",
       "id": 4,
-      "title": "Oldest open stage episode",
+      "title": "Oldest open episode",
       "description": "Definition: age (now - stage_entered_at) of the oldest open stage episode in scope; the caption names its stage owner and objective.\nUnits: days (hours under 1 day, said in the caption).\nFilters: site, stage_owner.\nUnknown vs zero: when any open episode in scope began before observation, the true oldest age can only be larger, so the value is a lower bound: '≥' and purple. Lower bounds: a stage clock with stage_entered_lower_bound began before observation, so its age is a minimum (≥). Current state = intervals still open in the ledger (ended_at IS NULL), i.e. the latest engine scan; Queues and Evidence show its age.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
@@ -689,7 +689,7 @@
       "gridPos": {
         "x": 0,
         "y": 5,
-        "w": 10,
+        "w": 9,
         "h": 8
       },
       "targets": [
@@ -860,9 +860,9 @@
         "uid": "ttv-postgres"
       },
       "gridPos": {
-        "x": 10,
+        "x": 9,
         "y": 5,
-        "w": 14,
+        "w": 15,
         "h": 8
       },
       "targets": [
@@ -900,7 +900,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 90
+                "value": 80
               }
             ]
           },
@@ -911,12 +911,12 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 85
-              },
-              {
                 "id": "custom.align",
                 "value": "right"
+              },
+              {
+                "id": "custom.width",
+                "value": 70
               }
             ]
           },
@@ -927,12 +927,12 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 80
-              },
-              {
                 "id": "custom.align",
                 "value": "right"
+              },
+              {
+                "id": "custom.width",
+                "value": 65
               }
             ]
           },
@@ -943,10 +943,6 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 85
-              },
-              {
                 "id": "custom.align",
                 "value": "right"
               },
@@ -981,6 +977,10 @@
               {
                 "id": "noValue",
                 "value": "no objective"
+              },
+              {
+                "id": "custom.width",
+                "value": 70
               }
             ]
           },
@@ -991,10 +991,6 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 80
-              },
-              {
                 "id": "custom.align",
                 "value": "right"
               },
@@ -1029,6 +1025,10 @@
               {
                 "id": "noValue",
                 "value": "no objective"
+              },
+              {
+                "id": "custom.width",
+                "value": 65
               }
             ]
           },
@@ -1038,10 +1038,6 @@
               "options": "Clock began before observation"
             },
             "properties": [
-              {
-                "id": "custom.width",
-                "value": 105
-              },
               {
                 "id": "custom.align",
                 "value": "right"
@@ -1073,6 +1069,10 @@
                     }
                   ]
                 }
+              },
+              {
+                "id": "custom.width",
+                "value": 90
               }
             ]
           },
@@ -1083,12 +1083,12 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 80
-              },
-              {
                 "id": "custom.align",
                 "value": "right"
+              },
+              {
+                "id": "custom.width",
+                "value": 75
               }
             ]
           },
@@ -1099,12 +1099,12 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 85
-              },
-              {
                 "id": "custom.align",
                 "value": "right"
+              },
+              {
+                "id": "custom.width",
+                "value": 70
               }
             ]
           },
@@ -1115,12 +1115,12 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 85
-              },
-              {
                 "id": "custom.align",
                 "value": "right"
+              },
+              {
+                "id": "custom.minWidth",
+                "value": 70
               }
             ]
           }
@@ -1296,7 +1296,7 @@
     {
       "type": "stat",
       "id": 10,
-      "title": "Time to GPU-ready · p50",
+      "title": "GPU-ready · p50",
       "description": "Definition: Median (p50) of first record → GPU-ready over clocks that completed in the window, one sample per server. First record = the earliest of the server-scan registration (created_at, exact) and the engine's first sighting (exact only when the engine's previous scan was complete). GPU-ready = the gpu_ready milestone, exact when the ledger shows the transition (a pre-ready DC/Redbull/POPAI interval ended at that scan).\nUnits: days.\nFilters: site (stage_owner does not apply: the clock spans owners). Window: completions in the last $period complete UTC days before the end of the time range, vs the $period days before that (variable 'Comparison period'). Clocks (ADR-0005): a sample is exact when both ends were observed by the engine; '≥' samples have an exact end and a start that began before observation; samples whose end was not observed (milestone already true at first sight, rework, end unobserved) are never used. Percentiles use exact samples when there are at least $min_n; otherwise exact + '≥' samples give a lower bound shown as '≥'; otherwise 'insufficient history'. The caption gives n; 'lower bound' (purple, '≥') means exact + '≥' samples were used. Physical receipt or acceptance dates need procurement input (R3).",
       "datasource": {
         "type": "grafana-postgresql-datasource",
@@ -1392,7 +1392,7 @@
     {
       "type": "stat",
       "id": 11,
-      "title": "Time to GPU-ready · p90",
+      "title": "GPU-ready · p90",
       "description": "Definition: 90th percentile (p90) of first record → GPU-ready over clocks that completed in the window, one sample per server. First record = the earliest of the server-scan registration (created_at, exact) and the engine's first sighting (exact only when the engine's previous scan was complete). GPU-ready = the gpu_ready milestone, exact when the ledger shows the transition (a pre-ready DC/Redbull/POPAI interval ended at that scan).\nUnits: days.\nFilters: site (stage_owner does not apply: the clock spans owners). Window: completions in the last $period complete UTC days before the end of the time range, vs the $period days before that (variable 'Comparison period'). Clocks (ADR-0005): a sample is exact when both ends were observed by the engine; '≥' samples have an exact end and a start that began before observation; samples whose end was not observed (milestone already true at first sight, rework, end unobserved) are never used. Percentiles use exact samples when there are at least $min_n; otherwise exact + '≥' samples give a lower bound shown as '≥'; otherwise 'insufficient history'. The caption gives n; 'lower bound' (purple, '≥') means exact + '≥' samples were used. Physical receipt or acceptance dates need procurement input (R3).",
       "datasource": {
         "type": "grafana-postgresql-datasource",
@@ -1488,7 +1488,7 @@
     {
       "type": "stat",
       "id": 12,
-      "title": "Time to first genuine request · p50",
+      "title": "First request · p50",
       "description": "Definition: Median (p50) of first record → first genuine request (end-to-end, from the same server's milestones, never a sum of stage percentiles) over clocks that completed in the window, one sample per server. First record = the earliest of the server-scan registration (created_at, exact) and the engine's first sighting (exact only when the engine's previous scan was complete). First genuine request = the first_genuine_request milestone (serving demand), exact when an idle interval ended at that scan and no GPU of the server was UNKNOWN just before. Servers used only by Run:ai training never record one; see GPU use (E12).\nUnits: days.\nFilters: site (stage_owner does not apply: the clock spans owners). Window: completions in the last $period complete UTC days before the end of the time range, vs the $period days before that (variable 'Comparison period'). Clocks (ADR-0005): a sample is exact when both ends were observed by the engine; '≥' samples have an exact end and a start that began before observation; samples whose end was not observed (milestone already true at first sight, rework, end unobserved) are never used. Percentiles use exact samples when there are at least $min_n; otherwise exact + '≥' samples give a lower bound shown as '≥'; otherwise 'insufficient history'. The caption gives n; 'lower bound' (purple, '≥') means exact + '≥' samples were used. Physical receipt or acceptance dates need procurement input (R3).",
       "datasource": {
         "type": "grafana-postgresql-datasource",
@@ -1584,7 +1584,7 @@
     {
       "type": "stat",
       "id": 13,
-      "title": "Time to first genuine request · p90",
+      "title": "First request · p90",
       "description": "Definition: 90th percentile (p90) of first record → first genuine request (end-to-end, from the same server's milestones, never a sum of stage percentiles) over clocks that completed in the window, one sample per server. First record = the earliest of the server-scan registration (created_at, exact) and the engine's first sighting (exact only when the engine's previous scan was complete). First genuine request = the first_genuine_request milestone (serving demand), exact when an idle interval ended at that scan and no GPU of the server was UNKNOWN just before. Servers used only by Run:ai training never record one; see GPU use (E12).\nUnits: days.\nFilters: site (stage_owner does not apply: the clock spans owners). Window: completions in the last $period complete UTC days before the end of the time range, vs the $period days before that (variable 'Comparison period'). Clocks (ADR-0005): a sample is exact when both ends were observed by the engine; '≥' samples have an exact end and a start that began before observation; samples whose end was not observed (milestone already true at first sight, rework, end unobserved) are never used. Percentiles use exact samples when there are at least $min_n; otherwise exact + '≥' samples give a lower bound shown as '≥'; otherwise 'insufficient history'. The caption gives n; 'lower bound' (purple, '≥') means exact + '≥' samples were used. Physical receipt or acceptance dates need procurement input (R3).",
       "datasource": {
         "type": "grafana-postgresql-datasource",
@@ -1681,7 +1681,7 @@
       "type": "table",
       "id": 14,
       "title": "Clocks: last vs prior period (p50, p90, n, change)",
-      "description": "Definition: eight clocks kept separate so one team's delay is never attributed to another:\n- Milestone clocks per server: first record → GPU-ready → workload running → first genuine request, and end-to-end first record → first genuine request computed from the same server's milestones (never by adding percentiles). Durations below one scan are recorded as 0.\n- Stage clocks per stage episode (same asset, stage and stage_entered_at): from stage entry until no GPU of the server waits in that stage any more and the server moved forward (a later stage or PRODUCTIVE). Episodes that went back to an earlier stage (rework), out of scope, UNKNOWN or out of the ledger are excluded and counted in 'excl.'.\nColumns: p50/p90 and n per period; Target = the stage objective of the current policy version (milestone clocks have none); Change = last vs prior, e.g. '4.0 d shorter / 33.3% shorter' (AGENT.md §13 #8), % suppressed on a zero baseline, only when both periods have at least $min_n exact samples (otherwise 'Change in p50' says 'insufficient history' and 'Change in p90' shows '—').\nn: '12' exact samples; '3 + 9 ≥' exact + lower-bound samples (the percentile is then '≥'); '· needs $min_n' too few; 'excl.' samples not used.\nUnits: min, h, d.\nFilters: site; stage_owner hides other owners' stage rows (milestone rows span owners and stay). Window: completions in the last $period complete UTC days before the end of the time range, vs the $period days before that (variable 'Comparison period'). Clocks (ADR-0005): a sample is exact when both ends were observed by the engine; '≥' samples have an exact end and a start that began before observation; samples whose end was not observed (milestone already true at first sight, rework, end unobserved) are never used. Percentiles use exact samples when there are at least $min_n; otherwise exact + '≥' samples give a lower bound shown as '≥'; otherwise 'insufficient history'.",
+      "description": "Definition: eight clocks kept separate so one team's delay is never attributed to another:\n- Milestone clocks per server: first record → GPU-ready → workload running → first genuine request, and end-to-end first record → first genuine request computed from the same server's milestones (never by adding percentiles). Durations below one scan are recorded as 0.\n- Stage clocks per stage episode (same asset, stage and stage_entered_at): from stage entry until no GPU of the server waits in that stage any more and the server moved forward (a later stage or PRODUCTIVE). Episodes that went back to an earlier stage (rework), out of scope, UNKNOWN or out of the ledger are excluded and counted in 'excl.'.\nColumns: p50/p90 and n per period ('last' = the last $period complete days, 'prior' = the $period days before); stage clocks are named after their stage, whose owner the Owner field keeps (hidden; in Inspect and CSV); Target = the stage objective of the current policy version (milestone clocks have none); Change = last vs prior, e.g. '4.0 d shorter / 33.3% shorter' (AGENT.md §13 #8), % suppressed on a zero baseline, only when both periods have at least $min_n exact samples (otherwise 'Change in p50' says 'insufficient history' and 'Change in p90' shows '—').\nn: '12' exact samples; '3 + 9 ≥' exact + lower-bound samples (the percentile is then '≥'); '· needs $min_n' too few; 'excl.' samples not used.\nUnits: min, h, d.\nFilters: site; stage_owner hides other owners' stage rows (milestone rows span owners and stay). Window: completions in the last $period complete UTC days before the end of the time range, vs the $period days before that (variable 'Comparison period'). Clocks (ADR-0005): a sample is exact when both ends were observed by the engine; '≥' samples have an exact end and a start that began before observation; samples whose end was not observed (milestone already true at first sight, rework, end unobserved) are never used. Percentiles use exact samples when there are at least $min_n; otherwise exact + '≥' samples give a lower bound shown as '≥'; otherwise 'insufficient history'.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "ttv-postgres"
@@ -1690,7 +1690,7 @@
         "x": 0,
         "y": 24,
         "w": 24,
-        "h": 12
+        "h": 14
       },
       "targets": [
         {
@@ -1727,7 +1727,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 255
+                "value": 230
               }
             ]
           },
@@ -1738,8 +1738,8 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 112
+                "id": "custom.hidden",
+                "value": true
               }
             ]
           },
@@ -1750,12 +1750,12 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 70
-              },
-              {
                 "id": "custom.align",
                 "value": "right"
+              },
+              {
+                "id": "custom.width",
+                "value": 75
               }
             ]
           },
@@ -1766,10 +1766,6 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 72
-              },
-              {
                 "id": "custom.align",
                 "value": "right"
               },
@@ -1820,6 +1816,14 @@
                     }
                   }
                 ]
+              },
+              {
+                "id": "displayName",
+                "value": "p50 · last"
+              },
+              {
+                "id": "custom.width",
+                "value": 66
               }
             ]
           },
@@ -1830,10 +1834,6 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 72
-              },
-              {
                 "id": "custom.align",
                 "value": "right"
               },
@@ -1884,6 +1884,14 @@
                     }
                   }
                 ]
+              },
+              {
+                "id": "displayName",
+                "value": "p90 · last"
+              },
+              {
+                "id": "custom.width",
+                "value": 66
               }
             ]
           },
@@ -1894,10 +1902,6 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 72
-              },
-              {
                 "id": "custom.align",
                 "value": "right"
               },
@@ -1948,6 +1952,14 @@
                     }
                   }
                 ]
+              },
+              {
+                "id": "displayName",
+                "value": "p50 · prior"
+              },
+              {
+                "id": "custom.width",
+                "value": 66
               }
             ]
           },
@@ -1958,10 +1970,6 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 72
-              },
-              {
                 "id": "custom.align",
                 "value": "right"
               },
@@ -2012,6 +2020,14 @@
                     }
                   }
                 ]
+              },
+              {
+                "id": "displayName",
+                "value": "p90 · prior"
+              },
+              {
+                "id": "custom.width",
+                "value": 66
               }
             ]
           },
@@ -2022,10 +2038,6 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 150
-              },
-              {
                 "id": "custom.align",
                 "value": "right"
               },
@@ -2076,6 +2088,18 @@
                     }
                   }
                 ]
+              },
+              {
+                "id": "displayName",
+                "value": "n · last"
+              },
+              {
+                "id": "custom.width",
+                "value": 100
+              },
+              {
+                "id": "custom.wrapText",
+                "value": true
               }
             ]
           },
@@ -2086,10 +2110,6 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 150
-              },
-              {
                 "id": "custom.align",
                 "value": "right"
               },
@@ -2140,6 +2160,18 @@
                     }
                   }
                 ]
+              },
+              {
+                "id": "displayName",
+                "value": "n · prior"
+              },
+              {
+                "id": "custom.width",
+                "value": 100
+              },
+              {
+                "id": "custom.wrapText",
+                "value": true
               }
             ]
           },
@@ -2202,8 +2234,8 @@
                 "value": true
               },
               {
-                "id": "custom.width",
-                "value": 245
+                "id": "custom.minWidth",
+                "value": 160
               }
             ]
           },
@@ -2262,6 +2294,10 @@
                 ]
               },
               {
+                "id": "custom.width",
+                "value": 140
+              },
+              {
                 "id": "custom.wrapText",
                 "value": true
               }
@@ -2294,7 +2330,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 36,
+        "y": 38,
         "w": 12,
         "h": 9
       },
@@ -2486,7 +2522,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 36,
+        "y": 38,
         "w": 12,
         "h": 9
       },
@@ -2613,7 +2649,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 45,
+        "y": 47,
         "w": 24,
         "h": 1
       },
@@ -2630,7 +2666,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 46,
+        "y": 48,
         "w": 24,
         "h": 17
       },
@@ -2668,12 +2704,12 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 105
-              },
-              {
                 "id": "unit",
                 "value": "time: YYYY-MM-DD"
+              },
+              {
+                "id": "custom.minWidth",
+                "value": 100
               }
             ]
           },
@@ -2684,12 +2720,12 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 75
-              },
-              {
                 "id": "custom.align",
                 "value": "right"
+              },
+              {
+                "id": "custom.width",
+                "value": 70
               }
             ]
           },
@@ -2700,12 +2736,12 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 75
-              },
-              {
                 "id": "custom.align",
                 "value": "right"
+              },
+              {
+                "id": "custom.width",
+                "value": 70
               }
             ]
           },
@@ -2716,12 +2752,12 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 85
-              },
-              {
                 "id": "custom.align",
                 "value": "right"
+              },
+              {
+                "id": "custom.width",
+                "value": 80
               }
             ]
           },
@@ -3156,6 +3192,18 @@
                 ]
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(GPU-ready|First request) by \\d+ d$"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 92
+              }
+            ]
           }
         ]
       },
@@ -3184,7 +3232,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 63,
+        "y": 65,
         "w": 24,
         "h": 8
       },
@@ -3222,8 +3270,8 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 200
+                "id": "custom.minWidth",
+                "value": 160
               }
             ]
           },
@@ -3235,7 +3283,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 110
+                "value": 100
               }
             ]
           },
@@ -3552,6 +3600,22 @@
               {
                 "id": "custom.wrapText",
                 "value": true
+              },
+              {
+                "id": "custom.width",
+                "value": 200
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(p50|n) · (last|prior) .* d$"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 100
               }
             ]
           }
@@ -3578,7 +3642,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 71,
+        "y": 73,
         "w": 24,
         "h": 1
       },
@@ -3591,7 +3655,7 @@
       "description": "Missing-input panel (AGENT.md §0.6: E07 is Release 2). It states what is missing, where it would come from, the onboarding step and the release; it never shows a number.",
       "gridPos": {
         "x": 0,
-        "y": 72,
+        "y": 74,
         "w": 24,
         "h": 7
       },

@@ -39,7 +39,7 @@ panels:
   question: E18
   status: built
   audience: Operators, platform team, CEO
-  decision: How much of the fleet the numbers describe.
+  decision: How much of the fleet the numbers describe, and how many GPUs they cannot.
   definition: share of all GPUs in the ledger now whose state is known (not UNKNOWN). Below 90% many totals
     elsewhere are lower bounds; the tables below say why.
   unit: percent
@@ -60,50 +60,13 @@ panels:
   direction: higher_is_better
   thresholds: red < 50 %, orange < 90 %, green ≥ 90 %
   uncertainty: null
-  missing_data: '''no scan yet'' before the first scan.'
+  missing_data: '''no scan yet'' before the first scan; an empty scope shows no value, never 100 %.'
   value_kind: derived
   gate: core
   privileges: SELECT on capacity_intervals, assets
   cardinality: 1 value
   drilldown: null
   action: null
-  fixture: null
-  expected: null
-- id: 42
-  title: Unknown GPUs
-  question: E18
-  status: built
-  audience: CEO, stage owners
-  decision: How much of the fleet the numbers cannot describe.
-  definition: 'GPUs in open UNKNOWN intervals: a stale or failing source, an identity conflict, a cluster
-    not observed, a node not found, missing telemetry. Never counted as idle or productive; Evidence explains
-    each reason.'
-  unit: GPUs
-  numerator: sum(gpus) of open UNKNOWN intervals
-  denominator: null
-  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
-    knows.'
-  window: now
-  filters:
-  - site
-  exclusions: null
-  query: grafana/dashboards/ttv-evidence.json#42
-  lineage:
-  - capacity_intervals
-  - assets
-  freshness: Latest engine scan (every 5 min); the Data age card shows its age.
-  baseline: null
-  direction: lower_is_better
-  thresholds: null
-  uncertainty: null
-  missing_data: Shows 'no scan yet' before the first engine scan; afterwards an empty result is a real
-    0. UNKNOWN GPUs are never counted as idle or productive.
-  value_kind: observed
-  gate: core
-  privileges: SELECT on capacity_intervals, assets
-  cardinality: 1 value
-  drilldown: ttv-evidence#25
-  action: Open Evidence to see why.
   fixture: null
   expected: null
 - id: 43

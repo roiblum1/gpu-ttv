@@ -1,6 +1,4 @@
 # Panel contracts for grafana/dashboards/ttv-gpu-use.json (schema: config/panel-contracts/README.md).
-# Expected values refer to the synthetic fixture in tests/test_dashboards_gpu_use_asset_pg.py
-# (fixture-tested, not production evidence).
 dashboard: ttv-gpu-use
 panels:
 - id: 2
@@ -93,50 +91,6 @@ panels:
   action: Review 'Workloads holding GPUs now' with Serving.
   fixture: tests/test_dashboards_gpu_use_asset_pg.py
   expected: 4 GPUs (2 allocated-inactive Run:ai + 1 NO_REAL_DEMAND + 1 NO_WORKLOAD) with the fixture.
-- id: 4
-  title: Constrained or failed
-  question: E12
-  status: built
-  audience: CEO, POPAI, Serving, Redbull
-  decision: Which technical failures keep measured GPUs from working.
-  definition: 'GPUs in use class 4: IDLE on a matched node of a measured cluster and not a waste reason
-    (WORKLOAD_NOT_READY, GPU_MISSING, GPU_PLATFORM_NOT_READY, NODE_NOT_READY, NODE_UNSCHEDULABLE, hardware
-    critical on a not-Ready node).'
-  unit: GPUs
-  numerator: sum(gpus) of open intervals in use class 4
-  denominator: null
-  population: Every GPU in an open ledger interval (server-scan and the profile-less collector); 'measured'
-    = GPUs whose node is in a target cluster the engine reads.
-  window: now
-  filters:
-  - site
-  - cluster
-  exclusions: Not-measured GPUs.
-  query: grafana/dashboards/ttv-gpu-use.json#4
-  lineage:
-  - capacity_intervals.category
-  - capacity_intervals.reason_code
-  - capacity_intervals.flags
-  - capacity_intervals.cluster
-  - capacity_intervals.evidence
-  - capacity_intervals.gpus
-  - assets.site
-  - identity_conflicts.key
-  - identity_conflicts.candidates
-  freshness: Latest engine scan (5 min cadence); 'Data age (engine scan)' shows its age.
-  baseline: null
-  direction: lower_is_better
-  thresholds: null
-  uncertainty: null
-  missing_data: No measured GPU shows 'No GPU in a measured cluster', never 0.
-  value_kind: observed
-  gate: core
-  privileges: SELECT on capacity_intervals, assets, identity_conflicts
-  cardinality: one value
-  drilldown: ttv-gpu-use#11
-  action: Owners of the listed reasons fix the platform or workload (Queues has the stage clock).
-  fixture: tests/test_dashboards_gpu_use_asset_pg.py
-  expected: 1 GPU (GPU_MISSING) with the fixture.
 - id: 5
   title: Use unknown
   question: E12
@@ -258,7 +212,7 @@ panels:
   fixture: tests/test_dashboards_gpu_use_asset_pg.py
   expected: Age of the 11:56 synthetic scan.
 - id: 8
-  title: Measured GPUs now, by use class
+  title: Measured GPUs by use class
   question: E12
   status: built
   audience: CEO, Serving, POPAI
@@ -304,7 +258,7 @@ panels:
   fixture: tests/test_dashboards_gpu_use_asset_pg.py
   expected: Useful 2, Allocated inactive 2, Waste 2, Constrained 1, Unknown 9 with the fixture.
 - id: 9
-  title: From allocation to useful work, GPUs now
+  title: Allocation → useful work, GPUs now
   question: E12
   status: built
   audience: CEO, Serving, POPAI
@@ -711,7 +665,7 @@ panels:
   expected: GPU_PLATFORM_NOT_READY 48, NO_REAL_DEMAND 6, not measured 192 GPU-h for 00:00-12:00 with the
     fixture.
 - id: 21
-  title: E12 · Is allocated hardware physically busy?
+  title: E12 · Is allocated hardware busy?
   question: E12
   status: missing_input
   audience: CEO, Serving, POPAI
@@ -773,7 +727,7 @@ panels:
   fixture: null
   expected: Text only.
 - id: 23
-  title: E12 · Is the work useful and within SLO?
+  title: E12 · Is the work within SLO?
   question: E12
   status: missing_input
   audience: CEO, Serving

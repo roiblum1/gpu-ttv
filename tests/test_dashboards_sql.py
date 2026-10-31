@@ -580,14 +580,18 @@ def test_queues_value_is_linear_and_unpriced_is_not_zero(db: tuple[Conn, Seed]) 
 
 def test_queues_unknown_is_never_zero(db: tuple[Conn, Seed]) -> None:
     """An empty scope gives no value (rendered as "no GPUs in scope"), never 0."""
-    scoped = (("ttv-queues", 21), ("ttv-queues", 22), ("ttv-queues", 24), ("ttv-home", 6))
+    scoped = (("ttv-queues", 21), ("ttv-queues", 22), ("ttv-home", 4), ("ttv-home", 5))
     for uid, panel_id in scoped:
         (row,) = _panel(db, uid, panel_id, site=["no-such-site"])
         assert next(iter(row.values())) is None, (uid, panel_id)
     assert _panel(db, "ttv-home", 9, site=["no-such-site"]) == []
     assert _panel(db, "ttv-evidence", 41, site=["no-such-site"])[0]["Known"] is None
-    assert _f(_panel(db, "ttv-queues", 24)[0]["Unknown GPUs"]) == 4
-    assert _f(_panel(db, "ttv-evidence", 41)[0]["Known"]) == pytest.approx(100 * 36 / 40)
+    assert _f(_panel(db, "ttv-home", 5)[0]["Unknown GPUs"]) == 4
+    known = _panel(db, "ttv-evidence", 41)[0]
+    assert _f(known["Known"]) == pytest.approx(100 * 36 / 40)
+    assert known["label"] == "4 of 40 GPUs unknown"
+    share = _panel(db, "ttv-home", 4)[0]
+    assert share["label"].startswith("of ") and share["label"].endswith(" outside target clusters")
 
 
 def test_queues_longest_waits_mark_lower_bounds(db: tuple[Conn, Seed]) -> None:

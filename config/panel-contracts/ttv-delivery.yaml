@@ -3,7 +3,7 @@
 dashboard: ttv-delivery
 panels:
   - id: 2
-    title: Servers waiting in a stage now
+    title: Servers waiting
     question: E02
     status: built
     audience: CEO, stage owners
@@ -72,7 +72,7 @@ panels:
     expected: One Redbull episode 10 d old (≥) and one DC episode 1 h old (≥) give 1 and "+1 may be".
 
   - id: 4
-    title: Oldest open stage episode
+    title: Oldest open episode
     question: E02
     status: built
     audience: CEO, stage owners
@@ -240,7 +240,7 @@ panels:
       26.3% shorter"; an overdue backlog makes it "Quicker on completed work only".
 
   - id: 10
-    title: Time to GPU-ready · p50
+    title: GPU-ready · p50
     question: E02
     status: built
     audience: CEO
@@ -271,7 +271,7 @@ panels:
     expected: Exact samples of 2, 3, 4, 5, 6 days give 4.0 d with "n = 5 · last 28 d".
 
   - id: 11
-    title: Time to GPU-ready · p90
+    title: GPU-ready · p90
     question: E02
     status: built
     audience: CEO
@@ -302,7 +302,7 @@ panels:
     expected: Exact samples of 2..6 days give 5.6 d.
 
   - id: 12
-    title: Time to first genuine request · p50
+    title: First request · p50
     question: E02
     status: built
     audience: CEO
@@ -337,7 +337,7 @@ panels:
     expected: Lab ledger 2026-10-31 showed "insufficient history · n = 0 of 5" (its only request followed TRAFFIC_UNOBSERVED).
 
   - id: 13
-    title: Time to first genuine request · p90
+    title: First request · p90
     question: E02
     status: built
     audience: CEO

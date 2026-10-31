@@ -316,7 +316,7 @@
     {
       "type": "stat",
       "id": 22,
-      "title": "Overdue now",
+      "title": "Overdue GPUs",
       "description": "Definition: idle GPUs whose current stage episode has lasted longer than the stage objective of the interval's own policy version. Intervals with no objective are not counted (Selected period shows them).\nFilters: site, stage_owner.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
@@ -325,7 +325,7 @@
       "gridPos": {
         "x": 4,
         "y": 1,
-        "w": 4,
+        "w": 5,
         "h": 4
       },
       "targets": [
@@ -385,9 +385,9 @@
         "uid": "ttv-postgres"
       },
       "gridPos": {
-        "x": 8,
+        "x": 9,
         "y": 1,
-        "w": 4,
+        "w": 5,
         "h": 4
       },
       "targets": [
@@ -448,9 +448,9 @@
         "uid": "ttv-postgres"
       },
       "gridPos": {
-        "x": 12,
+        "x": 14,
         "y": 1,
-        "w": 5,
+        "w": 6,
         "h": 4
       },
       "targets": [
@@ -503,74 +503,6 @@
     },
     {
       "type": "stat",
-      "id": 24,
-      "title": "Unknown GPUs",
-      "description": "Definition: GPUs in open UNKNOWN intervals. They are in no queue: the evidence is missing (stale source, identity conflict, cluster not observed, node not found). Evidence explains each reason.\nFilters: site.",
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "ttv-postgres"
-      },
-      "gridPos": {
-        "x": 17,
-        "y": 1,
-        "w": 4,
-        "h": 4
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "ttv-postgres"
-          },
-          "editorMode": "code",
-          "format": "table",
-          "rawQuery": true,
-          "rawSql": "SELECT CASE WHEN EXISTS (SELECT 1 FROM capacity_intervals i0 JOIN assets a0 ON a0.asset_id = i0.asset_id WHERE i0.ended_at IS NULL AND ('__all__' IN ($site) OR coalesce(a0.site, '(none)') IN ($site))) THEN coalesce((\n  SELECT sum(i.gpus) FROM capacity_intervals i\nJOIN assets a ON a.asset_id = i.asset_id\n  WHERE i.ended_at IS NULL AND i.category = 'UNKNOWN' AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))), 0) END AS \"Unknown GPUs\""
-        }
-      ],
-      "options": {
-        "reduceOptions": {
-          "values": true,
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "limit": 1
-        },
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "center",
-        "textMode": "value",
-        "orientation": "auto",
-        "wideLayout": true,
-        "showPercentChange": false,
-        "text": {
-          "titleSize": 14,
-          "valueSize": 40
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "purple"
-          },
-          "noValue": "no GPUs in scope",
-          "decimals": 0,
-          "links": [
-            {
-              "title": "Evidence",
-              "url": "/d/ttv-evidence?${__url_time_range}&${site:queryparam}"
-            }
-          ]
-        },
-        "overrides": []
-      }
-    },
-    {
-      "type": "stat",
       "id": 25,
       "title": "Data age",
       "description": "Definition: time since the newest engine scan that finished ok or partial. Every 'now' number on this page is as of that scan. Green within 15 min (3 scans), orange within 1 h, red beyond.\nFilters: none.",
@@ -579,9 +511,9 @@
         "uid": "ttv-postgres"
       },
       "gridPos": {
-        "x": 21,
+        "x": 20,
         "y": 1,
-        "w": 3,
+        "w": 4,
         "h": 4
       },
       "targets": [
@@ -703,7 +635,7 @@
             },
             "inspect": false,
             "filterable": false,
-            "wrapHeaderText": false
+            "wrapHeaderText": true
           },
           "noValue": "no rows"
         },
@@ -715,10 +647,6 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 120
-              },
-              {
                 "id": "links",
                 "value": [
                   {
@@ -726,6 +654,10 @@
                     "url": "/d/ttv-queues?var-stage_owner=${__value.raw}&${__url_time_range}&${site:queryparam}"
                   }
                 ]
+              },
+              {
+                "id": "custom.width",
+                "value": 95
               }
             ]
           },
@@ -756,7 +688,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 200
+                "value": 150
               }
             ]
           },
@@ -800,7 +732,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 120
+                "value": 85
               }
             ]
           },
@@ -815,12 +747,12 @@
                 "value": "right"
               },
               {
-                "id": "custom.width",
-                "value": 90
-              },
-              {
                 "id": "noValue",
                 "value": "0"
+              },
+              {
+                "id": "custom.width",
+                "value": 70
               }
             ]
           },
@@ -840,7 +772,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 110
+                "value": 85
               }
             ]
           },
@@ -860,7 +792,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 100
+                "value": 80
               }
             ]
           },
@@ -880,7 +812,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 120
+                "value": 95
               }
             ]
           },
@@ -893,6 +825,10 @@
               {
                 "id": "noValue",
                 "value": "—"
+              },
+              {
+                "id": "custom.minWidth",
+                "value": 150
               }
             ]
           },
@@ -912,7 +848,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 100
+                "value": 85
               }
             ]
           },
@@ -925,10 +861,6 @@
               {
                 "id": "custom.align",
                 "value": "right"
-              },
-              {
-                "id": "custom.width",
-                "value": 110
               },
               {
                 "id": "custom.cellOptions",
@@ -961,6 +893,10 @@
               {
                 "id": "noValue",
                 "value": "—"
+              },
+              {
+                "id": "custom.width",
+                "value": 85
               }
             ]
           }
@@ -970,7 +906,7 @@
     {
       "type": "barchart",
       "id": 27,
-      "title": "How long idle GPUs have waited, by stage owner",
+      "title": "Idle GPUs by wait age and stage owner",
       "description": "Definition: idle GPUs now, by stage owner (pipeline order) and by how long their current stage episode has lasted (now − stage_entered_at). Waits that began before observation are counted at their observed length, so the true distribution is further right.\nFilters: site, stage_owner.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
@@ -979,7 +915,7 @@
       "gridPos": {
         "x": 0,
         "y": 12,
-        "w": 10,
+        "w": 9,
         "h": 11
       },
       "targets": [
@@ -1124,9 +1060,9 @@
         "uid": "ttv-postgres"
       },
       "gridPos": {
-        "x": 10,
+        "x": 9,
         "y": 12,
-        "w": 14,
+        "w": 15,
         "h": 11
       },
       "targets": [
@@ -1150,7 +1086,8 @@
               "type": "auto"
             },
             "inspect": false,
-            "filterable": false
+            "filterable": false,
+            "wrapHeaderText": true
           },
           "unit": "none",
           "decimals": 0
@@ -1193,6 +1130,10 @@
                     }
                   }
                 ]
+              },
+              {
+                "id": "custom.width",
+                "value": 105
               }
             ]
           },
@@ -1209,6 +1150,14 @@
               {
                 "id": "decimals",
                 "value": 1
+              },
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "custom.width",
+                "value": 75
               }
             ]
           },
@@ -1232,6 +1181,10 @@
                   "mode": "fixed",
                   "fixedColor": "text"
                 }
+              },
+              {
+                "id": "custom.width",
+                "value": 100
               }
             ]
           },
@@ -1242,8 +1195,8 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 190
+                "id": "custom.minWidth",
+                "value": 150
               }
             ]
           },
@@ -1262,18 +1215,6 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "GPUs"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 150
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
               "options": "Assets"
             },
             "properties": [
@@ -1283,35 +1224,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 70
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Share of GPUs"
-            },
-            "properties": [
-              {
-                "id": "custom.align",
-                "value": "right"
-              },
-              {
-                "id": "custom.width",
-                "value": 95
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Category"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 105
+                "value": 65
               }
             ]
           }
@@ -1367,7 +1280,8 @@
               "type": "auto"
             },
             "inspect": false,
-            "filterable": false
+            "filterable": false,
+            "wrapHeaderText": true
           }
         },
         "overrides": [
@@ -1387,7 +1301,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 80
+                "value": 70
               }
             ]
           },
@@ -1403,7 +1317,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 100
+                "value": 75
               }
             ]
           },
@@ -1419,7 +1333,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 145
+                "value": 85
               }
             ]
           },
@@ -1430,8 +1344,12 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 150
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "custom.hidden",
+                "value": true
               }
             ]
           },
@@ -1442,8 +1360,17 @@
             },
             "properties": [
               {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Open asset ${__value.raw}",
+                    "url": "/d/ttv-asset?var-asset_id=${__value.raw}&${__url_time_range}"
+                  }
+                ]
+              },
+              {
                 "id": "custom.width",
-                "value": 165
+                "value": 140
               }
             ]
           },
@@ -1454,8 +1381,8 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 120
+                "id": "custom.minWidth",
+                "value": 140
               }
             ]
           },
@@ -1466,8 +1393,8 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 90
+                "id": "custom.hidden",
+                "value": true
               }
             ]
           },
@@ -1479,7 +1406,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 100
+                "value": 90
               }
             ]
           },
@@ -1491,7 +1418,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 215
+                "value": 145
               }
             ]
           },
@@ -1507,76 +1434,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 130
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Asset"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 170
-              },
-              {
-                "id": "links",
-                "value": [
-                  {
-                    "title": "Open asset ${__value.raw}",
-                    "url": "/d/ttv-asset?var-asset_id=${__value.raw}&${__url_time_range}"
-                  }
-                ]
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Name"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 230
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "GPU model"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 150
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Stage owner"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 100
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Reason"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 170
+                "value": 110
               }
             ]
           },
@@ -1587,12 +1445,12 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 90
-              },
-              {
                 "id": "noValue",
                 "value": "—"
+              },
+              {
+                "id": "custom.width",
+                "value": 80
               }
             ]
           },
@@ -1603,52 +1461,12 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 150
-              },
-              {
                 "id": "noValue",
                 "value": "—"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "In stage since (UTC)"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 150
               },
               {
-                "id": "custom.align",
-                "value": "right"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Idle GPU-h in stage"
-            },
-            "properties": [
-              {
                 "id": "custom.width",
-                "value": 130
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Next-action owner"
-            },
-            "properties": [
-              {
-                "id": "noValue",
-                "value": "—"
+                "value": 110
               }
             ]
           }
@@ -1684,7 +1502,7 @@
     {
       "type": "stat",
       "id": 18,
-      "title": "Unpriced idle GPUs now",
+      "title": "Unpriced idle GPUs",
       "description": "Definition: GPUs idle now whose model has no rate in the selected snapshot ($snapshot): not in the GPU catalogue (e.g. a raw model server-scan could not identify), no defensible AWS equivalent (e.g. AMD Instinct, A16), or missing from the snapshot. The engine also exports ttv_unpriced_gpus{gpu_model} for every observed GPU.\nUnits: physical GPUs.\nFilters: site, stage_owner, snapshot.\nUnknown vs zero: these GPUs are idle and charged in GPU-hours, but have no USD value; they are never valued at $0. No data = no idle GPUs in scope.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
@@ -1693,8 +1511,8 @@
       "gridPos": {
         "x": 0,
         "y": 37,
-        "w": 5,
-        "h": 6
+        "w": 6,
+        "h": 7
       },
       "targets": [
         {
@@ -1764,10 +1582,10 @@
         "uid": "ttv-postgres"
       },
       "gridPos": {
-        "x": 5,
+        "x": 6,
         "y": 37,
-        "w": 19,
-        "h": 6
+        "w": 18,
+        "h": 7
       },
       "targets": [
         {
@@ -1811,10 +1629,6 @@
                 "value": 0
               },
               {
-                "id": "custom.width",
-                "value": 80
-              },
-              {
                 "id": "color",
                 "value": {
                   "mode": "fixed",
@@ -1826,6 +1640,10 @@
                 "value": {
                   "type": "color-text"
                 }
+              },
+              {
+                "id": "custom.width",
+                "value": 75
               }
             ]
           },
@@ -1838,6 +1656,14 @@
               {
                 "id": "custom.inspect",
                 "value": true
+              },
+              {
+                "id": "custom.wrapText",
+                "value": true
+              },
+              {
+                "id": "custom.minWidth",
+                "value": 200
               }
             ]
           },
@@ -1849,7 +1675,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 210
+                "value": 200
               }
             ]
           },
@@ -1861,7 +1687,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 210
+                "value": 180
               }
             ]
           }
@@ -1887,7 +1713,7 @@
       "title": "Selected period: idle and overdue time and value",
       "gridPos": {
         "x": 0,
-        "y": 43,
+        "y": 44,
         "w": 24,
         "h": 1
       },
@@ -1905,7 +1731,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 44,
+        "y": 45,
         "w": 24,
         "h": 7
       },
@@ -1958,6 +1784,10 @@
                   "mode": "fixed",
                   "fixedColor": "orange"
                 }
+              },
+              {
+                "id": "custom.width",
+                "value": 130
               }
             ]
           },
@@ -1985,6 +1815,10 @@
               {
                 "id": "noValue",
                 "value": "not computable"
+              },
+              {
+                "id": "custom.width",
+                "value": 130
               }
             ]
           },
@@ -2021,6 +1855,10 @@
                     }
                   ]
                 }
+              },
+              {
+                "id": "custom.width",
+                "value": 100
               }
             ]
           },
@@ -2031,8 +1869,8 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 280
+                "id": "custom.minWidth",
+                "value": 200
               }
             ]
           },
@@ -2044,7 +1882,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 160
+                "value": 110
               }
             ]
           },
@@ -2069,6 +1907,10 @@
               {
                 "id": "custom.align",
                 "value": "right"
+              },
+              {
+                "id": "custom.width",
+                "value": 100
               }
             ]
           },
@@ -2093,6 +1935,10 @@
               {
                 "id": "custom.align",
                 "value": "right"
+              },
+              {
+                "id": "custom.width",
+                "value": 100
               }
             ]
           },
@@ -2129,6 +1975,10 @@
                     }
                   ]
                 }
+              },
+              {
+                "id": "custom.width",
+                "value": 100
               }
             ]
           }
@@ -2159,9 +2009,9 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 51,
+        "y": 52,
         "w": 24,
-        "h": 7
+        "h": 8
       },
       "targets": [
         {
@@ -2205,6 +2055,10 @@
               {
                 "id": "decimals",
                 "value": 1
+              },
+              {
+                "id": "custom.width",
+                "value": 95
               }
             ]
           },
@@ -2249,6 +2103,10 @@
                     }
                   ]
                 }
+              },
+              {
+                "id": "custom.width",
+                "value": 110
               }
             ]
           },
@@ -2293,6 +2151,10 @@
                     }
                   ]
                 }
+              },
+              {
+                "id": "custom.width",
+                "value": 110
               }
             ]
           },
@@ -2303,8 +2165,8 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 170
+                "id": "custom.minWidth",
+                "value": 150
               }
             ]
           },
@@ -2316,7 +2178,55 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 120
+                "value": 100
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Idle USD, present-day"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 110
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Idle USD, historical"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 110
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Overdue USD, present-day"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 110
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Overdue USD, historical"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 110
               }
             ]
           }
@@ -2347,7 +2257,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 58,
+        "y": 60,
         "w": 24,
         "h": 8
       },

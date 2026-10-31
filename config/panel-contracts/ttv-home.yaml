@@ -108,7 +108,7 @@ panels:
   direction: higher_is_better
   thresholds: null
   uncertainty: With many UNKNOWN GPUs the share describes only the measured part of the fleet.
-  missing_data: '''no eligible GPUs'' when the denominator is 0.'
+  missing_data: '''no eligible GPUs'' when the denominator is 0; the label still gives the counts.'
   value_kind: derived
   gate: core
   privileges: SELECT on capacity_intervals, assets
@@ -152,42 +152,6 @@ panels:
   cardinality: 1 value
   drilldown: ttv-evidence#25
   action: Open Evidence to see why.
-  fixture: null
-  expected: null
-- id: 6
-  title: Not measured
-  question: E18
-  status: built
-  audience: CEO, stage owners
-  decision: How much capacity sits in clusters outside the target list (I7).
-  definition: 'GPUs installed in clusters outside the target list (OUTSIDE_TARGET_CLUSTERS, input I7):
-    visible, not charged to anyone, and not measured for use.'
-  unit: GPUs
-  numerator: sum(gpus) of open OUTSIDE_TARGET_CLUSTERS intervals
-  denominator: null
-  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
-    knows.'
-  window: now
-  filters:
-  - site
-  exclusions: null
-  query: grafana/dashboards/ttv-home.json#6
-  lineage:
-  - capacity_intervals
-  - assets
-  freshness: Latest engine scan (every 5 min); the Data age card shows its age.
-  baseline: null
-  direction: neutral
-  thresholds: null
-  uncertainty: null
-  missing_data: Shows 'no scan yet' before the first engine scan; afterwards an empty result is a real
-    0. UNKNOWN GPUs are never counted as idle or productive.
-  value_kind: observed
-  gate: core
-  privileges: SELECT on capacity_intervals, assets
-  cardinality: 1 value
-  drilldown: null
-  action: null
   fixture: null
   expected: null
 - id: 7
@@ -268,7 +232,7 @@ panels:
   fixture: null
   expected: null
 - id: 9
-  title: Every GPU by category now
+  title: GPUs by category now
   question: E01
   status: built
   audience: CEO, stage owners
@@ -553,7 +517,7 @@ panels:
   fixture: null
   expected: null
 - id: 26
-  title: Time to GPU-ready · p50
+  title: GPU-ready · p50
   question: E02
   status: built
   audience: CEO
@@ -591,7 +555,7 @@ panels:
   fixture: tests/test_delivery_sql.py
   expected: Exact samples of 2, 3, 4, 5, 6 days give 4.0 d with "n = 5 · last 28 d".
 - id: 27
-  title: Time to GPU-ready · p90
+  title: GPU-ready · p90
   question: E02
   status: built
   audience: CEO
@@ -629,7 +593,7 @@ panels:
   fixture: tests/test_delivery_sql.py
   expected: Exact samples of 2..6 days give 5.6 d.
 - id: 28
-  title: Time to first genuine request · p50
+  title: First request · p50
   question: E02
   status: built
   audience: CEO
@@ -669,7 +633,7 @@ panels:
   expected: Lab ledger 2026-10-31 showed "insufficient history · n = 0 of 5" (its only request followed
     TRAFFIC_UNOBSERVED).
 - id: 29
-  title: Time to first genuine request · p90
+  title: First request · p90
   question: E02
   status: built
   audience: CEO

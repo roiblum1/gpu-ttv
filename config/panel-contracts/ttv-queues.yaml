@@ -39,7 +39,7 @@ panels:
   fixture: tests/test_dashboards_sql.py
   expected: Sum of the idle GPUs in the fixture.
 - id: 22
-  title: Overdue now
+  title: Overdue GPUs
   question: E03
   status: built
   audience: CEO, stage owners
@@ -158,42 +158,6 @@ panels:
   action: null
   fixture: null
   expected: null
-- id: 24
-  title: Unknown GPUs
-  question: E18
-  status: built
-  audience: CEO, stage owners
-  decision: How much of the fleet the numbers cannot describe.
-  definition: 'GPUs in open UNKNOWN intervals. They are in no queue: the evidence is missing (stale source,
-    identity conflict, cluster not observed, node not found). Evidence explains each reason.'
-  unit: GPUs
-  numerator: sum(gpus) of open UNKNOWN intervals
-  denominator: null
-  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
-    knows.'
-  window: now
-  filters:
-  - site
-  exclusions: null
-  query: grafana/dashboards/ttv-queues.json#24
-  lineage:
-  - capacity_intervals
-  - assets
-  freshness: Latest engine scan (every 5 min); the Data age card shows its age.
-  baseline: null
-  direction: lower_is_better
-  thresholds: null
-  uncertainty: null
-  missing_data: Shows 'no scan yet' before the first engine scan; afterwards an empty result is a real
-    0. UNKNOWN GPUs are never counted as idle or productive.
-  value_kind: observed
-  gate: core
-  privileges: SELECT on capacity_intervals, assets
-  cardinality: 1 value
-  drilldown: ttv-evidence#25
-  action: Open Evidence to see why.
-  fixture: null
-  expected: null
 - id: 25
   title: Data age
   question: E18
@@ -272,7 +236,7 @@ panels:
   fixture: null
   expected: null
 - id: 27
-  title: How long idle GPUs have waited, by stage owner
+  title: Idle GPUs by wait age and stage owner
   question: E03
   status: built
   audience: CEO, stage owners
@@ -390,7 +354,7 @@ panels:
   fixture: null
   expected: null
 - id: 18
-  title: Unpriced idle GPUs now
+  title: Unpriced idle GPUs
   question: E18
   status: built
   audience: CEO, stage owners

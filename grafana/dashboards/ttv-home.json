@@ -390,7 +390,7 @@
       "gridPos": {
         "x": 4,
         "y": 1,
-        "w": 5,
+        "w": 6,
         "h": 4
       },
       "targets": [
@@ -445,15 +445,15 @@
       "type": "stat",
       "id": 4,
       "title": "Productive share",
-      "description": "Definition: PRODUCTIVE GPUs ÷ (PRODUCTIVE + IDLE GPUs) now. NOT_CHARGED (approved exclusions, clusters outside the target list) and UNKNOWN GPUs are outside the denominator, so check 'Unknown GPUs' before reading this.\nFilters: site (stage_owner does not apply: productive GPUs have no stage owner).",
+      "description": "Definition: PRODUCTIVE GPUs ÷ (PRODUCTIVE + IDLE GPUs) now. NOT_CHARGED (approved exclusions, clusters outside the target list) and UNKNOWN GPUs are outside the denominator, so check 'Unknown GPUs' before reading this.\nFilters: site (stage_owner does not apply: productive GPUs have no stage owner).\nThe label gives the eligible GPUs (productive + idle) and the GPUs in clusters outside the target list (OUTSIDE_TARGET_CLUSTERS, input I7), which are outside both. GPU use counts every GPU it cannot measure, a wider set.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "ttv-postgres"
       },
       "gridPos": {
-        "x": 9,
+        "x": 10,
         "y": 1,
-        "w": 4,
+        "w": 5,
         "h": 4
       },
       "targets": [
@@ -466,7 +466,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "WITH g AS (\n  SELECT sum(i.gpus) FILTER (WHERE i.category = 'PRODUCTIVE') AS productive,\n         sum(i.gpus) FILTER (WHERE i.category IN ('PRODUCTIVE', 'IDLE')) AS eligible\n  FROM capacity_intervals i\nJOIN assets a ON a.asset_id = i.asset_id\n  WHERE i.ended_at IS NULL AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))\n)\nSELECT CASE WHEN eligible > 0 THEN 100.0 * coalesce(productive, 0) / eligible END AS \"Productive share\"\nFROM g"
+          "rawSql": "WITH g AS (\n  SELECT sum(i.gpus) FILTER (WHERE i.category = 'PRODUCTIVE') AS productive,\n         sum(i.gpus) FILTER (WHERE i.category IN ('PRODUCTIVE', 'IDLE')) AS eligible,\n         sum(i.gpus) FILTER (WHERE i.reason_code = 'OUTSIDE_TARGET_CLUSTERS') AS outside\n  FROM capacity_intervals i\nJOIN assets a ON a.asset_id = i.asset_id\n  WHERE i.ended_at IS NULL AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))\n)\nSELECT CASE WHEN eligible > 0 THEN 100.0 * coalesce(productive, 0) / eligible END AS \"Productive share\",\n       'of ' || coalesce(eligible, 0) || ' eligible GPUs · ' || coalesce(outside, 0)\n       || ' outside target clusters' AS label\nFROM g"
         }
       ],
       "options": {
@@ -481,7 +481,7 @@
         "colorMode": "value",
         "graphMode": "none",
         "justifyMode": "center",
-        "textMode": "value",
+        "textMode": "value_and_name",
         "orientation": "auto",
         "wideLayout": true,
         "showPercentChange": false,
@@ -498,7 +498,8 @@
             "fixedColor": "text"
           },
           "noValue": "no eligible GPUs",
-          "decimals": 1
+          "decimals": 1,
+          "displayName": "${__data.fields.label}"
         },
         "overrides": []
       }
@@ -513,9 +514,9 @@
         "uid": "ttv-postgres"
       },
       "gridPos": {
-        "x": 13,
+        "x": 15,
         "y": 1,
-        "w": 4,
+        "w": 5,
         "h": 4
       },
       "targets": [
@@ -573,68 +574,6 @@
     },
     {
       "type": "stat",
-      "id": 6,
-      "title": "Not measured",
-      "description": "Definition: GPUs installed in clusters outside the target list (OUTSIDE_TARGET_CLUSTERS, input I7): visible, not charged to anyone, and not measured for use.\nFilters: site.",
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "ttv-postgres"
-      },
-      "gridPos": {
-        "x": 17,
-        "y": 1,
-        "w": 4,
-        "h": 4
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "ttv-postgres"
-          },
-          "editorMode": "code",
-          "format": "table",
-          "rawQuery": true,
-          "rawSql": "SELECT CASE WHEN EXISTS (SELECT 1 FROM capacity_intervals i0 JOIN assets a0 ON a0.asset_id = i0.asset_id WHERE i0.ended_at IS NULL AND ('__all__' IN ($site) OR coalesce(a0.site, '(none)') IN ($site))) THEN coalesce((\n  SELECT sum(i.gpus) FROM capacity_intervals i\nJOIN assets a ON a.asset_id = i.asset_id\n  WHERE i.ended_at IS NULL AND i.reason_code = 'OUTSIDE_TARGET_CLUSTERS' AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))), 0) END AS \"Not measured GPUs\""
-        }
-      ],
-      "options": {
-        "reduceOptions": {
-          "values": true,
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "limit": 1
-        },
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "center",
-        "textMode": "value",
-        "orientation": "auto",
-        "wideLayout": true,
-        "showPercentChange": false,
-        "text": {
-          "titleSize": 14,
-          "valueSize": 40
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "purple"
-          },
-          "noValue": "no GPUs in scope",
-          "decimals": 0
-        },
-        "overrides": []
-      }
-    },
-    {
-      "type": "stat",
       "id": 7,
       "title": "Data age",
       "description": "Definition: time since the newest engine scan that finished ok or partial. Every 'now' number on this page is as of that scan. Green within 15 min (3 scans), orange within 1 h, red beyond.\nFilters: none.",
@@ -643,9 +582,9 @@
         "uid": "ttv-postgres"
       },
       "gridPos": {
-        "x": 21,
+        "x": 20,
         "y": 1,
-        "w": 3,
+        "w": 4,
         "h": 4
       },
       "targets": [
@@ -729,7 +668,7 @@
       "gridPos": {
         "x": 0,
         "y": 5,
-        "w": 17,
+        "w": 18,
         "h": 7
       },
       "targets": [
@@ -767,7 +706,7 @@
             },
             "inspect": false,
             "filterable": false,
-            "wrapHeaderText": false
+            "wrapHeaderText": true
           },
           "noValue": "no rows"
         },
@@ -779,10 +718,6 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 110
-              },
-              {
                 "id": "links",
                 "value": [
                   {
@@ -790,6 +725,10 @@
                     "url": "/d/ttv-queues?var-stage_owner=${__value.raw}&${__url_time_range}&${site:queryparam}"
                   }
                 ]
+              },
+              {
+                "id": "custom.width",
+                "value": 95
               }
             ]
           },
@@ -864,7 +803,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 115
+                "value": 85
               }
             ]
           },
@@ -879,12 +818,12 @@
                 "value": "right"
               },
               {
-                "id": "custom.width",
-                "value": 70
-              },
-              {
                 "id": "noValue",
                 "value": "0"
+              },
+              {
+                "id": "custom.width",
+                "value": 70
               }
             ]
           },
@@ -904,7 +843,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 90
+                "value": 85
               }
             ]
           },
@@ -944,7 +883,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 100
+                "value": 95
               }
             ]
           },
@@ -957,6 +896,10 @@
               {
                 "id": "noValue",
                 "value": "—"
+              },
+              {
+                "id": "custom.minWidth",
+                "value": 150
               }
             ]
           }
@@ -966,16 +909,16 @@
     {
       "type": "bargauge",
       "id": 9,
-      "title": "Every GPU by category now",
+      "title": "GPUs by category now",
       "description": "Definition: all GPUs in the ledger now, split into the four mutually exclusive categories (each GPU counts once). Productive = doing useful work; Idle = waiting in a stage queue; Not charged = approved exclusion or outside the target clusters; Unknown = not enough evidence.\nFilters: site.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "ttv-postgres"
       },
       "gridPos": {
-        "x": 17,
+        "x": 18,
         "y": 5,
-        "w": 7,
+        "w": 6,
         "h": 7
       },
       "targets": [
@@ -1107,7 +1050,7 @@
         "x": 0,
         "y": 12,
         "w": 24,
-        "h": 12
+        "h": 13
       },
       "targets": [
         {
@@ -1144,7 +1087,7 @@
             },
             "inspect": false,
             "filterable": false,
-            "wrapHeaderText": false
+            "wrapHeaderText": true
           },
           "noValue": "no idle GPUs"
         },
@@ -1156,10 +1099,6 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 170
-              },
-              {
                 "id": "links",
                 "value": [
                   {
@@ -1167,6 +1106,10 @@
                     "url": "/d/ttv-asset?var-asset_id=${__value.raw}&${__url_time_range}"
                   }
                 ]
+              },
+              {
+                "id": "custom.width",
+                "value": 145
               }
             ]
           },
@@ -1177,8 +1120,8 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 280
+                "id": "custom.minWidth",
+                "value": 160
               }
             ]
           },
@@ -1190,7 +1133,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 110
+                "value": 90
               }
             ]
           },
@@ -1206,7 +1149,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 90
+                "value": 70
               }
             ]
           },
@@ -1222,7 +1165,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 100
+                "value": 80
               }
             ]
           },
@@ -1238,7 +1181,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 110
+                "value": 85
               }
             ]
           },
@@ -1254,7 +1197,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 120
+                "value": 95
               }
             ]
           },
@@ -1270,7 +1213,19 @@
               },
               {
                 "id": "custom.width",
-                "value": 150
+                "value": 115
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Reason"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 145
               }
             ]
           }
@@ -1288,9 +1243,9 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 24,
+        "y": 25,
         "w": 24,
-        "h": 11
+        "h": 12
       },
       "targets": [
         {
@@ -1327,7 +1282,7 @@
             },
             "inspect": false,
             "filterable": false,
-            "wrapHeaderText": false
+            "wrapHeaderText": true
           },
           "noValue": "no scan yet"
         },
@@ -1339,8 +1294,8 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 260
+                "id": "custom.minWidth",
+                "value": 200
               }
             ]
           },
@@ -1356,7 +1311,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 90
+                "value": 75
               }
             ]
           },
@@ -1382,6 +1337,10 @@
                   "mode": "fixed",
                   "fixedColor": "green"
                 }
+              },
+              {
+                "id": "custom.width",
+                "value": 120
               }
             ]
           },
@@ -1407,6 +1366,10 @@
                   "mode": "fixed",
                   "fixedColor": "orange"
                 }
+              },
+              {
+                "id": "custom.width",
+                "value": 120
               }
             ]
           },
@@ -1432,6 +1395,10 @@
                   "mode": "fixed",
                   "fixedColor": "blue"
                 }
+              },
+              {
+                "id": "custom.width",
+                "value": 120
               }
             ]
           },
@@ -1457,6 +1424,10 @@
                   "mode": "fixed",
                   "fixedColor": "purple"
                 }
+              },
+              {
+                "id": "custom.width",
+                "value": 120
               }
             ]
           },
@@ -1481,7 +1452,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 170
+                "value": 165
               }
             ]
           }
@@ -1491,10 +1462,10 @@
     {
       "type": "row",
       "id": 20,
-      "title": "Selected period: idle and overdue time, and delivery speed",
+      "title": "Selected period: idle and overdue time, and time from first record to GPU-ready and first request",
       "gridPos": {
         "x": 0,
-        "y": 35,
+        "y": 37,
         "w": 24,
         "h": 1
       },
@@ -1512,7 +1483,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 36,
+        "y": 38,
         "w": 8,
         "h": 4
       },
@@ -1574,7 +1545,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 36,
+        "y": 38,
         "w": 8,
         "h": 4
       },
@@ -1636,7 +1607,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 36,
+        "y": 38,
         "w": 8,
         "h": 4
       },
@@ -1699,7 +1670,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 44,
+        "y": 46,
         "w": 24,
         "h": 9
       },
@@ -1861,7 +1832,7 @@
     {
       "type": "stat",
       "id": 26,
-      "title": "Time to GPU-ready · p50",
+      "title": "GPU-ready · p50",
       "description": "Definition: Median (p50) of first record → GPU-ready over clocks that completed in the window, one sample per server. First record = the earliest of the server-scan registration (created_at, exact) and the engine's first sighting (exact only when the engine's previous scan was complete). GPU-ready = the gpu_ready milestone, exact when the ledger shows the transition (a pre-ready DC/Redbull/POPAI interval ended at that scan).\nUnits: days.\nFilters: site (stage_owner does not apply: the clock spans owners). Window: completions in the last $period complete UTC days before the end of the time range, vs the $period days before that (variable 'Comparison period'). Clocks (ADR-0005): a sample is exact when both ends were observed by the engine; '≥' samples have an exact end and a start that began before observation; samples whose end was not observed (milestone already true at first sight, rework, end unobserved) are never used. Percentiles use exact samples when there are at least $min_n; otherwise exact + '≥' samples give a lower bound shown as '≥'; otherwise 'insufficient history'. The caption gives n; 'lower bound' (purple, '≥') means exact + '≥' samples were used. Physical receipt or acceptance dates need procurement input (R3).\nOn Home: the last 28 complete days vs the 28 before (Delivery lets you change the period).",
       "datasource": {
         "type": "grafana-postgresql-datasource",
@@ -1869,7 +1840,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 40,
+        "y": 42,
         "w": 6,
         "h": 4
       },
@@ -1963,7 +1934,7 @@
     {
       "type": "stat",
       "id": 27,
-      "title": "Time to GPU-ready · p90",
+      "title": "GPU-ready · p90",
       "description": "Definition: 90th percentile (p90) of first record → GPU-ready over clocks that completed in the window, one sample per server. First record = the earliest of the server-scan registration (created_at, exact) and the engine's first sighting (exact only when the engine's previous scan was complete). GPU-ready = the gpu_ready milestone, exact when the ledger shows the transition (a pre-ready DC/Redbull/POPAI interval ended at that scan).\nUnits: days.\nFilters: site (stage_owner does not apply: the clock spans owners). Window: completions in the last $period complete UTC days before the end of the time range, vs the $period days before that (variable 'Comparison period'). Clocks (ADR-0005): a sample is exact when both ends were observed by the engine; '≥' samples have an exact end and a start that began before observation; samples whose end was not observed (milestone already true at first sight, rework, end unobserved) are never used. Percentiles use exact samples when there are at least $min_n; otherwise exact + '≥' samples give a lower bound shown as '≥'; otherwise 'insufficient history'. The caption gives n; 'lower bound' (purple, '≥') means exact + '≥' samples were used. Physical receipt or acceptance dates need procurement input (R3).\nOn Home: the last 28 complete days vs the 28 before (Delivery lets you change the period).",
       "datasource": {
         "type": "grafana-postgresql-datasource",
@@ -1971,7 +1942,7 @@
       },
       "gridPos": {
         "x": 6,
-        "y": 40,
+        "y": 42,
         "w": 6,
         "h": 4
       },
@@ -2065,7 +2036,7 @@
     {
       "type": "stat",
       "id": 28,
-      "title": "Time to first genuine request · p50",
+      "title": "First request · p50",
       "description": "Definition: Median (p50) of first record → first genuine request (end-to-end, from the same server's milestones, never a sum of stage percentiles) over clocks that completed in the window, one sample per server. First record = the earliest of the server-scan registration (created_at, exact) and the engine's first sighting (exact only when the engine's previous scan was complete). First genuine request = the first_genuine_request milestone (serving demand), exact when an idle interval ended at that scan and no GPU of the server was UNKNOWN just before. Servers used only by Run:ai training never record one; see GPU use (E12).\nUnits: days.\nFilters: site (stage_owner does not apply: the clock spans owners). Window: completions in the last $period complete UTC days before the end of the time range, vs the $period days before that (variable 'Comparison period'). Clocks (ADR-0005): a sample is exact when both ends were observed by the engine; '≥' samples have an exact end and a start that began before observation; samples whose end was not observed (milestone already true at first sight, rework, end unobserved) are never used. Percentiles use exact samples when there are at least $min_n; otherwise exact + '≥' samples give a lower bound shown as '≥'; otherwise 'insufficient history'. The caption gives n; 'lower bound' (purple, '≥') means exact + '≥' samples were used. Physical receipt or acceptance dates need procurement input (R3).\nOn Home: the last 28 complete days vs the 28 before (Delivery lets you change the period).",
       "datasource": {
         "type": "grafana-postgresql-datasource",
@@ -2073,7 +2044,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 40,
+        "y": 42,
         "w": 6,
         "h": 4
       },
@@ -2167,7 +2138,7 @@
     {
       "type": "stat",
       "id": 29,
-      "title": "Time to first genuine request · p90",
+      "title": "First request · p90",
       "description": "Definition: 90th percentile (p90) of first record → first genuine request (end-to-end, from the same server's milestones, never a sum of stage percentiles) over clocks that completed in the window, one sample per server. First record = the earliest of the server-scan registration (created_at, exact) and the engine's first sighting (exact only when the engine's previous scan was complete). First genuine request = the first_genuine_request milestone (serving demand), exact when an idle interval ended at that scan and no GPU of the server was UNKNOWN just before. Servers used only by Run:ai training never record one; see GPU use (E12).\nUnits: days.\nFilters: site (stage_owner does not apply: the clock spans owners). Window: completions in the last $period complete UTC days before the end of the time range, vs the $period days before that (variable 'Comparison period'). Clocks (ADR-0005): a sample is exact when both ends were observed by the engine; '≥' samples have an exact end and a start that began before observation; samples whose end was not observed (milestone already true at first sight, rework, end unobserved) are never used. Percentiles use exact samples when there are at least $min_n; otherwise exact + '≥' samples give a lower bound shown as '≥'; otherwise 'insufficient history'. The caption gives n; 'lower bound' (purple, '≥') means exact + '≥' samples were used. Physical receipt or acceptance dates need procurement input (R3).\nOn Home: the last 28 complete days vs the 28 before (Delivery lets you change the period).",
       "datasource": {
         "type": "grafana-postgresql-datasource",
@@ -2175,7 +2146,7 @@
       },
       "gridPos": {
         "x": 18,
-        "y": 40,
+        "y": 42,
         "w": 6,
         "h": 4
       },
@@ -2272,7 +2243,7 @@
       "title": "Not answered yet: review changes, actions, commitments (R2/R3)",
       "gridPos": {
         "x": 0,
-        "y": 53,
+        "y": 55,
         "w": 24,
         "h": 1
       },
@@ -2285,7 +2256,7 @@
           "description": "",
           "gridPos": {
             "x": 0,
-            "y": 54,
+            "y": 56,
             "w": 12,
             "h": 6
           },
@@ -2306,7 +2277,7 @@
           "description": "",
           "gridPos": {
             "x": 12,
-            "y": 54,
+            "y": 56,
             "w": 12,
             "h": 6
           },
