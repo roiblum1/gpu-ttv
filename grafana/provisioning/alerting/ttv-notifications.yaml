@@ -1,0 +1,56 @@
+# Notification routing for the TTV alerts (AGENT.md §14, ADR-0006). No destination is configured:
+# destinations stay unconfigured until the user supplies them. Nothing in this file sends anything.
+#
+# - ttv-unconfigured is an inert contact point (Grafana needs one for the policy tree): a webhook to
+#   a closed loopback port, so even an unmuted attempt never leaves the Grafana host.
+# - ttv-until-destinations-supplied mutes both TTV routes around the clock, so no attempt is made.
+#   Alerts still evaluate, show in Alerting > Alert rules, and keep state history.
+# To wire a real destination, see grafana/README.md, "Alerts". This file replaces the org's whole
+# notification policy tree: in a shared Grafana, merge the two routes into the existing tree instead.
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: ttv-unconfigured
+    receivers:
+      - uid: ttv-unconfigured
+        type: webhook
+        settings:
+          url: http://127.0.0.1:1/ttv-destination-not-configured
+          httpMethod: POST
+        disableResolveMessage: false
+
+muteTimes:
+  - orgId: 1
+    name: ttv-until-destinations-supplied
+    time_intervals:
+      - times:
+          - start_time: "00:00"
+            end_time: "24:00"
+
+policies:
+  - orgId: 1
+    receiver: ttv-unconfigured
+    group_by: [kind, owner, alertname]
+    group_wait: 1m
+    group_interval: 10m
+    repeat_interval: 12h
+    routes:
+      # Monitoring blindness and data-quality issues: always the platform operators.
+      - receiver: ttv-unconfigured
+        object_matchers:
+          - [kind, "=", data_quality]
+        group_by: [kind, owner, alertname]
+        group_wait: 1m
+        group_interval: 5m
+        repeat_interval: 4h
+        mute_time_intervals: [ttv-until-destinations-supplied]
+      # Stage-objective breaches: one group per stage owner, a daily reminder while it lasts.
+      - receiver: ttv-unconfigured
+        object_matchers:
+          - [kind, "=", stage_breach]
+        group_by: [kind, owner, alertname]
+        group_wait: 5m
+        group_interval: 1h
+        repeat_interval: 24h
+        mute_time_intervals: [ttv-until-destinations-supplied]

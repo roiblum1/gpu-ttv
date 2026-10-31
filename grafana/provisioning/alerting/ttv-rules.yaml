@@ -1,0 +1,815 @@
+# R1 alert rules (AGENT.md §14, §20; ADR-0006). Grafana-managed, evaluated against the ledger.
+# Runbooks and the rule contract table: docs/runbooks.md. Tests: tests/test_alert_rules_pg.py.
+# Grafana env-expands labels in this file: label templates use .Labels (no "$"); write "$$" for "$".
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: ttv-data-quality
+    folder: GPU Time-to-Value alerts
+    interval: 1m
+    rules:
+      - uid: ttv-engine-scans-stale
+        title: TTV engine scans stale
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: ttv-postgres
+            model:
+              refId: A
+              datasource: {type: grafana-postgresql-datasource, uid: ttv-postgres}
+              format: table
+              rawQuery: true
+              editorMode: code
+              rawSql: |-
+                SELECT (extract(epoch FROM now() - coalesce(
+                          (SELECT max(finished_at) FROM scan_runs
+                            WHERE kind = 'engine' AND status IN ('ok', 'partial')),
+                          (SELECT min(applied_at) FROM schema_migrations))) / 60)::float8
+                       AS minutes_since_ledger_update
+          - refId: B
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: ttv-postgres
+            model:
+              refId: B
+              datasource: {type: grafana-postgresql-datasource, uid: ttv-postgres}
+              format: table
+              rawQuery: true
+              editorMode: code
+              rawSql: |-
+                WITH newest AS (
+                  SELECT status, started_at, errors FROM scan_runs
+                   WHERE kind = 'engine' ORDER BY started_at DESC, id DESC LIMIT 1
+                )
+                SELECT (SELECT count(*) FROM scan_runs
+                         WHERE kind = 'engine' AND started_at > now() - interval '1 hour')::float8
+                         AS engine_scans_last_hour,
+                       coalesce((SELECT to_char(max(finished_at) AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI "UTC"')
+                                   FROM scan_runs WHERE kind = 'engine' AND status IN ('ok', 'partial')),
+                                'never') AS last_good_scan,
+                       coalesce((SELECT status || ', started '
+                                        || to_char(started_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI "UTC"')
+                                   FROM newest), 'no engine scan recorded') AS newest_scan,
+                       coalesce((SELECT left(regexp_replace(errors::text, '\s+', ' ', 'g'), 300)
+                                   FROM newest WHERE errors <> '[]'::jsonb), 'none') AS newest_errors
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              datasource: {type: __expr__, uid: __expr__}
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [15]}
+        noDataState: NoData
+        execErrState: Error
+        for: 5m
+        dashboardUid: ttv-evidence
+        panelId: 40
+        isPaused: false
+        labels:
+          severity: critical
+          kind: data_quality
+          owner: platform
+        annotations:
+          summary: >-
+            TTV ledger last updated by an ok or partial engine scan
+            {{ with $values.A }}{{ printf "%.0f" .Value }}{{ else }}an unknown number of{{ end }} min ago (threshold 15 min).
+          description: >-
+            Last engine scan that updated the ledger (ok or partial):
+            {{ with $values.B }}{{ .Labels.last_good_scan }}{{ else }}unknown{{ end }} (threshold 15 min, three missed 5-min scans).
+            Newest engine scan: {{ with $values.B }}{{ .Labels.newest_scan }}; its errors: {{ .Labels.newest_errors }};
+            engine scans started in the last hour: {{ printf "%.0f" .Value }}{{ else }}unknown{{ end }}.
+            While this fires, every "now" figure is frozen at the last good scan, and stage-objective alerts are held in
+            their last state (neither raised nor resolved) until scans resume.
+          impact: >-
+            No new evidence for any asset: categories, idle and overdue GPU-hours and UNKNOWN counts are as old as the last good scan.
+          confidence: Observed in scan_runs (engine kind). A dry-run engine (status dry_run) does not update the ledger and fires this alert by design.
+          next_step: >-
+            Check the ttv-engine pod: logs ("scan.done", "serverscan.fetch_failed"), /readyz, the Postgres connection and
+            whether another replica holds the advisory lock. If TTV_DRY_RUN=true, the ledger is intentionally not written.
+          runbook_url: https://github.com/roiblum1/gpu-ttv/blob/main/docs/runbooks.md#ttv-engine-scans-stale
+          dashboard_url: '{{ externalURL }}d/ttv-evidence'
+
+      - uid: ttv-source-failing-past-grace
+        title: TTV source failing past grace
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: ttv-postgres
+            model:
+              refId: A
+              datasource: {type: grafana-postgresql-datasource, uid: ttv-postgres}
+              format: table
+              rawQuery: true
+              editorMode: code
+              rawSql: |-
+                SELECT s.name AS source, s.failed_scans::float8 AS consecutive_failed_scans
+                FROM source_state s
+                WHERE s.last_attempt_at > now() - interval '1 hour'
+          - refId: B
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: ttv-postgres
+            model:
+              refId: B
+              datasource: {type: grafana-postgresql-datasource, uid: ttv-postgres}
+              format: table
+              rawQuery: true
+              editorMode: code
+              rawSql: |-
+                SELECT s.name AS source,
+                       coalesce(to_char(s.last_success_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI "UTC"'), 'never')
+                         AS last_success,
+                       coalesce(left(regexp_replace(s.last_error, '\s+', ' ', 'g'), 300), 'none recorded') AS last_error,
+                       coalesce((
+                         SELECT sum(i.gpus) FROM capacity_intervals i
+                          WHERE i.ended_at IS NULL AND i.category = 'UNKNOWN'
+                            AND ((s.name = 'serverscan' AND i.reason_code = 'SOURCE_STALE'
+                                  AND i.evidence -> 'record_stale' IS NOT NULL
+                                  AND coalesce((i.evidence ->> 'source_failed_scans')::int, 0) >= 2)
+                              OR (split_part(s.name, ':', 1) IN ('kube', 'thanos')
+                                  AND i.reason_code = 'CLUSTER_UNREACHABLE'
+                                  AND i.evidence ->> 'cluster_name' = split_part(s.name, ':', 2)))
+                       ), 0)::float8 AS unknown_gpus
+                FROM source_state s
+                WHERE s.last_attempt_at > now() - interval '1 hour'
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              datasource: {type: __expr__, uid: __expr__}
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [1]}
+        noDataState: KeepLast
+        execErrState: Error
+        for: 5m
+        keepFiringFor: 10m
+        dashboardUid: ttv-evidence
+        panelId: 21
+        isPaused: false
+        labels:
+          severity: '{{ if eq .Labels.source "serverscan" }}critical{{ else }}warning{{ end }}'
+          kind: data_quality
+          owner: platform
+        annotations:
+          summary: >-
+            {{ if $labels.source }}Source {{ $labels.source }}: {{ with $values.A }}{{ printf "%.0f" .Value }}{{ else }}an unknown number of{{ end }}
+            consecutive failed engine scans (its assets turn UNKNOWN at 2).{{ else }}No source was attempted in the last hour.{{ end }}
+          description: >-
+            The engine could not read {{ $labels.source }} completely in its last
+            {{ with $values.A }}{{ printf "%.0f" .Value }}{{ else }}several{{ end }} scans (grace: 2, TTV_UNKNOWN_GRACE_SCANS).
+            Last success: {{ with $values.B }}{{ .Labels.last_success }}{{ else }}unknown{{ end }}.
+            Last error: {{ with $values.B }}{{ .Labels.last_error }}{{ else }}unknown{{ end }}.
+            GPUs now UNKNOWN because of this source: {{ with $values.B }}{{ printf "%.0f" .Value }}{{ else }}unknown{{ end }}.
+            They are UNKNOWN, not idle, so no stage team is charged or alerted for them.
+          impact: >-
+            {{ if eq $labels.source "serverscan" }}Past grace the whole server-scan inventory is unobserved: its assets are SOURCE_STALE and stage-objective alerts hold their last state.{{ else }}Past grace the assets of cluster {{ reReplaceAll "^[a-z]+:" "" $labels.source }} are CLUSTER_UNREACHABLE (UNKNOWN).{{ end }}
+          confidence: Observed in source_state (consecutive failed reads recorded by the engine).
+          next_step: >-
+            Open Evidence, "Source health", for the error. Check reachability, the token or service-account secret and the CA bundle
+            from the engine pod; for kube:/thanos: sources, check the cluster's API or Thanos querier.
+          runbook_url: https://github.com/roiblum1/gpu-ttv/blob/main/docs/runbooks.md#ttv-source-failing-past-grace
+          dashboard_url: '{{ externalURL }}d/ttv-evidence'
+
+      - uid: ttv-collector-manager-stale
+        title: TTV collector manager stale
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: ttv-postgres
+            model:
+              refId: A
+              datasource: {type: grafana-postgresql-datasource, uid: ttv-postgres}
+              format: table
+              rawQuery: true
+              editorMode: code
+              rawSql: |-
+                SELECT r.manager, r.kind,
+                       (extract(epoch FROM now() - coalesce(max(r.finished_at) FILTER (WHERE r.complete),
+                                                            min(r.started_at))) / 60)::float8
+                         AS minutes_since_complete_read
+                FROM collector_reads r
+                GROUP BY r.manager, r.kind
+                UNION ALL
+                SELECT '(no collector reads)', '(none)',
+                       (extract(epoch FROM now() - coalesce(
+                          (SELECT applied_at FROM schema_migrations WHERE version = '0003_collector'),
+                          (SELECT min(applied_at) FROM schema_migrations))) / 60)::float8
+                WHERE NOT EXISTS (SELECT 1 FROM collector_reads)
+          - refId: B
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: ttv-postgres
+            model:
+              refId: B
+              datasource: {type: grafana-postgresql-datasource, uid: ttv-postgres}
+              format: table
+              rawQuery: true
+              editorMode: code
+              rawSql: |-
+                WITH latest AS (
+                  SELECT DISTINCT ON (manager) manager, kind, finished_at, complete, errors
+                  FROM collector_reads ORDER BY manager, finished_at DESC, id DESC
+                )
+                SELECT l.manager, l.kind,
+                       coalesce((SELECT to_char(max(r.finished_at) AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI "UTC"')
+                                   FROM collector_reads r WHERE r.manager = l.manager AND r.complete), 'never')
+                         AS last_complete_read,
+                       to_char(l.finished_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI "UTC"')
+                         || CASE WHEN l.complete THEN ' (complete)' ELSE ' (incomplete)' END AS last_attempt,
+                       CASE WHEN l.errors = '[]'::jsonb THEN 'none'
+                            ELSE left(regexp_replace(l.errors::text, '\s+', ' ', 'g'), 300) END AS last_errors,
+                       coalesce((SELECT sum(i.gpus) FROM capacity_intervals i
+                                  WHERE i.ended_at IS NULL AND i.category = 'UNKNOWN'
+                                    AND i.reason_code = 'SOURCE_STALE' AND i.evidence ->> 'manager' = l.manager),
+                                0)::float8 AS unknown_gpus
+                FROM latest l
+                UNION ALL
+                SELECT '(no collector reads)', '(none)', 'never', 'never', 'none', 0
+                WHERE NOT EXISTS (SELECT 1 FROM collector_reads)
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              datasource: {type: __expr__, uid: __expr__}
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [60]}
+        noDataState: NoData
+        execErrState: Error
+        for: 15m
+        dashboardUid: ttv-evidence
+        panelId: 30
+        isPaused: false
+        labels:
+          severity: warning
+          kind: data_quality
+          owner: platform
+        annotations:
+          summary: >-
+            {{ if eq $labels.manager "(no collector reads)" }}No profile-less collector read recorded for
+            {{ with $values.A }}{{ printf "%.0f" .Value }}{{ else }}an unknown number of{{ end }} min: the DC stage is unobserved.{{ else }}Collector manager {{ $labels.manager }} ({{ $labels.kind }}): last complete read
+            {{ with $values.A }}{{ printf "%.0f" .Value }}{{ else }}an unknown number of{{ end }} min ago (stale after 60 min).{{ end }}
+          description: >-
+            {{ if eq $labels.manager "(no collector reads)" }}collector_reads is empty, so GPU servers without an OCP profile (DC's stage) cannot be seen at all;
+            they are missing from the ledger, not zero.{{ else }}Last complete read: {{ with $values.B }}{{ .Labels.last_complete_read }}{{ else }}unknown{{ end }};
+            last attempt: {{ with $values.B }}{{ .Labels.last_attempt }}; its errors: {{ .Labels.last_errors }}{{ else }}unknown{{ end }}.
+            The engine stops using a manager whose latest complete read is older than TTV_COLLECTOR_STALE_AFTER (1 h), so its
+            collector-only GPUs are SOURCE_STALE (UNKNOWN), never charged to DC:
+            {{ with $values.B }}{{ printf "%.0f" .Value }}{{ else }}unknown{{ end }} GPUs now.{{ end }}
+          impact: >-
+            Servers this manager knows that server-scan does not list (no profile, other profile, handover pending) are unobserved,
+            so DC's idle time there is not measured and no server is retired.
+          confidence: Observed in collector_reads (each manager's latest complete read).
+          next_step: >-
+            Check the ttv-collector job logs and `ttv-collector --once --dry-run` against this manager (credentials, CA bundle,
+            reachability, per-call deadlines). See ADR-0004 "Completeness".
+          runbook_url: https://github.com/roiblum1/gpu-ttv/blob/main/docs/runbooks.md#ttv-collector-manager-stale
+          dashboard_url: '{{ externalURL }}d/ttv-evidence'
+
+      - uid: ttv-unknown-share-high
+        title: TTV UNKNOWN share high
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: ttv-postgres
+            model:
+              refId: A
+              datasource: {type: grafana-postgresql-datasource, uid: ttv-postgres}
+              format: table
+              rawQuery: true
+              editorMode: code
+              rawSql: |-
+                SELECT (100.0 * coalesce(sum(gpus) FILTER (WHERE category = 'UNKNOWN'), 0) / sum(gpus))::float8
+                         AS unknown_share_pct
+                FROM capacity_intervals
+                WHERE ended_at IS NULL
+                HAVING sum(gpus) > 0
+          - refId: B
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: ttv-postgres
+            model:
+              refId: B
+              datasource: {type: grafana-postgresql-datasource, uid: ttv-postgres}
+              format: table
+              rawQuery: true
+              editorMode: code
+              rawSql: |-
+                WITH cur AS (
+                  SELECT category, reason_code, gpus FROM capacity_intervals WHERE ended_at IS NULL
+                ), r AS (
+                  SELECT reason_code, sum(gpus) AS gpus FROM cur WHERE category = 'UNKNOWN' GROUP BY reason_code
+                ), scan AS (
+                  SELECT coverage FROM scan_runs
+                   WHERE kind = 'engine' AND status IN ('ok', 'partial')
+                   ORDER BY started_at DESC, id DESC LIMIT 1
+                )
+                SELECT coalesce((SELECT sum(gpus) FROM cur WHERE category = 'UNKNOWN'), 0)::float8 AS unknown_gpus,
+                       coalesce((SELECT sum(gpus) FROM cur), 0)::text AS gpus_in_scope,
+                       coalesce((SELECT string_agg(reason_code || ' ' || gpus, ', ' ORDER BY gpus DESC, reason_code)
+                                   FROM r), 'none') AS by_reason,
+                       coalesce((SELECT (coalesce((coverage ->> 'gpu_inventory_unread')::int, 0)
+                                         + coalesce((coverage ->> 'collector_gpu_inventory_unread')::int, 0))::text
+                                   FROM scan), 'unknown') AS servers_gpu_count_unread
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              datasource: {type: __expr__, uid: __expr__}
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [10]}
+        noDataState: NoData
+        execErrState: Error
+        for: 30m
+        dashboardUid: ttv-evidence
+        panelId: 25
+        isPaused: false
+        labels:
+          severity: warning
+          kind: data_quality
+          owner: platform
+        annotations:
+          summary: >-
+            {{ with $values.A }}{{ printf "%.1f" .Value }}% of GPUs in the ledger are UNKNOWN (threshold 10%){{ else }}No open ledger intervals: the UNKNOWN share cannot be computed{{ end }}.
+          description: >-
+            {{ with $values.B }}UNKNOWN GPUs now: {{ printf "%.0f" .Value }} of {{ .Labels.gpus_in_scope }} in open intervals
+            (threshold 10%). By reason: {{ .Labels.by_reason }}. Servers whose GPU count is unread (not in the ledger, never zero):
+            {{ .Labels.servers_gpu_count_unread }}.{{ else }}No ledger figures.{{ end }}
+            UNKNOWN GPUs are never counted as idle or productive and are never valued.
+          impact: >-
+            Idle, overdue and productive figures cover only the known GPUs; the true idle time may be larger.
+          confidence: Observed from open capacity_intervals (same definition as Evidence "Known state", panel 41).
+          next_step: >-
+            Open Evidence "UNKNOWN GPUs now, by reason". The largest reason names the cause: SOURCE_STALE (source or record
+            stale), CLUSTER_UNREACHABLE / CLUSTER_NOT_OBSERVED (cluster read or clusters file), IDENTITY_CONFLICT, NODE_NOT_FOUND,
+            HANDOVER_PENDING, TRAFFIC_UNOBSERVED.
+          runbook_url: https://github.com/roiblum1/gpu-ttv/blob/main/docs/runbooks.md#ttv-unknown-share-high
+          dashboard_url: '{{ externalURL }}d/ttv-evidence'
+
+      - uid: ttv-unknown-share-growing
+        title: TTV UNKNOWN share growing
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: ttv-postgres
+            model:
+              refId: A
+              datasource: {type: grafana-postgresql-datasource, uid: ttv-postgres}
+              format: table
+              rawQuery: true
+              editorMode: code
+              rawSql: |-
+                WITH t (at) AS (VALUES (now()), (now() - interval '1 hour')),
+                s AS (
+                  SELECT t.at,
+                         100.0 * coalesce(sum(i.gpus) FILTER (WHERE i.category = 'UNKNOWN'), 0) / sum(i.gpus) AS share
+                  FROM t
+                  JOIN capacity_intervals i
+                    ON i.started_at <= t.at AND (i.ended_at IS NULL OR i.ended_at > t.at)
+                  GROUP BY t.at
+                )
+                SELECT (n.share - p.share)::float8 AS unknown_share_change_pp
+                FROM s n JOIN s p ON n.at = now() AND p.at = now() - interval '1 hour'
+          - refId: B
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: ttv-postgres
+            model:
+              refId: B
+              datasource: {type: grafana-postgresql-datasource, uid: ttv-postgres}
+              format: table
+              rawQuery: true
+              editorMode: code
+              rawSql: |-
+                WITH t (at) AS (VALUES (now()), (now() - interval '1 hour')),
+                r AS (
+                  SELECT t.at, i.reason_code, sum(i.gpus) AS gpus
+                  FROM t
+                  JOIN capacity_intervals i
+                    ON i.started_at <= t.at AND (i.ended_at IS NULL OR i.ended_at > t.at)
+                  WHERE i.category = 'UNKNOWN'
+                  GROUP BY t.at, i.reason_code
+                ), d AS (
+                  SELECT reason_code,
+                         coalesce(sum(gpus) FILTER (WHERE at = now()), 0)
+                           - coalesce(sum(gpus) FILTER (WHERE at < now()), 0) AS delta
+                  FROM r GROUP BY reason_code
+                )
+                SELECT coalesce((SELECT sum(gpus) FROM r WHERE at = now()), 0)::float8 AS unknown_gpus_now,
+                       coalesce((SELECT sum(gpus) FROM r WHERE at < now()), 0)::text AS unknown_gpus_1h_ago,
+                       coalesce((SELECT string_agg(reason_code || ' ' || CASE WHEN delta > 0 THEN '+' ELSE '' END || delta,
+                                                   ', ' ORDER BY delta DESC, reason_code)
+                                   FROM d WHERE delta <> 0), 'no change by reason') AS change_by_reason
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              datasource: {type: __expr__, uid: __expr__}
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [5]}
+        noDataState: KeepLast
+        execErrState: Error
+        for: 10m
+        dashboardUid: ttv-evidence
+        panelId: 25
+        isPaused: false
+        labels:
+          severity: warning
+          kind: data_quality
+          owner: platform
+        annotations:
+          summary: >-
+            {{ with $values.A }}UNKNOWN share changed by {{ printf "%+.1f" .Value }} percentage points in the last hour
+            (threshold +5).{{ else }}UNKNOWN share change unknown: less than 1 h of ledger history.{{ end }}
+          description: >-
+            {{ with $values.B }}UNKNOWN GPUs: {{ .Labels.unknown_gpus_1h_ago }} an hour ago, {{ printf "%.0f" .Value }} now.
+            Change by reason: {{ .Labels.change_by_reason }}.{{ else }}No ledger figures.{{ end }}
+            Threshold: more than 5 points in 1 h. A jump usually means a source just failed past its grace; those GPUs left
+            their stage queues as UNKNOWN, so stage-objective alerts count only the GPUs still observed.
+          impact: >-
+            GPUs that turned UNKNOWN are no longer measured; idle and overdue figures drop for a monitoring reason, not a real improvement.
+          confidence: Observed from open intervals sampled now and 1 h ago. Needs 1 h of ledger history; with less there is no value (no data, state kept).
+          next_step: >-
+            Look at the reason that grew. SOURCE_STALE or CLUSTER_UNREACHABLE: see "TTV source failing past grace" or
+            "TTV collector manager stale". NODE_NOT_FOUND, HANDOVER_PENDING: see those alerts. IDENTITY_CONFLICT: Evidence, "Open identity conflicts".
+          runbook_url: https://github.com/roiblum1/gpu-ttv/blob/main/docs/runbooks.md#ttv-unknown-share-growing
+          dashboard_url: '{{ externalURL }}d/ttv-evidence'
+
+      - uid: ttv-handover-overdue
+        title: TTV handover overdue
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: ttv-postgres
+            model:
+              refId: A
+              datasource: {type: grafana-postgresql-datasource, uid: ttv-postgres}
+              format: table
+              rawQuery: true
+              editorMode: code
+              rawSql: |-
+                WITH gate AS (
+                  SELECT 1 FROM source_state
+                   WHERE name = 'serverscan' AND failed_scans = 0
+                     AND last_attempt_at > now() - interval '30 minutes'
+                ), managers AS (
+                  SELECT DISTINCT manager FROM collector_reads
+                  UNION
+                  SELECT coalesce(evidence ->> 'manager', '(unknown manager)') FROM capacity_intervals
+                   WHERE ended_at IS NULL AND reason_code = 'HANDOVER_PENDING'
+                )
+                SELECT m.manager, coalesce(sum(i.gpus), 0)::float8 AS overdue_handover_gpus
+                FROM managers m
+                LEFT JOIN capacity_intervals i
+                  ON i.ended_at IS NULL AND i.category = 'UNKNOWN' AND i.reason_code = 'HANDOVER_PENDING'
+                 AND 'handover_overdue' = ANY (i.flags)
+                 AND coalesce(i.evidence ->> 'manager', '(unknown manager)') = m.manager
+                WHERE EXISTS (SELECT 1 FROM gate)
+                GROUP BY m.manager
+          - refId: B
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: ttv-postgres
+            model:
+              refId: B
+              datasource: {type: grafana-postgresql-datasource, uid: ttv-postgres}
+              format: table
+              rawQuery: true
+              editorMode: code
+              rawSql: |-
+                WITH managers AS (
+                  SELECT DISTINCT manager FROM collector_reads
+                  UNION
+                  SELECT coalesce(evidence ->> 'manager', '(unknown manager)') FROM capacity_intervals
+                   WHERE ended_at IS NULL AND reason_code = 'HANDOVER_PENDING'
+                ), h AS (
+                  SELECT coalesce(i.evidence ->> 'manager', '(unknown manager)') AS manager, i.asset_id,
+                         sum(i.gpus) AS gpus, max(i.evidence ->> 'name') AS name,
+                         max(i.evidence ->> 'profile_name') AS profile,
+                         min(i.evidence ->> 'ocp_profile_since') AS since
+                  FROM capacity_intervals i
+                  WHERE i.ended_at IS NULL AND i.category = 'UNKNOWN' AND i.reason_code = 'HANDOVER_PENDING'
+                    AND 'handover_overdue' = ANY (i.flags)
+                  GROUP BY 1, 2
+                ), ranked AS (
+                  SELECT h.*, row_number() OVER (PARTITION BY manager ORDER BY since NULLS FIRST, asset_id) AS rn
+                  FROM h
+                )
+                SELECT m.manager, count(r.asset_id)::float8 AS servers,
+                       coalesce(string_agg(r.asset_id || ' (' || coalesce(r.name, 'no name') || ', ' || r.gpus
+                                           || ' GPUs, profile ' || coalesce(r.profile, 'unknown') || ' since '
+                                           || coalesce(left(r.since, 16) || ' UTC', 'unknown') || ')',
+                                           '; ' ORDER BY r.rn) FILTER (WHERE r.rn <= 5), 'none') AS oldest_assets,
+                       coalesce(max(r.asset_id) FILTER (WHERE r.rn = 1), '') AS first_asset
+                FROM managers m
+                LEFT JOIN ranked r ON r.manager = m.manager
+                GROUP BY m.manager
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              datasource: {type: __expr__, uid: __expr__}
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [0]}
+        noDataState: KeepLast
+        execErrState: Error
+        for: 15m
+        keepFiringFor: 15m
+        dashboardUid: ttv-evidence
+        panelId: 25
+        isPaused: false
+        labels:
+          severity: warning
+          kind: data_quality
+          owner: platform
+        annotations:
+          summary: >-
+            {{ if $labels.manager }}Manager {{ $labels.manager }}: {{ with $values.A }}{{ printf "%.0f" .Value }}{{ else }}an unknown number of{{ end }}
+            GPUs with an OCP profile that server-scan has not listed past the handover grace.{{ else }}No collector manager
+            to evaluate, or server-scan is not healthy (state held).{{ end }}
+          description: >-
+            {{ with $values.B }}{{ printf "%.0f" .Value }} servers; oldest first: {{ .Labels.oldest_assets }}.{{ else }}No server details.{{ end }}
+            The profile-less collector saw an OCP profile bound to these servers more than collector.handover_grace (6 h) ago,
+            yet server-scan does not list them. They are HANDOVER_PENDING (UNKNOWN): charged to nobody until server-scan sees them.
+          impact: >-
+            These GPUs are in neither DC's nor Redbull's queue, so the handover time is unmeasured. Raised only while server-scan
+            reads are healthy; during a server-scan outage the alert holds its last state.
+          confidence: Observed from collector reads plus server-scan's latest complete listing (ADR-0002 row 5, ADR-0004).
+          next_step: >-
+            For the oldest server, check server-scan's collector for this manager: its name pattern (collector_name_pattern,
+            ome_name_pattern, ...), its last run, and whether the server's profile name matches. Then open the asset page.
+          runbook_url: https://github.com/roiblum1/gpu-ttv/blob/main/docs/runbooks.md#ttv-handover-overdue
+          dashboard_url: '{{ externalURL }}d/ttv-evidence'
+          asset_url: '{{ with $values.B }}{{ if .Labels.first_asset }}{{ externalURL }}d/ttv-asset?var-asset_id={{ urlquery .Labels.first_asset }}{{ end }}{{ end }}'
+
+      - uid: ttv-node-not-found
+        title: TTV node not found
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: ttv-postgres
+            model:
+              refId: A
+              datasource: {type: grafana-postgresql-datasource, uid: ttv-postgres}
+              format: table
+              rawQuery: true
+              editorMode: code
+              rawSql: |-
+                WITH clusters AS (
+                  SELECT substr(name, 6) AS cluster FROM source_state
+                   WHERE name LIKE 'kube:%' AND last_attempt_at > now() - interval '1 hour'
+                  UNION
+                  SELECT coalesce(evidence ->> 'cluster', '(unknown cluster)') FROM capacity_intervals
+                   WHERE ended_at IS NULL AND category = 'UNKNOWN' AND reason_code = 'NODE_NOT_FOUND'
+                )
+                SELECT c.cluster, coalesce(sum(i.gpus), 0)::float8 AS node_not_found_gpus
+                FROM clusters c
+                LEFT JOIN capacity_intervals i
+                  ON i.ended_at IS NULL AND i.category = 'UNKNOWN' AND i.reason_code = 'NODE_NOT_FOUND'
+                 AND coalesce(i.evidence ->> 'cluster', '(unknown cluster)') = c.cluster
+                GROUP BY c.cluster
+          - refId: B
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: ttv-postgres
+            model:
+              refId: B
+              datasource: {type: grafana-postgresql-datasource, uid: ttv-postgres}
+              format: table
+              rawQuery: true
+              editorMode: code
+              rawSql: |-
+                WITH clusters AS (
+                  SELECT substr(name, 6) AS cluster FROM source_state
+                   WHERE name LIKE 'kube:%' AND last_attempt_at > now() - interval '1 hour'
+                  UNION
+                  SELECT coalesce(evidence ->> 'cluster', '(unknown cluster)') FROM capacity_intervals
+                   WHERE ended_at IS NULL AND category = 'UNKNOWN' AND reason_code = 'NODE_NOT_FOUND'
+                ), n AS (
+                  SELECT coalesce(i.evidence ->> 'cluster', '(unknown cluster)') AS cluster, i.asset_id,
+                         sum(i.gpus) AS gpus, max(i.evidence ->> 'node_name') AS node_name, min(i.started_at) AS since
+                  FROM capacity_intervals i
+                  WHERE i.ended_at IS NULL AND i.category = 'UNKNOWN' AND i.reason_code = 'NODE_NOT_FOUND'
+                  GROUP BY 1, 2
+                ), ranked AS (
+                  SELECT n.*, row_number() OVER (PARTITION BY cluster ORDER BY since, asset_id) AS rn FROM n
+                )
+                SELECT c.cluster, count(r.asset_id)::float8 AS assets,
+                       coalesce(string_agg(r.asset_id || ' (' || coalesce(a.name, 'no name') || ', expected node '
+                                           || coalesce(r.node_name, 'unknown') || ', ' || r.gpus || ' GPUs, since '
+                                           || to_char(r.since AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI "UTC"') || ')',
+                                           '; ' ORDER BY r.rn) FILTER (WHERE r.rn <= 5), 'none') AS oldest_assets,
+                       coalesce(max(r.asset_id) FILTER (WHERE r.rn = 1), '') AS first_asset
+                FROM clusters c
+                LEFT JOIN ranked r ON r.cluster = c.cluster
+                LEFT JOIN assets a ON a.asset_id = r.asset_id
+                GROUP BY c.cluster
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              datasource: {type: __expr__, uid: __expr__}
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [0]}
+        noDataState: KeepLast
+        execErrState: Error
+        for: 30m
+        keepFiringFor: 15m
+        dashboardUid: ttv-evidence
+        panelId: 25
+        isPaused: false
+        labels:
+          severity: warning
+          kind: data_quality
+          owner: platform
+        annotations:
+          summary: >-
+            {{ if $labels.cluster }}Cluster {{ $labels.cluster }}: {{ with $values.A }}{{ printf "%.0f" .Value }}{{ else }}an unknown number of{{ end }}
+            GPUs whose servers server-scan places there match no node.{{ else }}No observed target cluster to evaluate (state held).{{ end }}
+          description: >-
+            {{ with $values.B }}{{ printf "%.0f" .Value }} servers; oldest first: {{ .Labels.oldest_assets }}.{{ else }}No server details.{{ end }}
+            The node name is server-scan's reported_name (else its name), cleaned as server-scan does; no node of
+            {{ $labels.cluster }} has it. The GPUs are NODE_NOT_FOUND (UNKNOWN), charged to nobody.
+          impact: >-
+            These GPUs are counted in no stage queue. If many servers of one cluster appear at once, suspect a naming rule
+            (domain suffix, case) rather than missing nodes.
+          confidence: Observed from server-scan membership against the cluster's latest complete node list (ADR-0002 row 12).
+          next_step: >-
+            Compare the expected node name with `oc get nodes` on the cluster (read-only). If the node was removed or renamed,
+            server-scan's membership is stale (Redbull to correct it); if names differ only by suffix or case, fix the matching rule.
+          runbook_url: https://github.com/roiblum1/gpu-ttv/blob/main/docs/runbooks.md#ttv-node-not-found
+          dashboard_url: '{{ externalURL }}d/ttv-evidence'
+          asset_url: '{{ with $values.B }}{{ if .Labels.first_asset }}{{ externalURL }}d/ttv-asset?var-asset_id={{ urlquery .Labels.first_asset }}{{ end }}{{ end }}'
+
+  - orgId: 1
+    name: ttv-stage-objectives
+    folder: GPU Time-to-Value alerts
+    interval: 5m
+    rules:
+      - uid: ttv-stage-objective-breached
+        title: TTV stage objective breached
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: ttv-postgres
+            model:
+              refId: A
+              datasource: {type: grafana-postgresql-datasource, uid: ttv-postgres}
+              format: table
+              rawQuery: true
+              editorMode: code
+              rawSql: |-
+                WITH gate AS (
+                  SELECT 1
+                  WHERE (SELECT max(finished_at) FROM scan_runs
+                          WHERE kind = 'engine' AND status IN ('ok', 'partial')) > now() - interval '15 minutes'
+                    AND NOT EXISTS (SELECT 1 FROM source_state WHERE name = 'serverscan' AND failed_scans >= 2)
+                ), owners AS (
+                  SELECT DISTINCT stage_owner FROM capacity_intervals
+                   WHERE ended_at IS NULL AND stage_owner IS NOT NULL
+                ), overdue AS (
+                  SELECT i.stage_owner, sum(i.gpus) AS gpus
+                  FROM capacity_intervals i
+                  JOIN stage_objectives o ON o.stage = i.stage AND o.policy_version = i.policy_version
+                  WHERE i.ended_at IS NULL AND i.category = 'IDLE' AND now() > i.stage_entered_at + o.objective
+                  GROUP BY i.stage_owner
+                )
+                SELECT w.stage_owner, coalesce(d.gpus, 0)::float8 AS overdue_gpus
+                FROM owners w
+                LEFT JOIN overdue d ON d.stage_owner = w.stage_owner
+                WHERE EXISTS (SELECT 1 FROM gate)
+                UNION ALL
+                SELECT '(no idle GPUs)', 0
+                WHERE EXISTS (SELECT 1 FROM gate) AND NOT EXISTS (SELECT 1 FROM owners)
+          - refId: B
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: ttv-postgres
+            model:
+              refId: B
+              datasource: {type: grafana-postgresql-datasource, uid: ttv-postgres}
+              format: table
+              rawQuery: true
+              editorMode: code
+              rawSql: |-
+                WITH owners AS (
+                  SELECT DISTINCT stage_owner FROM capacity_intervals
+                   WHERE ended_at IS NULL AND stage_owner IS NOT NULL
+                  UNION ALL
+                  SELECT '(no idle GPUs)'
+                  WHERE NOT EXISTS (SELECT 1 FROM capacity_intervals WHERE ended_at IS NULL AND stage_owner IS NOT NULL)
+                ), cur AS (
+                  SELECT i.stage_owner, i.asset_id, i.stage, i.stage_entered_at, o.objective,
+                         bool_or(i.stage_entered_lower_bound) AS lb, sum(i.gpus) AS gpus,
+                         string_agg(DISTINCT i.reason_code, ', ') AS reasons
+                  FROM capacity_intervals i
+                  JOIN stage_objectives o ON o.stage = i.stage AND o.policy_version = i.policy_version
+                  WHERE i.ended_at IS NULL AND i.category = 'IDLE' AND now() > i.stage_entered_at + o.objective
+                  GROUP BY i.stage_owner, i.asset_id, i.stage, i.stage_entered_at, o.objective
+                ), ep AS (
+                  SELECT c.stage_owner, c.asset_id, c.stage, c.stage_entered_at,
+                         sum(j.gpus * extract(epoch FROM coalesce(j.ended_at, now())
+                                              - greatest(j.started_at, j.stage_entered_at + oj.objective))) / 3600
+                           AS overdue_gpu_h
+                  FROM (SELECT DISTINCT stage_owner, asset_id, stage, stage_entered_at FROM cur) c
+                  JOIN capacity_intervals j
+                    ON j.asset_id = c.asset_id AND j.category = 'IDLE'
+                   AND j.stage = c.stage AND j.stage_entered_at = c.stage_entered_at
+                  JOIN stage_objectives oj ON oj.stage = j.stage AND oj.policy_version = j.policy_version
+                  WHERE coalesce(j.ended_at, now()) > greatest(j.started_at, j.stage_entered_at + oj.objective)
+                  GROUP BY c.stage_owner, c.asset_id, c.stage, c.stage_entered_at
+                ), ranked AS (
+                  SELECT c.*, row_number() OVER (PARTITION BY c.stage_owner
+                                                 ORDER BY c.stage_entered_at + c.objective, c.asset_id) AS rn
+                  FROM cur c
+                ), unjudged AS (
+                  SELECT i.stage_owner, sum(i.gpus) AS gpus
+                  FROM capacity_intervals i
+                  LEFT JOIN stage_objectives o ON o.stage = i.stage AND o.policy_version = i.policy_version
+                  WHERE i.ended_at IS NULL AND i.category = 'IDLE'
+                    AND (o.objective IS NULL OR i.stage_entered_at IS NULL)
+                  GROUP BY i.stage_owner
+                )
+                SELECT w.stage_owner,
+                       (SELECT coalesce(sum(e.overdue_gpu_h), 0) FROM ep e WHERE e.stage_owner = w.stage_owner)::float8
+                         AS overdue_gpu_hours,
+                       CASE WHEN bool_or(r.lb) THEN '≥ ' ELSE '' END AS lower_bound,
+                       coalesce(string_agg(r.asset_id || ' (' || coalesce(a.name, 'no name') || '): ' || r.gpus
+                                           || ' GPUs ' || r.reasons || ', ' || CASE WHEN r.lb THEN '≥ ' ELSE '' END
+                                           || to_char(extract(epoch FROM now() - r.stage_entered_at) / 86400,
+                                                      'FM999990.0')
+                                           || ' d in stage vs ' || r.objective::text || ' objective'
+                                           || coalesce(', next action: ' || na.next_action_owner, ''),
+                                           '; ' ORDER BY r.rn) FILTER (WHERE r.rn <= 5), 'none') AS top_assets,
+                       coalesce(max(r.asset_id) FILTER (WHERE r.rn = 1), '') AS first_asset,
+                       coalesce((SELECT u.gpus FROM unjudged u WHERE u.stage_owner = w.stage_owner), 0)::text
+                         AS unjudged_idle_gpus,
+                       coalesce((SELECT to_char(max(finished_at) AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI "UTC"')
+                                   FROM scan_runs WHERE kind = 'engine' AND status IN ('ok', 'partial')), 'never')
+                         AS ledger_as_of
+                FROM owners w
+                LEFT JOIN ranked r ON r.stage_owner = w.stage_owner
+                LEFT JOIN assets a ON a.asset_id = r.asset_id
+                LEFT JOIN LATERAL (
+                  SELECT n.next_action_owner FROM next_action_annotations n
+                   WHERE n.asset_id = r.asset_id AND n.expires_at > now()
+                   ORDER BY n.created_at DESC, n.id DESC LIMIT 1
+                ) na ON true
+                GROUP BY w.stage_owner
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              datasource: {type: __expr__, uid: __expr__}
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [0]}
+        noDataState: KeepLast
+        execErrState: KeepLast
+        for: 1h
+        keepFiringFor: 1h
+        dashboardUid: ttv-queues
+        panelId: 14
+        isPaused: false
+        labels:
+          severity: warning
+          kind: '{{ if .Labels.stage_owner }}stage_breach{{ else }}data_quality{{ end }}'
+          owner: '{{ if .Labels.stage_owner }}{{ .Labels.stage_owner }}{{ else }}platform{{ end }}'
+        annotations:
+          summary: >-
+            {{ if $labels.stage_owner }}{{ $labels.stage_owner }}: {{ with $values.A }}{{ printf "%.0f" .Value }}{{ else }}an unknown number of{{ end }}
+            idle GPUs past their stage objective.{{ else }}Stage objectives not evaluated: the engine is stale or server-scan
+            is failing (state held; see the data-quality alerts).{{ end }}
+          description: >-
+            {{ with $values.B }}Overdue GPU-hours so far in these stage episodes: {{ .Labels.lower_bound }}{{ printf "%.1f" .Value }}.
+            Longest waits: {{ .Labels.top_assets }}. Idle GPUs that cannot be judged (no objective for their policy version,
+            or no stage clock): {{ .Labels.unjudged_idle_gpus }}. Ledger as of {{ .Labels.ledger_as_of }}.{{ else }}No overdue detail.{{ end }}
+            Only IDLE GPUs count: UNKNOWN GPUs (stale sources, unmatched nodes, conflicts) are never charged here, and a
+            next-action owner is display-only and never moves the breach.
+          impact: >-
+            Overdue GPU-hours are idle capacity charged to {{ $labels.stage_owner }} (AGENT.md §20.5). The AWS-equivalent
+            value is on Queues; it is a comparison, not a cost.
+          confidence: >-
+            Observed from the ledger; "≥" marks stage episodes that began before observation (lower bounds). Evaluated only
+            while the engine is fresh and server-scan is read; otherwise the alert holds its last state.
+          next_step: >-
+            Open Queues for {{ $labels.stage_owner }}, "Longest waits"; for the first asset open the Asset page and the
+            engine's /explain/{asset}. Ask {{ $labels.stage_owner }} to clear it or record a next-action owner with a reason.
+          runbook_url: https://github.com/roiblum1/gpu-ttv/blob/main/docs/runbooks.md#ttv-stage-objective-breached
+          dashboard_url: '{{ externalURL }}d/ttv-queues?var-stage_owner={{ urlquery $labels.stage_owner }}'
+          asset_url: '{{ with $values.B }}{{ if .Labels.first_asset }}{{ externalURL }}d/ttv-asset?var-asset_id={{ urlquery .Labels.first_asset }}{{ end }}{{ end }}'

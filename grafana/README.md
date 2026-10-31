@@ -133,3 +133,82 @@ To re-check, start Postgres 17 and apply the migration and a fixture. Run Grafan
 - Every panel and variable query of both dashboards ran with macros substituted (`$__timeFrom()`/`$__timeTo()`, `$site`/`$stage_owner` = All, `$snapshot` = the snapshot id) with no errors.
 - A throwaway Grafana **12.4.14** (same digest as above) provisioned from these files against that database: all 15 Queues queries passed through `/api/ds/query` with All, with `stage_owner=Redbull` and with an empty snapshot; the Evidence dashboard's queries had no errors either. The page was rendered in a browser: idle value $1865.30 per hour (snapshot us-east-1, published 2026-10-29 17:56 UTC) and 178 unpriced idle GPUs (MI300X, RTX A6000, A16) with reasons.
 - The browser check found and fixed three problems: a stat's field regex matches the display name (so it went blank), `currencyUSD` abbreviated $1,261 to "$1K", and long headers were truncated.
+
+## Alerts
+
+R1 alerts for monitoring blindness and stage-objective breaches (AGENT.md §20, §14). They are Grafana-managed rules that read the ledger, with no Prometheus dependency. The design is in ADR-0006; the runbooks and the rule contract table are in `docs/runbooks.md`.
+
+```
+grafana/provisioning/alerting/
+  ttv-rules.yaml           8 rules in folder "GPU Time-to-Value alerts":
+                           group ttv-data-quality (1m), group ttv-stage-objectives (5m)
+  ttv-notifications.yaml   inert contact point, always-on mute timing, policy tree
+                           grouped by kind, owner, alertname
+```
+
+| Rule | kind | owner | Fires when |
+| --- | --- | --- | --- |
+| TTV engine scans stale | data_quality | platform | No ok/partial engine scan for > 15 min (for 5m) |
+| TTV source failing past grace | data_quality | platform | A server-scan, kube or Thanos source failed ≥ 2 consecutive scans (for 5m) |
+| TTV collector manager stale | data_quality | platform | A manager has no complete collector read for > 60 min, or no collector read exists (for 15m) |
+| TTV UNKNOWN share high | data_quality | platform | > 10% of ledger GPUs UNKNOWN (for 30m) |
+| TTV UNKNOWN share growing | data_quality | platform | UNKNOWN share up > 5 points in 1 h (for 10m) |
+| TTV handover overdue | data_quality | platform | OCP-profile servers missing from server-scan past `handover_grace`, per manager (for 15m) |
+| TTV node not found | data_quality | platform | `NODE_NOT_FOUND` GPUs in an observed cluster (for 30m) |
+| TTV stage objective breached | stage_breach | the stage owner | Idle GPUs past their stage objective, one instance per owner (for 1h, keep firing 1h) |
+
+### Install
+
+- **Mount** `provisioning/alerting/` at `/etc/grafana/provisioning/alerting/`, next to the datasource and dashboard mounts above.
+  - A malformed alerting file stops Grafana from starting. `uv run pytest tests/test_alert_rules.py` checks both files.
+  - Alerting provisions before dashboards, which is why the rules have their own folder: a shared title would create a second "GPU Time-to-Value" folder.
+- **Grants.** The Grafana database user also needs `SELECT` on `collector_reads` (`migrations/0003_collector.sql`). The rules read `scan_runs`, `schema_migrations`, `source_state`, `capacity_intervals`, `stage_objectives`, `assets`, `next_action_annotations` and `collector_reads`. A missing grant shows as a `DatasourceError` or `DatasourceNoData` alert for the platform, never as a healthy rule.
+- **Links.** `dashboard_url` and `asset_url` are built from Grafana's `root_url` (`GF_SERVER_ROOT_URL`); set it so links are absolute. `asset_url` opens the Asset page (`ttv-asset`) for the longest-waiting server.
+- **Runbooks.** `runbook_url` points at `https://github.com/roiblum1/gpu-ttv/blob/main/docs/runbooks.md#<rule uid>`. For the air-gapped install, rewrite that prefix to the internal Git mirror in `ttv-rules.yaml`, and change `RUNBOOK_BASE` in `tests/test_alert_rules.py` to match.
+- **Shared Grafana.** `ttv-notifications.yaml` replaces the organisation's whole notification policy tree. In a Grafana that other teams use, mount only `ttv-rules.yaml` and add the two routes to the existing tree by hand.
+- **Thresholds.** Thresholds copy engine settings: 300 s scans, `TTV_UNKNOWN_GRACE_SCANS=2`, `TTV_COLLECTOR_STALE_AFTER=1h`, `collector.handover_grace=6h`. Edit the rule when one of them changes. The UNKNOWN-share thresholds are provisional.
+
+### Notification destinations (none configured)
+
+Destinations stay unconfigured until the user supplies them (§14), and nothing is sent anywhere:
+
+- `ttv-unconfigured` is the only contact point. It is a webhook to `http://127.0.0.1:1/…`, a closed port on Grafana's own loopback.
+- Both TTV routes carry the mute timing `ttv-until-destinations-supplied` (00:00–24:00, every day), so Grafana does not even attempt delivery.
+- Alerts still evaluate, keep state history, and show under Alerting > Alert rules.
+
+To wire a real destination once one is supplied:
+
+1. In `ttv-notifications.yaml`, replace the `ttv-unconfigured` receiver's `type` and `settings` with the real integration, for example an internal webhook or email addresses. Keep credentials out of the repository. To send stage breaches per team, add child routes under the `stage_breach` route that match `owner`.
+2. Remove `mute_time_intervals: [ttv-until-destinations-supplied]` from the routes that should notify.
+3. Update `test_notifications_are_inert_and_grouped` in `tests/test_alert_rules.py`. It fails on purpose once a destination is real, so the change is deliberate.
+4. Restart Grafana and check Alerting > Notification policies. Do not send test messages to people only to demonstrate the integration.
+
+### Blindness never becomes a stage accusation
+
+- **The engine.** A stale source or manager, an unmatched node or a pending handover makes GPUs UNKNOWN. UNKNOWN GPUs have no stage owner, so they never count toward a stage breach.
+- **The stage-breach rule.** It evaluates only while an ok or partial engine scan finished in the last 15 minutes and server-scan is within grace. Otherwise it returns no rows, and `KeepLast` holds each owner's instance: nothing new fires and nothing resolves.
+- **Who hears about it.** The blindness reaches the platform operators as data-quality alerts, grouped separately from stage breaches.
+
+Details and the known limit (one failing cluster) are in `docs/runbooks.md`, "Blindness never becomes a stage accusation".
+
+### Alerts validation record (not production evidence)
+
+2026-10-31, Grafana **12.4.14** (`docker.io/grafana/grafana@sha256:ae509d9ae8c1021ca32ec370a9ca975d40165eda9fccd1e1102d317ff8787cd7`), throwaway containers provisioned from these files:
+
+- **Provisioning (`lab-tested`).** Both files provisioned with no errors or template-expansion errors. The rules sit in their own folder, and the dashboards folder `gpu-ttv` is unchanged. Alertmanager groups by `kind`, `owner`, `alertname` into `ttv-unconfigured`.
+- **Lab ledger (`lab-tested`, read-only).** `ttv_lab2`, the lab ledger written by the running engine (sandbox server-scan plus cluster upi-tlv), was evaluated from 02:45 to 03:50 UTC. Every rule was healthy, and four fired exactly when their `for` elapsed:
+  - **TTV UNKNOWN share high** at 03:16: 48.2% of GPUs UNKNOWN (2,299 of 4,768). By reason: CLUSTER_NOT_OBSERVED 1046, SOURCE_STALE 868 (records server-scan itself marks stale), IDENTITY_CONFLICT 266, NODE_NOT_FOUND 102, CONTESTED 16, TRAFFIC_UNOBSERVED 1; 229 servers have an unread GPU count.
+  - **TTV node not found** (upi-tlv) at 03:16: 102 GPUs on 23 servers. The sandbox places servers in upi-tlv, and the lab cluster that stands in for it has no such nodes.
+  - **TTV collector manager stale**, as `(no collector reads)`, at 03:29: no collector runs in the lab, so DC's stage is unobserved.
+  - **TTV stage objective breached** for Redbull at 03:49: 214 GPUs NOT_IN_CLUSTER past the 2-day objective, ≥ 973 overdue GPU-hours, with stage clocks that are lower bounds from server-scan `created_at`.
+
+  DC, POPAI and Serving stayed Normal, with nothing overdue. Engine, sources and UNKNOWN growth stayed Normal. Handover overdue held state (`NoData, KeepLast`), because there are no collector managers. All queries ran in under 2 ms on 1,112 intervals.
+- **No sending.** Over the whole lab run, the mute meant zero delivery attempts: Grafana handed alerts to its local Alertmanager 90 times, and no notify line or error was logged. An unmuted experiment showed what an attempt does: it failed locally with "connection refused" on `127.0.0.1:1`.
+- **Simulation (`fixture-tested` in Grafana).** The real rule SQL ran against a synthetic ledger in a scratch database, with only `for`, `keepFiringFor` and group intervals shortened.
+  1. Redbull's 8 GPUs, 3 h into a 1 h objective, fired; DC within its objective stayed Normal.
+  2. Server-scan failing past grace, with its GPUs UNKNOWN: the source alert fired (critical, `platform`), the UNKNOWN-share alerts fired, and both stage instances were held (`NoData, KeepLast`).
+  3. With the engine stopped and DC's clock past its objective, "engine scans stale" fired and DC stayed Normal (held).
+  4. After a fresh scan, DC's breach fired.
+  5. With `SELECT` on `capacity_intervals` revoked, the data-quality rules raised one `DatasourceError` group for the platform, and the stage instances were held (`Error, KeepLast`).
+
+  Two bugs were found and fixed this way: detail queries that returned no rows (Grafana then marks the whole rule NoData), and `noDataState: Alerting`, which raised a false "collector manager stale".
