@@ -293,13 +293,13 @@ async def test_without_ucsm_fallback_gpus_stay_unread_never_zero(
     assert result.coverage["servers_gpu_unread"] == 3
 
 
-async def test_domain_timeout_is_a_partial_read(conn: UcsCentralConnection) -> None:
+async def test_domain_timeout_leaves_its_gpus_unread(conn: UcsCentralConnection) -> None:
     apis = ucsm_apis(hang_on="graphicsCard")
     try:
         result, by_dn = await read(conn, ucsm=apis, deadline=0.3)
     finally:
         apis[DOM_B_ADDRESS].release.set()
-    assert not result.complete
+    assert result.complete  # Central's listing is whole; the gap is per server
     assert len(result.errors) == 1
     assert result.errors[0].startswith("domain dc1-dom-b (id 1002): temporarily_unavailable:")
     assert "timed out after 0.3s" in result.errors[0]

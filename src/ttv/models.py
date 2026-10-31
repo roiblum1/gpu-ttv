@@ -170,6 +170,9 @@ class ManagerServer:
         domain (str | None): UCS domain name or id; OME group, when known.
         evidence (Mapping[str, Any]): Raw facts kept for `/explain` (profile DN or id, states,
             GPU source, domain freshness).
+        profile_unresolved (str | None): Why the bound profile could not be determined (e.g. a
+            target name shared by several servers); when set, `profile_name` means nothing and
+            the server is an identity conflict, never PROFILE_NONE (ADR-0004).
     """
 
     vendor: str
@@ -182,6 +185,7 @@ class ManagerServer:
     gpu_models: tuple[str, ...] | None
     domain: str | None = None
     evidence: Mapping[str, Any] = field(default_factory=dict)
+    profile_unresolved: str | None = None
 
 
 @dataclass(frozen=True)
@@ -194,8 +198,10 @@ class CollectorRead:
         kind (str): `ucs_central` or `openmanage`.
         started_at (datetime): Read start.
         finished_at (datetime): Read end.
-        complete (bool): Every domain or device listing was read in full. An incomplete read
-            never makes a server disappear (§4).
+        complete (bool): The server and profile listings were read in full, so a server
+            missing from the read is absent. Per-server gaps (GPUs unread, profile unresolved)
+            stay on the server and do not make a read incomplete. The engine ignores the servers
+            of an incomplete read and never retires a server because of one (§4, ADR-0004).
         servers (tuple[ManagerServer, ...]): Every server read, with or without GPUs.
         errors (tuple[str, ...]): Error summaries without secrets.
         coverage (Mapping[str, Any]): Counts: domains read/skipped, devices, GPU inventory unread.

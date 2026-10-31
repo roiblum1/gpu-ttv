@@ -665,8 +665,9 @@ def _collector_assets(
         serverscan_ids (set[str]): Asset ids server-scan already provides.
 
     Returns:
-        tuple[list[AssetInput], list[IdentityConflict]]: Collector-only assets, and a
-        `COLLECTOR_DUPLICATE` conflict for each serial seen by two managers or twice in one.
+        tuple[list[AssetInput], list[IdentityConflict]]: Collector-only assets; a
+        `COLLECTOR_DUPLICATE` conflict for each serial seen by two managers or twice in one, and
+        a `COLLECTOR_PROFILE_AMBIGUOUS` one for each server whose profile binding is unresolved.
     """
     if collector is None:
         return [], []
@@ -688,6 +689,9 @@ def _collector_assets(
             ids = tuple(sorted(f"{x.manager}/{x.source_id}" for x in members))
             conflicts.append(IdentityConflict("COLLECTOR_DUPLICATE", asset_id, ids))
             conflict = f"{len(members)} manager records share this serial: {', '.join(ids)}"
+        elif m.profile_unresolved:
+            ref = (f"{m.manager}/{m.source_id}",)
+            conflicts.append(IdentityConflict("COLLECTOR_PROFILE_AMBIGUOUS", asset_id, ref))
         key = (m.vendor, m.serial_normalized)
         assets.append(
             AssetInput(

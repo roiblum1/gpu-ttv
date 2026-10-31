@@ -477,6 +477,7 @@ class UcsCentralConnection(BaseModel):
             per-domain GPU fallback; None disables the fallback.
         ucsm_password_file (Path | None): Its password file.
         ca_bundle (Path | None): CA bundle for UCS Central and UCS Manager TLS.
+        domain_concurrency (int): UCS Manager domains read at once by the fallback.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -488,6 +489,7 @@ class UcsCentralConnection(BaseModel):
     ucsm_username: str | None = None
     ucsm_password_file: Path | None = None
     ca_bundle: Path | None = None
+    domain_concurrency: int = Field(default=4, ge=1, le=32)
 
 
 class OpenManageConnection(BaseModel):
@@ -503,6 +505,12 @@ class OpenManageConnection(BaseModel):
         idrac_username (str | None): Read-only iDRAC account for the Redfish GPU fallback.
         idrac_password_file (Path | None): Its password file.
         idrac_ca_bundle (Path | None): CA bundle for iDRAC TLS.
+        inventory_types (list[str]): OME `InventoryDetails` types searched for GPU cards, in
+            order (validation gate 1 of ADR-0004 "Dell").
+        empty_inventory_means_no_gpu (bool): Trust an OME inventory listing no GPU as "no
+            GPUs"; off until the production probe shows OME lists every GPU.
+        pcie_fallback (bool): Screen iDRAC PCIe devices when Redfish `Processors` has no GPU.
+        gpu_concurrency (int): Devices whose GPUs are read at once.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -515,6 +523,10 @@ class OpenManageConnection(BaseModel):
     idrac_username: str | None = None
     idrac_password_file: Path | None = None
     idrac_ca_bundle: Path | None = None
+    inventory_types: list[str] = Field(default=["serverDeviceCards"], min_length=1)
+    empty_inventory_means_no_gpu: bool = False
+    pcie_fallback: bool = True
+    gpu_concurrency: int = Field(default=8, ge=1, le=64)
 
 
 class ManagersFile(BaseModel):
@@ -595,7 +607,7 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="TTV_", env_file=".env", extra="ignore")
 
-    serverscan_url: str
+    serverscan_url: str | None = None
     serverscan_token_file: Path | None = None
     ca_bundle: Path | None = None
     database_url: str | None = None
@@ -615,6 +627,7 @@ class Settings(BaseSettings):
     pricing_snapshot: str | None = None
     managers_file: Path | None = None
     collector_timeout_seconds: float = Field(default=600.0, gt=0)
+    collector_interval_seconds: int = Field(default=900, ge=60)
     collector_stale_after: timedelta = timedelta(hours=1)
     api_host: str = "0.0.0.0"  # noqa: S104 — serves inside a container; exposure is decided by the Service
     api_port: int = 8080

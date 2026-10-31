@@ -9,6 +9,7 @@ ucs_central:
     # One UCS Manager login valid on every registered domain, for the per-domain GPU fallback:
     # ucsm_username: svc-gpu-ttv
     # ucsm_password_file: /var/run/secrets/ttv/ucs-manager/password
+    # domain_concurrency: 4                     # UCS Manager domains read at once by the fallback
     ca_bundle: /etc/pki/ttv/ca-bundle.pem
 openmanage:
   - name: ome-1
@@ -19,3 +20,9 @@ openmanage:
     # Read-only iDRAC account for the Redfish GPU fallback, when OME inventory has no GPU detail:
     # idrac_username: svc-gpu-ttv-ro
     # idrac_password_file: /var/run/secrets/ttv/idrac/password
+    # idrac_ca_bundle: /etc/pki/ttv/idrac-ca-bundle.pem
+    # GPU inventory (validation gate 1, ADR-0004 "Dell"): keep these until the probe confirms them.
+    # inventory_types: [serverDeviceCards]
+    # empty_inventory_means_no_gpu: false       # true only once OME is shown to list every GPU
+    # pcie_fallback: true
+    # gpu_concurrency: 8

@@ -618,8 +618,9 @@ class OpenManageSource:
             now (datetime): Read time, timezone-aware.
 
         Returns:
-            CollectorRead: `complete=False` when a GPU read failed or a profile join was
-                ambiguous; those servers keep `gpu_models=None` or their raw evidence.
+            CollectorRead: `complete=False` only when a device or profile entry was malformed.
+                A failed GPU read leaves that server's `gpu_models=None`; an ambiguous profile
+                join sets its `profile_unresolved`.
 
         Raises:
             SourceError: Login failed, or the device or profile listing could not be read in
@@ -725,9 +726,7 @@ class OpenManageSource:
             kind=KIND,
             started_at=now,
             finished_at=now,
-            complete=not (
-                coverage["gpu_read_failed"] or join.ambiguous or malformed or bad_profiles
-            ),
+            complete=not (malformed or bad_profiles),
             servers=servers,
             errors=tuple(errors),
             coverage=coverage,
@@ -1119,8 +1118,10 @@ class OpenManageSource:
             }
             if len(bound) > 1:
                 evidence["other_profile_ids"] = [b.profile.id for b in bound[1:]]
-        elif device.id in join.ambiguous_devices:
+        unresolved = None
+        if not bound and device.id in join.ambiguous_devices:
             evidence["profile_join"] = JOIN_AMBIGUOUS
+            unresolved = f"a profile targets DeviceName {device.name!r}, shared by several devices"
         evidence["gpu_source"] = gpu.source
         extra = {
             "gpu_rule": gpu.rule,
@@ -1140,4 +1141,5 @@ class OpenManageSource:
             profile_name=bound[0].profile.name if bound else None,
             gpu_models=gpu.models,
             evidence=evidence,
+            profile_unresolved=unresolved,
         )

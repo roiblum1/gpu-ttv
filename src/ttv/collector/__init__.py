@@ -17,8 +17,9 @@ class CollectorSource(Protocol):
         """
         Read every server the manager knows, with its bound profile and GPU evidence.
 
-        A failure that leaves part of the listing unread returns `complete=False`; a failure
-        that leaves nothing raises `ttv.sources.http.SourceError`.
+        A listing read only in part returns `complete=False`; per-server gaps (GPUs unread,
+        profile unresolved) stay on the server; a failure that leaves nothing raises
+        `ttv.sources.http.SourceError`.
 
         Args:
             now (datetime): Read time.

@@ -1,5 +1,41 @@
 # ADR-0004: Profile-less GPU collector
 
+- **Status:** accepted 2026-10-31. Built and **`fixture-tested` only**: there is no UCS Central, OpenManage or iDRAC in the lab, so both readers run against synthetic captures. The production probe (`docs/discovery-probes.md` Part B) is the first real evidence, and each reader lists the validation gates it must pass.
+- **Context:** user decision of 2026-10-30, "Simplified profile-less collector" (`docs/discovery.md`, Inputs); `docs/discovery.md` "Managers and the profile-less collector"; AGENT.md §4 (connector behaviour); ADR-0002 rows 2-5.
+- **Code:** `src/ttv/collector/` (`main.py` the job, `ucs_central.py`, `openmanage.py`, `redfish_gpu.py`, `blocking.py`); `src/ttv/classify.py` (`_CollectorRules`); `src/ttv/engine.py` (`_collector_assets`, `_collector_status`); `src/ttv/store.py` (`record_collector_read`, `load_collector_state`); `migrations/0003_collector.sql`, `migrations/0004_collector_profile_unresolved.sql`. Tests: `tests/test_collector_*.py`, `tests/test_classify_collector.py`, `tests/test_engine_collector_pg.py`.
+
+## Decision
+
+server-scan only lists servers it reaches through an OCP service profile, so a GPU server with no profile, or with a profile for something else, is invisible to it. The collector reads every server UCS Central and OpenManage know, read-only, and the engine classifies the GPU servers that server-scan does not list:
+
+| Collector sees | ADR-0002 row | Result |
+| --- | --- | --- |
+| Manager stale, or no status | 2 `SOURCE_STALE` | UNKNOWN |
+| Same serial twice, or profile binding unresolved | 2b `IDENTITY_CONFLICT` | UNKNOWN |
+| No profile bound | 3 `PROFILE_NONE` | IDLE, owner DC, clock from the collector's first sighting (a lower bound) |
+| A profile not matching `ocp_profile_pattern` (`^ocp`, `re.search`) | 4 `OTHER_INTENDED_USE` | NOT_CHARGED (shown, never charged) |
+| An OCP profile, but not in server-scan | 5 `HANDOVER_PENDING` | UNKNOWN; flag `handover_overdue` once the profile has been seen for longer than `handover_grace` (6 h) |
+
+- **server-scan wins.** A record whose `vendor:serial_normalized` server-scan also lists is ignored; the server-scan rows apply (an AVAILABLE GPU server there is Redbull's).
+- **Identity** is `vendor:serial_normalized` with server-scan's normalisation. A record with no usable serial gets `vendor:collector-id:<manager>:<source_id>` and is never merged. The same serial from two records is a `COLLECTOR_DUPLICATE` conflict.
+- **Only servers with GPUs are classified.** `gpu_models=()` means the manager reports none; `None` means GPU inventory was not read, and the engine keeps the server's last state instead of reading it as zero.
+
+### Completeness
+
+`CollectorRead.complete` means **the server and profile listings were read in full**, so a server missing from the read is absent. Gaps for one server stay on that server: `gpu_models=None` when its GPUs could not be read, and `profile_unresolved` when its profile binding is ambiguous.
+
+The engine uses each manager's **latest complete read**. A manager whose latest complete read is older than `TTV_COLLECTOR_STALE_AFTER` (1 h) turns its servers UNKNOWN. A server is retired only when it has been missing from complete reads for `tombstone_after`, and only in a scan where every manager's latest attempt was complete. An incomplete or failed read never retires anything.
+
+Both readers first marked the whole read incomplete for a single server's gap (one failed iDRAC, one failed UCS Manager domain, one ambiguous name). Because the engine ignores incomplete reads, one bad BMC would have hidden a whole OME estate and, an hour later, turned it all UNKNOWN. That was changed at merge time (2026-10-31) to the rule above.
+
+### The job (`ttv-collector`)
+
+- **A separate process** from the engine. Every `TTV_COLLECTOR_INTERVAL_SECONDS` (900) it reads all managers concurrently and stores each read with its servers in one transaction. It applies migrations at start, and a Postgres advisory lock (`COLLECTOR_LOCK_KEY`, separate from the engine's) keeps one collector active.
+- **It stores reads whatever `TTV_DRY_RUN` says.** Reads are raw observations in our own Postgres, not ledger writes, and the engine's dry run needs them. The job never writes to a manager; both readers enforce that in code (below).
+- **A read that raises** is stored as a failed attempt (`complete=false`, no servers, the error), so it blocks retirement and, after an hour, shows as staleness. A crash in a reader (`UnsafeRequestError` included) is logged and recorded the same way; it never stops the loop.
+- **No outer deadline.** Each reader bounds itself: OME by a whole-read deadline, UCS by a deadline on every SDK call. Cancelling a UCS read from outside could send a logout while an abandoned SDK thread still holds the handle, which the per-call poisoning exists to prevent. A read that hangs anyway shows up as a stale manager.
+- **Probe mode:** `ttv-collector --once --dry-run --servers` reads every manager, prints each record, stores nothing and needs no database. `--print-config` prints the settings (database password masked) and the managers file.
+
 ## Cisco (UCS Central)
 
 - **Status:** implemented 2026-10-31. **`fixture-tested` only:** there is no UCS Central in the lab, so the real ucscsdk/ucsmsdk handles run against synthetic XML (`tests/fixtures/ucs_central/`).
@@ -39,7 +75,7 @@ Other DNs named by the other joins are kept as `profile_other_dns`. The name is 
   - Network failures and deadlines are TEMPORARILY_UNAVAILABLE.
   - TLS failures and unparseable replies are INVALID.
   - Central listing **no domain** is INVALID, never an empty estate.
-- **A fallback domain fails** (login, deadline, no address, password file): the read returns `complete=False` with one error for that domain, and its servers keep `gpu_models=None` with the reason. Other domains are still read. The server listing itself is whole, since it comes from Central.
+- **A fallback domain fails** (login, deadline, no address, password file): the read stays `complete=True`, because the server listing comes from Central and is whole. It carries one error for that domain, and that domain's servers keep `gpu_models=None` with the reason. Other domains are still read.
 - **No fallback configured** is not an error: `complete=True`, and `coverage.domains_gpu_unread` / `servers_gpu_unread` count what is missing.
 
 ### Read-only, enforced in code
@@ -119,7 +155,7 @@ Each server device becomes one `ManagerServer`:
   - An unassigned profile normally has no target (`TargetId` 0, empty `TargetName`), so it binds nothing and is counted `profiles_untargeted`.
   - If OME ever reports state 0 *with* a target, the profile binds, because it targets the device. Its state stays in the evidence.
   - `ProfileState` and deploy jobs are evidence only; Jobs are never read.
-- **A `TargetName` that matches several devices binds none of them.** Those devices get `profile_join: ambiguous`, and the read is `complete=False`, so an unknown binding never silently becomes a DC charge.
+- **A `TargetName` that matches several devices binds none of them.** Those devices get `profile_join: ambiguous` and `profile_unresolved`, so the engine records each as a `COLLECTOR_PROFILE_AMBIGUOUS` identity conflict (UNKNOWN), never as a DC charge. The read stays complete.
 - **Several profiles on one device.** `TargetId` joins win, then the lowest profile `Id`. The others go to `other_profile_ids`.
 
 ### GPU evidence
@@ -137,7 +173,7 @@ For each device, in order:
    - The result has `gpu_source = redfish` and `gpu_rule` set to `processors` or `pcie`.
 4. **Otherwise** `gpu_models` is None (unread, never `()`), with a `gpu_note`, and is counted in `gpu_unread`.
 
-**When the read is incomplete.** `complete=False` when a GPU read was attempted and failed: an OME error with no Redfish to fall back to, a Redfish error, an unusable BMC answer, or the deadline. Those servers keep `gpu_models=None`, and `errors` names the device `Id` (capped at 50 lines). GPUs unread only for lack of a source (Redfish not configured, no iDRAC address) are counted but do not make the read incomplete.
+**When the read is incomplete.** Only when a device or profile entry is malformed (`complete=False`), since then the listing is not whole. A GPU read that was attempted and failed (an OME error with no Redfish to fall back to, a Redfish error, an unusable BMC answer, or the deadline) leaves that server's `gpu_models=None`, counts in `gpu_read_failed`, and adds an error naming the device `Id` (capped at 50 lines). The read stays complete. GPUs unread only for lack of a source (Redfish not configured, no iDRAC address) are counted the same way.
 
 **Cost bounds.**
 - **Concurrency.** Per-device reads run under a semaphore (`gpu_concurrency`, default 8).
@@ -198,6 +234,6 @@ server-scan's iDRAC reset path (`redfish/idrac_reset.py`, its ADR-0050) is not c
 6. **Sessions:** the session `Id` is UUID-shaped (the logout guard accepts `[A-Za-z0-9._-]+`), and `MaxSessions` leaves headroom.
 7. **Cold-cache cost:** inventory latency × server devices, plus iDRAC reads, fits `collector_timeout_seconds`.
 
-### Not in configuration yet
+### Configuration
 
-`inventory_types`, `empty_inventory_means_no_gpu`, `pcie_fallback`, `gpu_concurrency`, `gpu_cache_ttl`, `request_timeout_seconds` and `max_members` are `OpenManageSource` constructor arguments. Neither `OpenManageConnection` nor `Settings` carries them. Whoever wires the collector decides which to expose, and the `serverDeviceCards` gate (1) needs at least `inventory_types` and `empty_inventory_means_no_gpu`.
+Per OME in the managers file (`config/managers.example.yaml`): `inventory_types` (default `[serverDeviceCards]`), `empty_inventory_means_no_gpu` (default false), `pcie_fallback` (default true) and `gpu_concurrency` (default 8). The job passes `TTV_COLLECTOR_TIMEOUT_SECONDS` as the whole-read deadline and `TTV_HTTP_TIMEOUT_SECONDS` per request. `gpu_cache_ttl` (24 h) and `max_members` (128) stay code defaults.

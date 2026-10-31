@@ -133,3 +133,10 @@ def test_mixed_gpu_models_from_the_collector_sum_to_e(policy: Policy) -> None:
 def test_a_collector_record_without_gpus_is_rejected(policy: Policy) -> None:
     with pytest.raises(ValueError, match="GPUs"):
         decide(policy, record(gpu_models=()))
+
+
+def test_row2b_unresolved_profile_is_unknown_never_dc(policy: Policy) -> None:
+    unresolved = record(profile_unresolved="target name shared by several servers")
+    decision = decide(policy, unresolved)
+    assert only(decision) == (Category.UNKNOWN, Reason.IDENTITY_CONFLICT, None)
+    assert "several servers" in decision.buckets[0].evidence["conflict"]

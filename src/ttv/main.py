@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-import logging
 import sys
 from datetime import UTC, datetime, timedelta
 
@@ -15,6 +14,7 @@ import uvicorn
 from ttv.api import create_app
 from ttv.config import ClusterConnection, Policy, Settings, load_clusters, load_policy
 from ttv.engine import ClusterSources, Engine
+from ttv.logs import configure_logging
 from ttv.metrics import EngineMetrics
 from ttv.pricing.catalog import canonical_gpu_model
 from ttv.pricing.importer import prepare_pricing
@@ -24,19 +24,6 @@ from ttv.sources.thanos import ThanosSource
 from ttv.store import MIGRATIONS, PostgresStore
 
 log = structlog.get_logger(__name__)
-
-
-def _configure_logging() -> None:
-    """Emit JSON log lines on stdout."""
-    logging.basicConfig(format="%(message)s", stream=sys.stdout, level=logging.INFO)
-    structlog.configure(
-        processors=[
-            structlog.processors.add_log_level,
-            structlog.processors.TimeStamper(fmt="iso", utc=True),
-            structlog.processors.JSONRenderer(),
-        ],
-        wrapper_class=structlog.make_filtering_bound_logger(logging.INFO),
-    )
 
 
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
@@ -72,6 +59,9 @@ async def _run(args: argparse.Namespace) -> int:
         int: Process exit code.
     """
     settings = Settings()
+    if not settings.serverscan_url:
+        print("TTV_SERVERSCAN_URL is required for ttv-engine", file=sys.stderr)
+        return 2
     policy = load_policy(settings.policy_file)
     clusters = load_clusters(settings.clusters_file, policy)
     if args.print_config:
@@ -240,7 +230,7 @@ def main(argv: list[str] | None = None) -> int:
     Returns:
         int: Exit code.
     """
-    _configure_logging()
+    configure_logging()
     return asyncio.run(_run(_parse_args(argv)))
 
 

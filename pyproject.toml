@@ -25,6 +25,7 @@ Repository = "https://github.com/roiblum1/gpu-ttv"
 [project.scripts]
 ttv-engine = "ttv.main:main"
 ttv-pricing = "ttv.pricing.cli:main"
+ttv-collector = "ttv.collector.main:main"
 
 [build-system]
 requires = ["hatchling"]

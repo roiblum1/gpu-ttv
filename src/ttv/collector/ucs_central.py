@@ -992,7 +992,8 @@ class UcsCentralSource:
             now (datetime): Read time.
 
         Returns:
-            CollectorRead: `complete=False` when a domain's UCS Manager GPU read failed.
+            CollectorRead: Always `complete=True` (Central's listing is whole); a failed
+                UCS Manager domain leaves its servers' `gpu_models=None` and adds an error.
 
         Raises:
             SourceError: UCS Central could not be read (PERMISSION_DENIED for a rejected login).
@@ -1016,7 +1017,7 @@ class UcsCentralSource:
             kind=KIND,
             started_at=now,
             finished_at=now + timedelta(seconds=time.monotonic() - started),
-            complete=not errors,
+            complete=True,
             servers=tuple(servers),
             errors=tuple(errors),
             coverage=_coverage(servers, mapped, outcome),

@@ -173,3 +173,16 @@ async def test_duplicate_serial_across_managers_is_a_conflict(
     assert await open_rows(store) == {("dell:svc0001", "UNKNOWN", "IDENTITY_CONFLICT", 8)}
     kinds = await rows(store, "SELECT kind FROM identity_conflicts WHERE resolved_at IS NULL")
     assert kinds == [{"kind": "COLLECTOR_DUPLICATE"}]
+
+
+async def test_unresolved_profile_is_an_identity_conflict(
+    store: PostgresStore, policy: Policy
+) -> None:
+    ambiguous = dell("svc0001", profile_unresolved="TargetName shared by several devices")
+    await store.record_collector_read(read(T0, ambiguous))
+    source, clock = FakeSource(), Clock()
+    source.answers = [[]]
+    await engine(store, policy, source, clock).run_once()
+    assert await open_rows(store) == {("dell:svc0001", "UNKNOWN", "IDENTITY_CONFLICT", 8)}
+    kinds = await rows(store, "SELECT kind FROM identity_conflicts WHERE resolved_at IS NULL")
+    assert kinds == [{"kind": "COLLECTOR_PROFILE_AMBIGUOUS"}]

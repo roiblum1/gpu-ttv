@@ -531,8 +531,11 @@ class _CollectorRules(_Rules):
         if self._note("2 SOURCE_STALE (collector)", failing):
             evidence["source_failed_scans"] = status.failed_scans if status else None
             return self._server_level(Category.UNKNOWN, Reason.SOURCE_STALE, evidence=evidence)
-        if self._note("2b IDENTITY_CONFLICT", self.asset.conflict is not None):
-            evidence["conflict"] = self.asset.conflict
+        conflict = self.asset.conflict or (
+            f"profile binding unresolved: {m.profile_unresolved}" if m.profile_unresolved else None
+        )
+        if self._note("2b IDENTITY_CONFLICT", conflict is not None):
+            evidence["conflict"] = conflict
             return self._server_level(Category.UNKNOWN, Reason.IDENTITY_CONFLICT, evidence=evidence)
         seen = self.asset.collector_first_seen
         if self._note("3 PROFILE_NONE", m.profile_name is None):

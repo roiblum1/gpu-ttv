@@ -333,7 +333,7 @@ async def test_too_many_redfish_members_leave_gpus_unread(tmp_path: Path) -> Non
     assert servers["10103"].evidence["gpu_note"] == "more than 3 PCIe devices to screen"
     assert servers["10102"].gpu_models is None
     assert "more than 3 members" in servers["10102"].evidence["gpu_note"]
-    assert read.complete is False
+    assert read.complete is True  # the server list is whole; the gap is per server
 
 
 async def test_login_rejected_is_permission_denied(tmp_path: Path) -> None:
@@ -417,7 +417,7 @@ async def test_a_next_link_naming_another_host_pages_on_our_origin(tmp_path: Pat
     }
 
 
-async def test_failed_gpu_reads_make_the_read_partial(tmp_path: Path) -> None:
+async def test_failed_gpu_reads_stay_on_their_servers(tmp_path: Path) -> None:
     fake = dell_fleet()
     fake.get(OME_HOST, inventory(10101), status(500))
     fake.get("192.0.2.11", "/redfish/v1/Systems", status(503))
@@ -427,7 +427,7 @@ async def test_failed_gpu_reads_make_the_read_partial(tmp_path: Path) -> None:
     read = await read_once(make_source(tmp_path, fake))
 
     servers = by_id(read)
-    assert read.complete is False
+    assert read.complete is True  # the server list is whole; the gap is per server
     assert servers["10101"].gpu_models is None
     assert servers["10101"].evidence["gpu_source"] == "redfish"
     assert servers["10102"].gpu_models == ("NVIDIA L40S",) * 4
@@ -451,7 +451,7 @@ async def test_a_rejected_idrac_account_stops_redfish_after_three_hosts(tmp_path
     assert len(idrac_requests) == 3
     assert all(s.gpu_models is None for s in read.servers)
     assert "refused by every iDRAC tried" in by_id(read)["10105"].evidence["gpu_note"]
-    assert read.complete is False
+    assert read.complete is True  # the server list is whole; the gap is per server
     assert read.coverage["gpu_read_failed"] == 5
 
 
@@ -464,7 +464,7 @@ async def test_a_redfish_link_outside_the_allow_list_is_never_followed(tmp_path:
     assert by_id(read)["10102"].gpu_models is None
     assert "outside the GPU reads" in by_id(read)["10102"].evidence["gpu_note"]
     assert not any("/Managers" in path for _, _, path in fake.sent())
-    assert read.complete is False
+    assert read.complete is True  # the server list is whole; the gap is per server
 
 
 async def test_gpu_answers_are_cached_until_the_inventory_changes(tmp_path: Path) -> None:
@@ -506,8 +506,9 @@ async def test_an_ambiguous_target_name_binds_no_device(tmp_path: Path) -> None:
     for device_id in ("10103", "10104"):
         assert servers[device_id].profile_name is None
         assert servers[device_id].evidence["profile_join"] == "ambiguous"
+        assert "several devices" in (servers[device_id].profile_unresolved or "")
     assert read.coverage["profiles_ambiguous"] == 1
-    assert read.complete is False
+    assert read.complete is True
     assert any("TargetName shared by several devices" in e for e in read.errors)
 
 
@@ -539,7 +540,7 @@ async def test_gpu_reads_that_miss_the_deadline_stay_unread(tmp_path: Path) -> N
     assert servers["10101"].gpu_models is None
     assert "deadline" in servers["10101"].evidence["gpu_note"]
     assert servers["10105"].gpu_models == (H100_94,) * 4
-    assert read.complete is False
+    assert read.complete is True  # the server list is whole; the gap is per server
     assert fake.sent()[-1] == ("DELETE", OME_HOST, LOGOUT)
 
 

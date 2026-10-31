@@ -22,6 +22,8 @@ from ttv.sources.serverscan import CachedDetail
 MIGRATIONS = Path(__file__).resolve().parents[2] / "migrations"
 # One active engine: a session-level advisory lock on this key (AGENT.md §20.1).
 LEADER_LOCK_KEY = 7_211_042_301
+# One active profile-less collector (ADR-0004); LEADER_LOCK_KEY + 1 serialises migrations.
+COLLECTOR_LOCK_KEY = LEADER_LOCK_KEY + 2
 _DICT_ROWS: Any = dict_row  # Any: ty mis-resolves psycopg's row-factory overloads
 
 _CREATE_MIGRATIONS = """
@@ -165,8 +167,8 @@ VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id
 """
 _INSERT_COLLECTOR_SERVER = """
 INSERT INTO collector_servers (read_id, vendor, serial_normalized, source_id, name, model,
-    profile_name, gpu_models, domain, evidence)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (read_id, source_id) DO NOTHING
+    profile_name, gpu_models, domain, evidence, profile_unresolved)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (read_id, source_id) DO NOTHING
 """
 _INSERT_FIRST_SEEN = """
 INSERT INTO collector_first_seen (vendor, serial_normalized, first_seen_at) VALUES (%s, %s, %s)
@@ -318,14 +320,17 @@ class PostgresStore:
                 applied.append(path.stem)
         return applied
 
-    async def try_acquire_leadership(self) -> bool:
+    async def try_acquire_leadership(self, key: int = LEADER_LOCK_KEY) -> bool:
         """
-        Take the session-level leader lock if no other engine holds it.
+        Take a session-level leader lock if no other process holds it.
+
+        Args:
+            key (int): Lock key: `LEADER_LOCK_KEY` (engine) or `COLLECTOR_LOCK_KEY`.
 
         Returns:
             bool: True if this connection now holds the lock.
         """
-        row = await self._one("SELECT pg_try_advisory_lock(%s) AS ok", (LEADER_LOCK_KEY,))
+        row = await self._one("SELECT pg_try_advisory_lock(%s) AS ok", (key,))
         return bool(row["ok"])
 
     async def sync_objectives(self, policy: Policy) -> None:
@@ -585,6 +590,7 @@ class PostgresStore:
                         gpus,
                         m.domain,
                         Jsonb(dict(m.evidence)),
+                        m.profile_unresolved,
                     ),
                 )
                 if not m.serial_normalized:
@@ -592,7 +598,7 @@ class PostgresStore:
                 await self.conn.execute(
                     _INSERT_FIRST_SEEN, (m.vendor, m.serial_normalized, read.finished_at)
                 )
-                if m.profile_name is not None:
+                if m.profile_name is not None and m.profile_unresolved is None:
                     await self.conn.execute(
                         _INSERT_PROFILE_FIRST_SEEN,
                         (m.vendor, m.serial_normalized, m.profile_name, read.finished_at),
@@ -627,6 +633,7 @@ class PostgresStore:
                     gpu_models=None if gpus is None else tuple(str(g) for g in gpus),
                     domain=r["domain"],
                     evidence=r["evidence"] or {},
+                    profile_unresolved=r["profile_unresolved"],
                 )
             )
             if r["first_seen_at"] is not None:
