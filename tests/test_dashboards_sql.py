@@ -526,7 +526,7 @@ def test_queues_idle_and_overdue_match_agent_17(db: tuple[Conn, Seed]) -> None:
     rows = _by(_panel(db, "ttv-queues", 12, (p0 - H, p0 + 5 * H)), "Stage owner")
     assert _f(rows["Redbull"]["Idle GPU-h"]) == pytest.approx(24)
     assert _f(rows["Redbull"]["Overdue GPU-h"]) == pytest.approx(16)
-    assert rows["Redbull"]["Stage clock"] == "observed"
+    assert rows["Redbull"]["Clock"] == "fully observed"
     assert _f(rows["Serving"]["Idle GPU-h"]) == pytest.approx(12)
     assert _f(rows["Serving"]["Overdue GPU-h"]) == pytest.approx(0)
     assert _f(rows["DC"]["Idle GPU-h"]) == pytest.approx(0)
@@ -549,40 +549,45 @@ def test_queues_historical_value_uses_the_snapshot_in_force(db: tuple[Conn, Seed
     rows = _by(_panel(db, "ttv-queues", 20, (p0 - H, p0 + 5 * H)), "Stage owner")
     assert _f(rows["Redbull"]["Idle USD, present-day"]) == pytest.approx(240)
     assert _f(rows["Redbull"]["Idle USD, historical"]) == pytest.approx(240)
-    assert rows["Redbull"]["Historical snapshots"] == SNAPSHOT
+    published = (db[1].p0 - D).astimezone(UTC).strftime("%Y-%m-%d")
+    assert rows["Redbull"]["Historical price dates"] == published
 
 
 def test_queues_idle_now_by_owner(db: tuple[Conn, Seed]) -> None:
-    """Open IDLE intervals per stage owner, and the categories beside them."""
-    rows = _by(_panel(db, "ttv-queues", 7), "stage_owner")
-    assert {k: _f(v["idle_gpus"]) for k, v in rows.items()} == {
-        "DC": 8, "Redbull": 8, "POPAI": 2, "Serving": 6,
+    """Open IDLE intervals per stage owner (pipeline order), and every category on Home."""
+    rows = _panel(db, "ttv-queues", 26)
+    assert [(r["Stage owner"], _f(r["Idle GPUs"])) for r in rows] == [
+        ("DC", 8), ("Redbull", 8), ("POPAI", 2), ("Serving", 6),
+    ]  # fmt: skip
+    assert _f(_panel(db, "ttv-queues", 21)[0]["Idle GPUs"]) == 24
+    partition = _panel(db, "ttv-home", 9)[0]
+    assert {k: _f(v) for k, v in partition.items()} == {
+        "Productive": 10, "Idle": 24, "Not charged": 2, "Unknown": 4,
     }  # fmt: skip
-    assert _f(_panel(db, "ttv-queues", 8)[0]["gpus"]) == 10
-    assert _f(_panel(db, "ttv-queues", 9)[0]["gpus"]) == 4
-    assert _f(_panel(db, "ttv-queues", 10)[0]["gpus"]) == 2
 
 
 def test_queues_value_is_linear_and_unpriced_is_not_zero(db: tuple[Conn, Seed]) -> None:
     """8 idle GPUs of an 8-GPU instance are worth one instance-hour; A16s stay unpriced."""
     redbull = _panel(db, "ttv-queues", 17, stage_owner=["Redbull"])[0]
-    assert _f(redbull["usd_per_hour"]) == pytest.approx(80)
-    assert _f(_panel(db, "ttv-queues", 17)[0]["usd_per_hour"]) == pytest.approx(220)
+    assert _f(redbull["usd"]) == pytest.approx(80)
+    everyone = _panel(db, "ttv-queues", 17)[0]
+    assert _f(everyone["usd"]) == pytest.approx(220)
+    assert "at least (2 GPUs unpriced)" in everyone["label"]
     assert _f(_panel(db, "ttv-queues", 18)[0]["gpus"]) == 2
     unpriced = _panel(db, "ttv-queues", 19)
     assert [(r["Canonical model"], _f(r["Idle GPUs"])) for r in unpriced] == [(A16, 2)]
 
 
 def test_queues_unknown_is_never_zero(db: tuple[Conn, Seed]) -> None:
-    """An empty scope gives no value (rendered as "No data"), never 0."""
-    for panel_id in (8, 9, 10):
-        assert _panel(db, "ttv-queues", panel_id, site=["no-such-site"])[0]["gpus"] is None
-    empty = _panel(db, "ttv-queues", 5, site=["no-such-site"])[0]
-    assert (empty["UNKNOWN GPUs"], empty["GPUs in scope"], empty["UNKNOWN share"]) == (None,) * 3
-    coverage = _panel(db, "ttv-queues", 5)[0]
-    assert _f(coverage["UNKNOWN GPUs"]) == 4
-    assert _f(coverage["GPUs in scope"]) == 40
-    assert coverage["Servers, GPU count unread"] == 1
+    """An empty scope gives no value (rendered as "no GPUs in scope"), never 0."""
+    scoped = (("ttv-queues", 21), ("ttv-queues", 22), ("ttv-queues", 24), ("ttv-home", 6))
+    for uid, panel_id in scoped:
+        (row,) = _panel(db, uid, panel_id, site=["no-such-site"])
+        assert next(iter(row.values())) is None, (uid, panel_id)
+    assert _panel(db, "ttv-home", 9, site=["no-such-site"]) == []
+    assert _panel(db, "ttv-evidence", 41, site=["no-such-site"])[0]["Known"] is None
+    assert _f(_panel(db, "ttv-queues", 24)[0]["Unknown GPUs"]) == 4
+    assert _f(_panel(db, "ttv-evidence", 41)[0]["Known"]) == pytest.approx(100 * 36 / 40)
 
 
 def test_queues_longest_waits_mark_lower_bounds(db: tuple[Conn, Seed]) -> None:
@@ -595,8 +600,7 @@ def test_queues_longest_waits_mark_lower_bounds(db: tuple[Conn, Seed]) -> None:
 
 def test_evidence_counts(db: tuple[Conn, Seed]) -> None:
     """Open identity conflicts, UNKNOWN GPUs by reason and the never-succeeded source."""
-    conflicts = _panel(db, "ttv-evidence", 22)[0]
-    assert (conflicts["Open conflicts"], conflicts["GPUs affected"]) == (1, 0)
+    assert _panel(db, "ttv-evidence", 44)[0]["Open conflicts"] == 1
     unknown = _by(_panel(db, "ttv-evidence", 25), "Reason")
     assert _f(unknown["SOURCE_STALE"]["UNKNOWN GPUs"]) == 4
     sources = _by(_panel(db, "ttv-evidence", 21), "Source")

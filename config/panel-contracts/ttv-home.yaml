@@ -23,7 +23,6 @@ panels:
   lineage:
   - capacity_intervals
   - assets
-  - scan_runs
   freshness: Latest engine scan (every 5 min); the Data age card shows its age.
   baseline: null
   direction: lower_is_better
@@ -33,7 +32,7 @@ panels:
     0. UNKNOWN GPUs are never counted as idle or productive.
   value_kind: observed
   gate: core
-  privileges: SELECT on capacity_intervals, assets, scan_runs
+  privileges: SELECT on capacity_intervals, assets
   cardinality: 1 value
   drilldown: ttv-queues
   action: Open Queues to see which owner holds them.
@@ -66,7 +65,6 @@ panels:
   - pricing_rates
   - pricing_snapshots
   - gpu_model_aliases
-  - scan_runs
   freshness: Latest engine scan (every 5 min); the Data age card shows its age.
   baseline: null
   direction: lower_is_better
@@ -77,8 +75,7 @@ panels:
     no GPU is idle.'
   value_kind: derived
   gate: core
-  privileges: SELECT on capacity_intervals, assets, pricing_rates, pricing_snapshots, gpu_model_aliases,
-    scan_runs
+  privileges: SELECT on capacity_intervals, assets, pricing_rates, pricing_snapshots, gpu_model_aliases
   cardinality: 1 value
   drilldown: ttv-queues#19
   action: null
@@ -142,7 +139,6 @@ panels:
   lineage:
   - capacity_intervals
   - assets
-  - scan_runs
   freshness: Latest engine scan (every 5 min); the Data age card shows its age.
   baseline: null
   direction: lower_is_better
@@ -152,7 +148,7 @@ panels:
     0. UNKNOWN GPUs are never counted as idle or productive.
   value_kind: observed
   gate: core
-  privileges: SELECT on capacity_intervals, assets, scan_runs
+  privileges: SELECT on capacity_intervals, assets
   cardinality: 1 value
   drilldown: ttv-evidence#25
   action: Open Evidence to see why.
@@ -179,7 +175,6 @@ panels:
   lineage:
   - capacity_intervals
   - assets
-  - scan_runs
   freshness: Latest engine scan (every 5 min); the Data age card shows its age.
   baseline: null
   direction: neutral
@@ -189,7 +184,7 @@ panels:
     0. UNKNOWN GPUs are never counted as idle or productive.
   value_kind: observed
   gate: core
-  privileges: SELECT on capacity_intervals, assets, scan_runs
+  privileges: SELECT on capacity_intervals, assets
   cardinality: 1 value
   drilldown: null
   action: null
@@ -255,7 +250,6 @@ panels:
   - stage_objectives
   - pricing_rates
   - gpu_model_aliases
-  - scan_runs
   freshness: Latest engine scan (every 5 min); the Data age card shows its age.
   baseline: null
   direction: lower_is_better
@@ -267,8 +261,7 @@ panels:
   missing_data: All four owners always show; an owner with no idle GPUs shows 0 and '—'.
   value_kind: observed
   gate: core
-  privileges: SELECT on capacity_intervals, assets, stage_objectives, pricing_rates, gpu_model_aliases,
-    scan_runs
+  privileges: SELECT on capacity_intervals, assets, stage_objectives, pricing_rates, gpu_model_aliases
   cardinality: 4 rows
   drilldown: ttv-queues
   action: Ask the owner with the most overdue GPUs to clear its longest waits.
@@ -296,7 +289,6 @@ panels:
   lineage:
   - capacity_intervals
   - assets
-  - scan_runs
   freshness: Latest engine scan (every 5 min); the Data age card shows its age.
   baseline: null
   direction: neutral
@@ -306,7 +298,7 @@ panels:
     0. UNKNOWN GPUs are never counted as idle or productive.
   value_kind: observed
   gate: core
-  privileges: SELECT on capacity_intervals, assets, scan_runs
+  privileges: SELECT on capacity_intervals, assets
   cardinality: 4 bars
   drilldown: null
   action: null
@@ -411,7 +403,6 @@ panels:
   - stage_owner
   - site
   - snapshot
-  - time range
   exclusions: null
   query: grafana/dashboards/ttv-home.json#21
   lineage:
@@ -420,7 +411,6 @@ panels:
   - stage_objectives
   - pricing_rates
   - gpu_model_aliases
-  - scan_runs
   freshness: Latest engine scan (every 5 min); the Data age card shows its age.
   baseline: null
   direction: lower_is_better
@@ -430,8 +420,7 @@ panels:
     0. UNKNOWN GPUs are never counted as idle or productive.
   value_kind: observed
   gate: core
-  privileges: SELECT on capacity_intervals, assets, stage_objectives, pricing_rates, gpu_model_aliases,
-    scan_runs
+  privileges: SELECT on capacity_intervals, assets, stage_objectives, pricing_rates, gpu_model_aliases
   cardinality: 1 value
   drilldown: null
   action: null
@@ -456,7 +445,6 @@ panels:
   - stage_owner
   - site
   - snapshot
-  - time range
   exclusions: Intervals with no objective (shown on Queues).
   query: grafana/dashboards/ttv-home.json#22
   lineage:
@@ -465,7 +453,6 @@ panels:
   - stage_objectives
   - pricing_rates
   - gpu_model_aliases
-  - scan_runs
   freshness: Latest engine scan (every 5 min); the Data age card shows its age.
   baseline: null
   direction: lower_is_better
@@ -475,8 +462,7 @@ panels:
     0. UNKNOWN GPUs are never counted as idle or productive.
   value_kind: observed
   gate: core
-  privileges: SELECT on capacity_intervals, assets, stage_objectives, pricing_rates, gpu_model_aliases,
-    scan_runs
+  privileges: SELECT on capacity_intervals, assets, stage_objectives, pricing_rates, gpu_model_aliases
   cardinality: 1 value
   drilldown: null
   action: null
@@ -501,7 +487,6 @@ panels:
   - stage_owner
   - site
   - snapshot
-  - time range
   exclusions: null
   query: grafana/dashboards/ttv-home.json#23
   lineage:
@@ -511,7 +496,6 @@ panels:
   - pricing_rates
   - pricing_snapshots
   - gpu_model_aliases
-  - scan_runs
   freshness: Latest engine scan (every 5 min); the Data age card shows its age.
   baseline: null
   direction: lower_is_better
@@ -522,7 +506,7 @@ panels:
   value_kind: derived
   gate: core
   privileges: SELECT on capacity_intervals, assets, stage_objectives, pricing_rates, pricing_snapshots,
-    gpu_model_aliases, scan_runs
+    gpu_model_aliases
   cardinality: 1 value
   drilldown: ttv-queues#20
   action: null
@@ -547,7 +531,6 @@ panels:
   filters:
   - stage_owner
   - site
-  - time range
   exclusions: null
   query: grafana/dashboards/ttv-home.json#25
   lineage:

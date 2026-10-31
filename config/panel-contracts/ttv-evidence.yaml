@@ -1,279 +1,491 @@
-# Panel contracts for ttv-evidence.json (schema: config/panel-contracts/README.md).
-# Accurate to the dashboard as committed; update an entry in the same change as its panel.
+# Panel contracts for grafana/dashboards/ttv-evidence.json (schema: README.md in this folder).
 dashboard: ttv-evidence
 panels:
-  - id: 17
-    title: Scan runs over time, by kind and status
-    question: E18
-    status: built
-    audience: Platform engineers
-    decision: Whether monitoring was blind at any time in the period.
-    definition: Count of scan_runs per start-time bucket, by kind and status.
-    unit: scan runs per bucket
-    numerator: null
-    denominator: null
-    population: scan_runs
-    window: selected range
-    filters: []
-    exclusions: null
-    query: grafana/dashboards/ttv-evidence.json#17
-    lineage: [scan_runs.started_at, scan_runs.kind, scan_runs.status]
-    freshness: Each scan.
-    baseline: null
-    direction: neutral
-    thresholds: null
-    uncertainty: null
-    missing_data: A gap means no scan ran (monitoring was blind), not a scan that found nothing.
-    value_kind: observed
-    gate: core
-    privileges: SELECT on scan_runs
-    cardinality: one series per kind and status (≤ 10)
-    drilldown: null
-    action: null
-    fixture: tests/test_dashboards_sql.py
-    expected: Runs without error; three runs in the default range with the fixture.
-
-  - id: 18
-    title: Last success per scan kind
-    question: E18
-    status: built
-    audience: Platform engineers, CEO
-    decision: Whether each collector is succeeding.
-    definition: >-
-      Per scan kind: newest 'ok' finish time, its age, the newest run's status, and ok and
-      partial/failed runs in the range.
-    unit: timestamps; duration; runs
-    numerator: null
-    denominator: null
-    population: scan_runs
-    window: now
-    filters: []
-    exclusions: Run counts honour the time range; the rest is current.
-    query: grafana/dashboards/ttv-evidence.json#18
-    lineage: [scan_runs.finished_at, scan_runs.status, scan_runs.kind, scan_runs.started_at]
-    freshness: Each scan.
-    baseline: null
-    direction: neutral
-    thresholds: null
-    uncertainty: null
-    missing_data: >-
-      'never' (purple) = no 'ok' run recorded; an age is never 0 for a kind that has not succeeded.
-    value_kind: observed
-    gate: core
-    privileges: SELECT on scan_runs
-    cardinality: one row per scan kind (≤ 3)
-    drilldown: null
-    action: null
-    fixture: tests/test_dashboards_sql.py
-    expected: Rows for collector and engine with the fixture.
-
-  - id: 19
-    title: Recent partial or failed scans
-    question: E18
-    status: built
-    audience: Platform engineers
-    decision: Which scans failed and why.
-    definition: Newest 20 partial or failed scan_runs in the range with their errors and coverage.
-    unit: timestamps; text
-    numerator: null
-    denominator: null
-    population: scan_runs with status partial or failed
-    window: selected range
-    filters: []
-    exclusions: null
-    query: grafana/dashboards/ttv-evidence.json#19
-    lineage: [scan_runs.started_at, scan_runs.errors, scan_runs.coverage]
-    freshness: Each scan.
-    baseline: null
-    direction: lower_is_better
-    thresholds: null
-    uncertainty: null
-    missing_data: >-
-      Empty = no partial or failed scan in the range; gaps where no scan ran are in 'Scan runs over
-      time'.
-    value_kind: observed
-    gate: core
-    privileges: SELECT on scan_runs
-    cardinality: ≤ 20 rows
-    drilldown: null
-    action: null
-    fixture: tests/test_dashboards_sql.py
-    expected: One partial engine scan with the fixture.
-
-  - id: 21
-    title: Source health (source_state)
-    question: E18
-    status: built
-    audience: Platform engineers
-    decision: Which source to fix first.
-    definition: >-
-      Per source: state, consecutive failed scans, last success, time since success, last attempt
-      and last error.
-    unit: counts; timestamps; duration
-    numerator: null
-    denominator: null
-    population: source_state
-    window: now
-    filters: []
-    exclusions: null
-    query: grafana/dashboards/ttv-evidence.json#21
-    lineage:
-      - source_state.failed_scans
-      - source_state.last_success_at
-      - source_state.last_attempt_at
-      - source_state.last_error
-    freshness: Each scan.
-    baseline: null
-    direction: lower_is_better
-    thresholds: >-
-      ok (green); 1-2 failures within grace (orange); 3+ beyond grace, assets UNKNOWN (red); never
-      succeeded (purple)
-    uncertainty: States assume the default unknown_grace_scans = 2.
-    missing_data: "'never succeeded' = no complete fetch yet; its assets are UNKNOWN, not empty."
-    value_kind: observed
-    gate: core
-    privileges: SELECT on source_state
-    cardinality: one row per source (tens)
-    drilldown: null
-    action: null
-    fixture: tests/test_dashboards_sql.py
-    expected: serverscan ok; the fixture collector never succeeded.
-
-  - id: 22
-    title: Open identity conflicts
-    question: E18
-    status: built
-    audience: CEO, platform engineers
-    decision: Whether identity conflicts hold back capacity.
-    definition: >-
-      Unresolved identity_conflicts, and GPUs in open UNKNOWN intervals with reason
-      IDENTITY_CONFLICT.
-    unit: conflicts; GPUs
-    numerator: null
-    denominator: null
-    population: identity_conflicts; open capacity_intervals
-    window: now
-    filters: []
-    exclusions: null
-    query: grafana/dashboards/ttv-evidence.json#22
-    lineage:
-      - identity_conflicts.resolved_at
-      - capacity_intervals.reason_code
-      - capacity_intervals.gpus
-    freshness: Each scan.
-    baseline: null
-    direction: lower_is_better
-    thresholds: null
-    uncertainty: null
-    missing_data: 0 conflicts = none recorded; conflicting assets are never merged silently.
-    value_kind: observed
-    gate: core
-    privileges: SELECT on identity_conflicts, capacity_intervals
-    cardinality: one row
-    drilldown: ttv-evidence#23
-    action: null
-    fixture: tests/test_dashboards_sql.py
-    expected: 1 open conflict, 0 GPUs affected, with the fixture.
-
-  - id: 23
-    title: Open identity conflicts
-    question: E18
-    status: built
-    audience: Platform engineers
-    decision: Which identity conflicts to resolve.
-    definition: >-
-      Unresolved identity_conflicts, oldest first: kind, key, candidates, first and last seen, time
-      open.
-    unit: timestamps; duration
-    numerator: null
-    denominator: null
-    population: identity_conflicts
-    window: now
-    filters: []
-    exclusions: Resolved conflicts (kept in the ledger).
-    query: grafana/dashboards/ttv-evidence.json#23
-    lineage:
-      - identity_conflicts.kind
-      - identity_conflicts.key
-      - identity_conflicts.candidates
-      - identity_conflicts.first_seen
-    freshness: Each scan.
-    baseline: null
-    direction: lower_is_better
-    thresholds: null
-    uncertainty: null
-    missing_data: Empty = no open conflict.
-    value_kind: observed
-    gate: core
-    privileges: SELECT on identity_conflicts
-    cardinality: one row per open conflict
-    drilldown: null
-    action: Resolve the conflict in the source inventory; the engine never merges silently.
-    fixture: tests/test_dashboards_sql.py
-    expected: One serial conflict with two candidates with the fixture.
-
-  - id: 25
-    title: UNKNOWN GPUs now, by reason
-    question: E18
-    status: built
-    audience: CEO, platform engineers
-    decision: Why GPUs are UNKNOWN and which source to fix.
-    definition: GPUs and distinct assets of open UNKNOWN intervals, by reason_code.
-    unit: GPUs; assets
-    numerator: null
-    denominator: null
-    population: Every GPU asset in the ledger (server-scan and the profile-less collector).
-    window: now
-    filters: [site]
-    exclusions: null
-    query: grafana/dashboards/ttv-evidence.json#25
-    lineage: [capacity_intervals.reason_code, capacity_intervals.gpus, assets.site]
-    freshness: Latest engine scan (open intervals); 'Data as of' and 'Data age' show its age.
-    baseline: null
-    direction: lower_is_better
-    thresholds: null
-    uncertainty: null
-    missing_data: "'(none)' with 0 = no UNKNOWN GPUs in scope; no ledger data gives an empty table."
-    value_kind: observed
-    gate: core
-    privileges: SELECT on capacity_intervals, assets
-    cardinality: one row per reason (≤ 6)
-    drilldown: ttv-evidence#21
-    action: null
-    fixture: tests/test_dashboards_sql.py
-    expected: "SOURCE_STALE: 4 GPUs with the fixture."
-
-  - id: 26
-    title: Assets by source
-    question: E18
-    status: built
-    audience: Platform engineers
-    decision: Whether every inventory source is contributing.
-    definition: >-
-      Assets by registering source: count, inventory GPUs, unread GPU counts, newest observation,
-      assets not seen for an hour.
-    unit: assets; GPUs
-    numerator: null
-    denominator: null
-    population: assets
-    window: now
-    filters: [site]
-    exclusions: >-
-      Assets with an unread GPU count are excluded from 'GPUs (inventory)' and counted apart.
-    query: grafana/dashboards/ttv-evidence.json#26
-    lineage: [assets.source, assets.gpu_count, assets.last_observed_at, assets.site]
-    freshness: Each scan.
-    baseline: null
-    direction: neutral
-    thresholds: null
-    uncertainty: null
-    missing_data: >-
-      An unread GPU count is never 0 GPUs; 'Not seen > 1 h' may be listing lag, never a deletion.
-    value_kind: observed
-    gate: core
-    privileges: SELECT on assets
-    cardinality: one row per source (≤ 5)
-    drilldown: null
-    action: null
-    fixture: tests/test_dashboards_sql.py
-    expected: serverscan and the fixture collector, with 1 unread GPU count.
+- id: 40
+  title: Data age
+  question: E18
+  status: built
+  audience: CEO, stage owners
+  decision: Whether the 'now' numbers are current.
+  definition: time since the newest engine scan that finished ok or partial. Every 'now' number on this
+    page is as of that scan. Green within 15 min (3 scans), orange within 1 h, red beyond.
+  unit: seconds
+  numerator: now() − max(scan_runs.finished_at) of ok/partial scans
+  denominator: null
+  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
+    knows.'
+  window: now
+  filters: []
+  exclusions: null
+  query: grafana/dashboards/ttv-evidence.json#40
+  lineage:
+  - scan_runs
+  freshness: Itself.
+  baseline: null
+  direction: lower_is_better
+  thresholds: green < 15 min, orange < 1 h, red ≥ 1 h
+  uncertainty: null
+  missing_data: '''no scan yet'' before the first scan.'
+  value_kind: observed
+  gate: core
+  privileges: SELECT on scan_runs
+  cardinality: 1 value
+  drilldown: ttv-evidence
+  action: null
+  fixture: null
+  expected: null
+- id: 41
+  title: Known state
+  question: E18
+  status: built
+  audience: Operators, platform team, CEO
+  decision: How much of the fleet the numbers describe.
+  definition: share of all GPUs in the ledger now whose state is known (not UNKNOWN). Below 90% many totals
+    elsewhere are lower bounds; the tables below say why.
+  unit: percent
+  numerator: GPUs not UNKNOWN now
+  denominator: all GPUs now
+  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
+    knows.'
+  window: now
+  filters:
+  - site
+  exclusions: null
+  query: grafana/dashboards/ttv-evidence.json#41
+  lineage:
+  - capacity_intervals
+  - assets
+  freshness: Latest engine scan (every 5 min); the Data age card shows its age.
+  baseline: null
+  direction: higher_is_better
+  thresholds: red < 50 %, orange < 90 %, green ≥ 90 %
+  uncertainty: null
+  missing_data: '''no scan yet'' before the first scan.'
+  value_kind: derived
+  gate: core
+  privileges: SELECT on capacity_intervals, assets
+  cardinality: 1 value
+  drilldown: null
+  action: null
+  fixture: null
+  expected: null
+- id: 42
+  title: Unknown GPUs
+  question: E18
+  status: built
+  audience: CEO, stage owners
+  decision: How much of the fleet the numbers cannot describe.
+  definition: 'GPUs in open UNKNOWN intervals: a stale or failing source, an identity conflict, a cluster
+    not observed, a node not found, missing telemetry. Never counted as idle or productive; Evidence explains
+    each reason.'
+  unit: GPUs
+  numerator: sum(gpus) of open UNKNOWN intervals
+  denominator: null
+  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
+    knows.'
+  window: now
+  filters:
+  - site
+  exclusions: null
+  query: grafana/dashboards/ttv-evidence.json#42
+  lineage:
+  - capacity_intervals
+  - assets
+  freshness: Latest engine scan (every 5 min); the Data age card shows its age.
+  baseline: null
+  direction: lower_is_better
+  thresholds: null
+  uncertainty: null
+  missing_data: Shows 'no scan yet' before the first engine scan; afterwards an empty result is a real
+    0. UNKNOWN GPUs are never counted as idle or productive.
+  value_kind: observed
+  gate: core
+  privileges: SELECT on capacity_intervals, assets
+  cardinality: 1 value
+  drilldown: ttv-evidence#25
+  action: Open Evidence to see why.
+  fixture: null
+  expected: null
+- id: 43
+  title: Failing sources
+  question: E18
+  status: built
+  audience: Operators, platform team
+  decision: Whether any source is blind right now.
+  definition: sources (server-scan, each cluster's kube API and Thanos) whose latest read failed or that
+    never succeeded, plus collector managers with no complete read within 1 h (TTV_COLLECTOR_STALE_AFTER
+    default). 0 = every source answered on its latest attempt. The tables below name them.
+  unit: sources
+  numerator: source_state rows failing or never successful + collector managers with no complete read
+    within 1 h
+  denominator: null
+  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
+    knows.'
+  window: now
+  filters: []
+  exclusions: null
+  query: grafana/dashboards/ttv-evidence.json#43
+  lineage:
+  - source_state
+  - collector_reads
+  freshness: Latest engine scan (every 5 min); the Data age card shows its age.
+  baseline: null
+  direction: lower_is_better
+  thresholds: green 0, red ≥ 1
+  uncertainty: null
+  missing_data: '''no source read yet'' before the first scan.'
+  value_kind: observed
+  gate: core
+  privileges: SELECT on source_state, collector_reads
+  cardinality: 1 value
+  drilldown: ttv-evidence#21
+  action: null
+  fixture: null
+  expected: null
+- id: 44
+  title: Identity conflicts
+  question: E18
+  status: built
+  audience: Operators, platform team
+  decision: How many identity questions need a human.
+  definition: open rows in identity_conflicts (two records claiming one asset, two assets claiming one
+    node, ambiguous collector profiles). Their GPUs are UNKNOWN (IDENTITY_CONFLICT) until resolved; the
+    table below lists them.
+  unit: conflicts
+  numerator: open identity_conflicts rows
+  denominator: null
+  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
+    knows.'
+  window: now
+  filters: []
+  exclusions: null
+  query: grafana/dashboards/ttv-evidence.json#44
+  lineage:
+  - identity_conflicts
+  freshness: Latest engine scan (every 5 min); the Data age card shows its age.
+  baseline: null
+  direction: lower_is_better
+  thresholds: green 0, orange ≥ 1
+  uncertainty: null
+  missing_data: '''none'' when there is no open conflict.'
+  value_kind: observed
+  gate: core
+  privileges: SELECT on identity_conflicts
+  cardinality: 1 value
+  drilldown: ttv-evidence#23
+  action: null
+  fixture: null
+  expected: null
+- id: 45
+  title: Price data age
+  question: E18
+  status: built
+  audience: Operators, platform team
+  decision: Whether the price data is too old to quote.
+  definition: 'days since the AWS price list behind the engine''s selected snapshot (TTV_PRICING_SNAPSHOT,
+    else the latest published) was published; the line above the value names its region and date. Orange
+    after 90 days, red after 180: capture a new snapshot (ADR-0003).'
+  unit: days
+  numerator: now() − publication_date of the engine's selected snapshot
+  denominator: null
+  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
+    knows.'
+  window: now
+  filters: []
+  exclusions: null
+  query: grafana/dashboards/ttv-evidence.json#45
+  lineage:
+  - pricing_snapshots
+  - pricing_selection
+  freshness: Latest engine scan (every 5 min); the Data age card shows its age.
+  baseline: null
+  direction: lower_is_better
+  thresholds: green < 90 d, orange < 180 d, red ≥ 180 d
+  uncertainty: null
+  missing_data: '''no price snapshot'' when none is imported.'
+  value_kind: observed
+  gate: core
+  privileges: SELECT on pricing_snapshots, pricing_selection
+  cardinality: 1 value
+  drilldown: null
+  action: null
+  fixture: null
+  expected: null
+- id: 21
+  title: Source health (source_state)
+  question: E18
+  status: built
+  audience: Operators, platform team
+  decision: Which source is failing, since when, and with what error.
+  definition: 'engine-side health per source (server-scan, each target cluster, collector targets): consecutive
+    failed scans, last success, last attempt and last error.'
+  unit: scans, seconds
+  numerator: null
+  denominator: null
+  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
+    knows.'
+  window: now
+  filters: []
+  exclusions: null
+  query: grafana/dashboards/ttv-evidence.json#21
+  lineage:
+  - assets
+  - source_state
+  freshness: Latest engine scan (every 5 min); the Data age card shows its age.
+  baseline: null
+  direction: lower_is_better
+  thresholds: null
+  uncertainty: null
+  missing_data: Empty before the first scan.
+  value_kind: observed
+  gate: core
+  privileges: SELECT on assets, source_state
+  cardinality: one row per source
+  drilldown: null
+  action: Follow the runbook for the failing source (docs/runbooks.md).
+  fixture: null
+  expected: null
+- id: 30
+  title: 'Profile-less collector: managers'
+  question: E18
+  status: built
+  audience: Operators, platform team
+  decision: Whether the profile-less collector's managers are read and fresh.
+  definition: 'one row per UCS Central / OpenManage manager the collector has read (ADR-0004). State:
+    ok; latest read incomplete (no server can be retired); stale (no complete read within 1 h, the TTV_COLLECTOR_STALE_AFTER
+    default: its collector-only servers are UNKNOWN); never complete. Counts come from the latest complete
+    read: servers listed, servers with GPUs, servers whose GPU inventory could not be read, servers whose
+    profile binding is ambiguous.'
+  unit: servers
+  numerator: null
+  denominator: null
+  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
+    knows.'
+  window: now
+  filters: []
+  exclusions: null
+  query: grafana/dashboards/ttv-evidence.json#30
+  lineage:
+  - collector_reads
+  - collector_servers
+  freshness: Latest engine scan (every 5 min); the Data age card shows its age.
+  baseline: null
+  direction: neutral
+  thresholds: null
+  uncertainty: null
+  missing_data: A message names TTV_MANAGERS_FILE / ttv-collector when no manager has been read.
+  value_kind: observed
+  gate: core
+  privileges: SELECT on collector_reads, collector_servers
+  cardinality: one row per manager
+  drilldown: null
+  action: null
+  fixture: null
+  expected: null
+- id: 25
+  title: Unknown GPUs now, by reason
+  question: E18
+  status: built
+  audience: Operators, platform team, CEO
+  decision: Why GPUs are UNKNOWN, by reason.
+  definition: sum(gpus) and distinct assets of open UNKNOWN intervals, by reason_code (SOURCE_STALE, IDENTITY_CONFLICT,
+    CONTESTED, CLUSTER_NOT_OBSERVED, ...).
+  unit: GPUs, assets
+  numerator: null
+  denominator: null
+  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
+    knows.'
+  window: now
+  filters:
+  - site
+  exclusions: null
+  query: grafana/dashboards/ttv-evidence.json#25
+  lineage:
+  - capacity_intervals
+  - assets
+  freshness: Latest engine scan (every 5 min); the Data age card shows its age.
+  baseline: null
+  direction: lower_is_better
+  thresholds: null
+  uncertainty: null
+  missing_data: '''(none)'' with 0 when the ledger has GPUs and none is UNKNOWN.'
+  value_kind: observed
+  gate: core
+  privileges: SELECT on capacity_intervals, assets
+  cardinality: one row per reason
+  drilldown: null
+  action: null
+  fixture: null
+  expected: null
+- id: 26
+  title: Assets by source
+  question: E18
+  status: built
+  audience: Operators, platform team
+  decision: What each inventory source contributes and whether it went quiet.
+  definition: 'assets in the ledger by the source that first registered them (server-scan, profile-less
+    collector, ...): asset count, GPUs per inventory (assets.gpu_count), assets whose GPU count is unread,
+    newest observation and assets not observed in the last hour.'
+  unit: assets, GPUs
+  numerator: null
+  denominator: null
+  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
+    knows.'
+  window: now
+  filters:
+  - site
+  exclusions: null
+  query: grafana/dashboards/ttv-evidence.json#26
+  lineage:
+  - assets
+  freshness: Latest engine scan (every 5 min); the Data age card shows its age.
+  baseline: null
+  direction: neutral
+  thresholds: null
+  uncertainty: null
+  missing_data: Empty before the first scan.
+  value_kind: observed
+  gate: core
+  privileges: SELECT on assets
+  cardinality: one row per source
+  drilldown: null
+  action: null
+  fixture: null
+  expected: null
+- id: 23
+  title: Open identity conflicts
+  question: E18
+  status: built
+  audience: Operators, platform team
+  decision: Which identity conflicts to resolve, and the candidates.
+  definition: 'unresolved identity_conflicts, oldest first: conflict kind, contested key, candidate source
+    records, first and last seen.'
+  unit: conflicts
+  numerator: null
+  denominator: null
+  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
+    knows.'
+  window: now
+  filters: []
+  exclusions: null
+  query: grafana/dashboards/ttv-evidence.json#23
+  lineage:
+  - identity_conflicts
+  freshness: Latest engine scan (every 5 min); the Data age card shows its age.
+  baseline: null
+  direction: lower_is_better
+  thresholds: null
+  uncertainty: null
+  missing_data: '''no rows'' when none is open.'
+  value_kind: observed
+  gate: core
+  privileges: SELECT on identity_conflicts
+  cardinality: one row per open conflict
+  drilldown: null
+  action: Resolve the duplicate in the source system; the conflict closes on the next scan.
+  fixture: null
+  expected: null
+- id: 17
+  title: Engine scans per hour, by result
+  question: E18
+  status: built
+  audience: Operators, platform team
+  decision: Whether the engine scanned throughout the period.
+  definition: 'engine scans started in each hour of the time range, stacked by result (ok, partial, failed).
+    A gap means no scan ran: check the engine. Partial = some source failed and its assets kept their
+    last state or turned UNKNOWN after grace.'
+  unit: scans per hour
+  numerator: null
+  denominator: null
+  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
+    knows.'
+  window: selected range
+  filters: []
+  exclusions: null
+  query: grafana/dashboards/ttv-evidence.json#17
+  lineage:
+  - scan_runs
+  freshness: Latest engine scan (every 5 min); the Data age card shows its age.
+  baseline: null
+  direction: neutral
+  thresholds: null
+  uncertainty: null
+  missing_data: '''no scans in range''; a gap means no scan ran.'
+  value_kind: observed
+  gate: core
+  privileges: SELECT on scan_runs
+  cardinality: 3 series × hours
+  drilldown: null
+  action: null
+  fixture: null
+  expected: null
+- id: 31
+  title: Every GPU by category over time
+  question: E18
+  status: built
+  audience: Operators, platform team, CEO
+  decision: Whether evidence is being lost or regained over time.
+  definition: GPUs in each category at each point in the time range, sampled from the ledger and stacked,
+    so the top line is all GPUs. A growing purple band means evidence is being lost. The chart starts
+    at the first engine scan.
+  unit: GPUs
+  numerator: null
+  denominator: null
+  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
+    knows.'
+  window: selected range
+  filters:
+  - site
+  exclusions: null
+  query: grafana/dashboards/ttv-evidence.json#31
+  lineage:
+  - capacity_intervals
+  - assets
+  - scan_runs
+  freshness: Latest engine scan (every 5 min); the Data age card shows its age.
+  baseline: null
+  direction: neutral
+  thresholds: null
+  uncertainty: null
+  missing_data: The chart starts at the first engine scan.
+  value_kind: observed
+  gate: core
+  privileges: SELECT on capacity_intervals, assets, scan_runs
+  cardinality: 4 series × time points
+  drilldown: null
+  action: null
+  fixture: null
+  expected: null
+- id: 19
+  title: Recent partial or failed scans
+  question: E18
+  status: built
+  audience: Operators, platform team
+  decision: What went wrong in partial or failed scans.
+  definition: newest 20 scan_runs in the time range whose status is partial or failed, with their recorded
+    errors and coverage.
+  unit: scans
+  numerator: null
+  denominator: null
+  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
+    knows.'
+  window: selected range
+  filters: []
+  exclusions: null
+  query: grafana/dashboards/ttv-evidence.json#19
+  lineage:
+  - scan_runs
+  freshness: Latest engine scan (every 5 min); the Data age card shows its age.
+  baseline: null
+  direction: lower_is_better
+  thresholds: null
+  uncertainty: null
+  missing_data: '''no partial or failed scans in the time range''.'
+  value_kind: observed
+  gate: core
+  privileges: SELECT on scan_runs
+  cardinality: ≤ 20 rows
+  drilldown: null
+  action: null
+  fixture: null
+  expected: null

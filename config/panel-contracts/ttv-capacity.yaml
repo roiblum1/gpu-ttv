@@ -3,223 +3,203 @@
 # onboarding path and shows no number. value_kind and direction describe the future answer.
 dashboard: ttv-capacity
 panels:
-  - id: 1
-    title: E06 · When will this batch or project get usable GPUs?
-    question: E06
-    status: missing_input
-    audience: CEO, project owners
-    decision: Manage launch promises and escalation timing.
-    definition: >-
-      Not built (R3). Will show committed dates against forecast ranges for GPU-ready and
-      user-accessible per batch or project, with observed progress, blocking prerequisites and
-      delivery risk. Missing inputs: procurement batches and their servers, project capacity
-      requests and approved commitment dates, enough completed comparable episodes for a backtested
-      forecast, and calendars where relevant.
-    unit: dates (forecast ranges)
-    numerator: null
-    denominator: null
-    population: Servers in imported batches and projects.
-    window: forecast horizon from the as-of time
-    filters: []
-    exclusions: Incoming servers never count as available today.
-    query: grafana/dashboards/ttv-capacity.json#1
-    lineage: [procurement batches (missing), commitments (missing), milestones, capacity_intervals]
-    freshness: >-
-      Static text until the imports exist; then each forecast declares its as-of time and expiry.
-    baseline: Simple backtested baseline forecast.
-    direction: neutral
-    thresholds: null
-    uncertainty: >-
-      Forecast ranges with declared method and coverage; scenario bounds are not calibrated
-      intervals.
-    missing_data: >-
-      The card lists the missing inputs, where they come from and the onboarding step; it shows no
-      number.
-    value_kind: forecast
-    gate: business_input
-    privileges: None today (static text).
-    cardinality: One text panel.
-    drilldown: ttv-delivery
-    action: >-
-      Import procurement batches and commitments; join servers by vendor and normalised serial.
-    fixture: tests/test_panel_contracts.py
-    expected: >-
-      Text card titled 'E06 · When will this batch or project get usable GPUs?' naming batches,
-      commitments and history as missing; no date. When built (§17): an incoming shipment improves a
-      future scenario but not current capacity.
-
-  - id: 2
-    title: E08 · Do we need to buy more—or can we use what we own?
-    question: E08
-    status: missing_input
-    audience: CEO, finance, capacity planners
-    decision: Buy, reclaim, reassign, optimise or defer.
-    definition: >-
-      Not built (R3). Will split compatible capacity into available now, recoverable after
-      intervention, reserved, incoming and required by validated demand, with a dated shortfall
-      scenario and a fit check. Missing inputs: validated demand (requests, scheduler queues,
-      forecasts), reservations, incoming orders, workload fit profiles, and recoverable capacity per
-      action.
-    unit: GPUs (compatible)
-    numerator: null
-    denominator: null
-    population: Every GPU asset plus imported incoming supply.
-    window: now, plus a dated scenario
-    filters: []
-    exclusions: Incoming servers are never available today; a GPU is counted in one bucket only.
-    query: grafana/dashboards/ttv-capacity.json#2
-    lineage:
-      - demand import (missing)
-      - reservations (missing)
-      - orders (missing)
-      - fit-check policy (missing)
-      - capacity_intervals
-    freshness: Static text until the inputs exist; then each scan and import.
-    baseline: null
-    direction: neutral
-    thresholds: null
-    uncertainty: >-
-      Scenario with stated assumptions; missing demand instrumentation is not proof of no demand.
-    missing_data: >-
-      The card lists the missing inputs, where they come from and the onboarding step; it shows no
-      number.
-    value_kind: scenario
-    gate: business_input
-    privileges: None today (static text).
-    cardinality: One text panel.
-    drilldown: ttv-queues#15
-    action: Import demand, reservations and orders; configure fit-check profiles.
-    fixture: tests/test_panel_contracts.py
-    expected: >-
-      Text card titled 'E08 · Do we need to buy more—or can we use what we own?' naming the demand,
-      reservation, supply and fit inputs as missing; no number. When built (§17): 8 idle GPUs on
-      incompatible placements fail the fit check for one 8-GPU node workload.
-
-  - id: 3
-    title: E09 · How much more demand can we serve safely?
-    question: E09
-    status: missing_input
-    audience: CEO, service owners
-    decision: Know when growth will outpace useful supply.
-    definition: >-
-      Not built (R3). Will show sustainable goodput and headroom for a defined model, context/output
-      mix and SLO against current, queued and planned demand. Missing inputs: workload benchmarks
-      with their conditions, service SLOs, traffic per logical deployment (R2 service graph), and
-      demand history and growth plans.
-    unit: requests or tokens per second at SLO
-    numerator: null
-    denominator: null
-    population: Serving deployments with a benchmark profile.
-    window: now, plus a forecast horizon
-    filters: []
-    exclusions: Deployments without a calibrated benchmark show 'unsupported estimate'.
-    query: grafana/dashboards/ttv-capacity.json#3
-    lineage:
-      - benchmark import (missing)
-      - service SLOs (missing)
-      - service graph (R2)
-      - demand import (missing)
-    freshness: Static text until the inputs exist.
-    baseline: null
-    direction: higher_is_better
-    thresholds: null
-    uncertainty: >-
-      Benchmark conditions and applicability are stated; utilisation is never converted into users.
-    missing_data: >-
-      The card lists the missing inputs, where they come from and the onboarding step; it shows no
-      number.
-    value_kind: benchmark
-    gate: business_input
-    privileges: None today (static text).
-    cardinality: One text panel.
-    drilldown: ttv-gpu-use
-    action: After the R2 service graph, import benchmark profiles and set SLOs per service.
-    fixture: tests/test_panel_contracts.py
-    expected: >-
-      Text card titled 'E09 · How much more demand can we serve safely?' naming benchmarks, SLOs and
-      demand as missing; no number. When built (§17): without validated demand or a benchmark,
-      runway forecasts stay unavailable while inventory panels still work.
-
-  - id: 4
-    title: E14 · What capacity and services are at risk?
-    question: E14
-    status: missing_input
-    audience: CEO, infrastructure leads
-    decision: Identify resilience gaps that could invalidate growth plans.
-    definition: >-
-      Not built (R3). Will show verified failure-domain concentrations, critical dependencies,
-      capacity removed by a specified outage and validated failover headroom. Missing inputs:
-      verified topology (rack, power feed, network domain), service importance, the
-      service-to-server graph (R2), and the approved failover policy with test evidence.
-    unit: GPUs and services per failure domain
-    numerator: null
-    denominator: null
-    population: Every GPU asset with verified topology.
-    window: now
-    filters: []
-    exclusions: Unknown dependencies are marked, never assumed safe.
-    query: grafana/dashboards/ttv-capacity.json#4
-    lineage:
-      - topology import or CMDB (missing)
-      - service importance (missing)
-      - service graph (R2)
-      - assets
-    freshness: Static text until the inputs exist.
-    baseline: null
-    direction: lower_is_better
-    thresholds: null
-    uncertainty: Logical dependency impact is not a proven failover result.
-    missing_data: >-
-      The card lists the missing inputs, where they come from and the onboarding step; it shows no
-      number.
-    value_kind: business_input
-    gate: business_input
-    privileges: None today (static text).
-    cardinality: One text panel.
-    drilldown: ttv-queues#15
-    action: Import verified topology and service importance.
-    fixture: tests/test_panel_contracts.py
-    expected: >-
-      Text card titled 'E14 · What capacity and services are at risk?' naming topology, importance
-      and failover inputs as missing; no number. When built (§17): missing dependency inputs give an
-      explicit gap, not a resilience guarantee.
-
-  - id: 5
-    title: E17 · Is reserved capacity still justified?
-    question: E17
-    status: missing_input
-    audience: CEO, capacity planners, reservation owners
-    decision: Recover expired or unjustified reservations responsibly.
-    definition: >-
-      Not built (R3). Will list reservations and commitments with owner, purpose, expiry, usage
-      evidence, priority and renewal status, separating approved headroom from abandoned
-      allocations. Missing inputs: the reservation register, intentional exclusions (open input I5,
-      empty today) and project priority; usage evidence already exists in the ledger.
-    unit: reservations; GPUs
-    numerator: null
-    denominator: null
-    population: Every reservation in the register.
-    window: now
-    filters: []
-    exclusions: Approved reliability headroom is shown apart from unused allocations.
-    query: grafana/dashboards/ttv-capacity.json#5
-    lineage: [reservation register (missing), policy exclusions (I5), capacity_intervals]
-    freshness: Static text until the register exists; then each scan and import.
-    baseline: null
-    direction: neutral
-    thresholds: null
-    uncertainty: Usage evidence covers observed time only; earlier time is unknown.
-    missing_data: >-
-      The card lists the missing inputs, where they come from and the onboarding step; it shows no
-      number.
-    value_kind: business_input
-    gate: business_input
-    privileges: None today (static text).
-    cardinality: One text panel.
-    drilldown: ttv-queues#10
-    action: Import reservations and join them to assets by vendor and serial or node.
-    fixture: tests/test_panel_contracts.py
-    expected: >-
-      Text card titled 'E17 · Is reserved capacity still justified?' naming the reservation register
-      as missing; no number. When built (§17): one shared reservation is never promised to two
-      projects.
+- id: 1
+  title: E06 · When will this batch or project get usable GPUs?
+  question: E06
+  status: missing_input
+  audience: CEO, project owners
+  decision: Manage launch promises and escalation timing.
+  definition: 'Not built (R3). Will show committed dates against forecast ranges for GPU-ready and user-accessible
+    per batch or project, with observed progress, blocking prerequisites and delivery risk. Missing inputs:
+    procurement batches and their servers, project capacity requests and approved commitment dates, enough
+    completed comparable episodes for a backtested forecast, and calendars where relevant.'
+  unit: dates (forecast ranges)
+  numerator: null
+  denominator: null
+  population: Servers in imported batches and projects.
+  window: forecast horizon from the as-of time
+  filters: []
+  exclusions: Incoming servers never count as available today.
+  query: grafana/dashboards/ttv-capacity.json#1
+  lineage:
+  - procurement batches (missing)
+  - commitments (missing)
+  - milestones
+  - capacity_intervals
+  freshness: Static text until the imports exist; then each forecast declares its as-of time and expiry.
+  baseline: Simple backtested baseline forecast.
+  direction: neutral
+  thresholds: null
+  uncertainty: Forecast ranges with declared method and coverage; scenario bounds are not calibrated intervals.
+  missing_data: The card lists the missing inputs, where they come from and the onboarding step; it shows
+    no number.
+  value_kind: forecast
+  gate: business_input
+  privileges: None today (static text).
+  cardinality: One text panel.
+  drilldown: ttv-delivery
+  action: Import procurement batches and commitments; join servers by vendor and normalised serial.
+  fixture: tests/test_panel_contracts.py
+  expected: 'Text card titled ''E06 · When will this batch or project get usable GPUs?'' naming batches,
+    commitments and history as missing; no date. When built (§17): an incoming shipment improves a future
+    scenario but not current capacity.'
+- id: 2
+  title: E08 · Do we need to buy more—or can we use what we own?
+  question: E08
+  status: missing_input
+  audience: CEO, finance, capacity planners
+  decision: Buy, reclaim, reassign, optimise or defer.
+  definition: 'Not built (R3). Will split compatible capacity into available now, recoverable after intervention,
+    reserved, incoming and required by validated demand, with a dated shortfall scenario and a fit check.
+    Missing inputs: validated demand (requests, scheduler queues, forecasts), reservations, incoming orders,
+    workload fit profiles, and recoverable capacity per action.'
+  unit: GPUs (compatible)
+  numerator: null
+  denominator: null
+  population: Every GPU asset plus imported incoming supply.
+  window: now, plus a dated scenario
+  filters: []
+  exclusions: Incoming servers are never available today; a GPU is counted in one bucket only.
+  query: grafana/dashboards/ttv-capacity.json#2
+  lineage:
+  - demand import (missing)
+  - reservations (missing)
+  - orders (missing)
+  - fit-check policy (missing)
+  - capacity_intervals
+  freshness: Static text until the inputs exist; then each scan and import.
+  baseline: null
+  direction: neutral
+  thresholds: null
+  uncertainty: Scenario with stated assumptions; missing demand instrumentation is not proof of no demand.
+  missing_data: The card lists the missing inputs, where they come from and the onboarding step; it shows
+    no number.
+  value_kind: scenario
+  gate: business_input
+  privileges: None today (static text).
+  cardinality: One text panel.
+  drilldown: ttv-queues#15
+  action: Import demand, reservations and orders; configure fit-check profiles.
+  fixture: tests/test_panel_contracts.py
+  expected: 'Text card titled ''E08 · Do we need to buy more—or can we use what we own?'' naming the demand,
+    reservation, supply and fit inputs as missing; no number. When built (§17): 8 idle GPUs on incompatible
+    placements fail the fit check for one 8-GPU node workload.'
+- id: 3
+  title: E09 · How much more demand can we serve safely?
+  question: E09
+  status: missing_input
+  audience: CEO, service owners
+  decision: Know when growth will outpace useful supply.
+  definition: 'Not built (R3). Will show sustainable goodput and headroom for a defined model, context/output
+    mix and SLO against current, queued and planned demand. Missing inputs: workload benchmarks with their
+    conditions, service SLOs, traffic per logical deployment (R2 service graph), and demand history and
+    growth plans.'
+  unit: requests or tokens per second at SLO
+  numerator: null
+  denominator: null
+  population: Serving deployments with a benchmark profile.
+  window: now, plus a forecast horizon
+  filters: []
+  exclusions: Deployments without a calibrated benchmark show 'unsupported estimate'.
+  query: grafana/dashboards/ttv-capacity.json#3
+  lineage:
+  - benchmark import (missing)
+  - service SLOs (missing)
+  - service graph (R2)
+  - demand import (missing)
+  freshness: Static text until the inputs exist.
+  baseline: null
+  direction: higher_is_better
+  thresholds: null
+  uncertainty: Benchmark conditions and applicability are stated; utilisation is never converted into
+    users.
+  missing_data: The card lists the missing inputs, where they come from and the onboarding step; it shows
+    no number.
+  value_kind: benchmark
+  gate: business_input
+  privileges: None today (static text).
+  cardinality: One text panel.
+  drilldown: ttv-gpu-use
+  action: After the R2 service graph, import benchmark profiles and set SLOs per service.
+  fixture: tests/test_panel_contracts.py
+  expected: 'Text card titled ''E09 · How much more demand can we serve safely?'' naming benchmarks, SLOs
+    and demand as missing; no number. When built (§17): without validated demand or a benchmark, runway
+    forecasts stay unavailable while inventory panels still work.'
+- id: 4
+  title: E14 · What capacity and services are at risk?
+  question: E14
+  status: missing_input
+  audience: CEO, infrastructure leads
+  decision: Identify resilience gaps that could invalidate growth plans.
+  definition: 'Not built (R3). Will show verified failure-domain concentrations, critical dependencies,
+    capacity removed by a specified outage and validated failover headroom. Missing inputs: verified topology
+    (rack, power feed, network domain), service importance, the service-to-server graph (R2), and the
+    approved failover policy with test evidence.'
+  unit: GPUs and services per failure domain
+  numerator: null
+  denominator: null
+  population: Every GPU asset with verified topology.
+  window: now
+  filters: []
+  exclusions: Unknown dependencies are marked, never assumed safe.
+  query: grafana/dashboards/ttv-capacity.json#4
+  lineage:
+  - topology import or CMDB (missing)
+  - service importance (missing)
+  - service graph (R2)
+  - assets
+  freshness: Static text until the inputs exist.
+  baseline: null
+  direction: lower_is_better
+  thresholds: null
+  uncertainty: Logical dependency impact is not a proven failover result.
+  missing_data: The card lists the missing inputs, where they come from and the onboarding step; it shows
+    no number.
+  value_kind: business_input
+  gate: business_input
+  privileges: None today (static text).
+  cardinality: One text panel.
+  drilldown: ttv-queues#15
+  action: Import verified topology and service importance.
+  fixture: tests/test_panel_contracts.py
+  expected: 'Text card titled ''E14 · What capacity and services are at risk?'' naming topology, importance
+    and failover inputs as missing; no number. When built (§17): missing dependency inputs give an explicit
+    gap, not a resilience guarantee.'
+- id: 5
+  title: E17 · Is reserved capacity still justified?
+  question: E17
+  status: missing_input
+  audience: CEO, capacity planners, reservation owners
+  decision: Recover expired or unjustified reservations responsibly.
+  definition: 'Not built (R3). Will list reservations and commitments with owner, purpose, expiry, usage
+    evidence, priority and renewal status, separating approved headroom from abandoned allocations. Missing
+    inputs: the reservation register, intentional exclusions (open input I5, empty today) and project
+    priority; usage evidence already exists in the ledger.'
+  unit: reservations; GPUs
+  numerator: null
+  denominator: null
+  population: Every reservation in the register.
+  window: now
+  filters: []
+  exclusions: Approved reliability headroom is shown apart from unused allocations.
+  query: grafana/dashboards/ttv-capacity.json#5
+  lineage:
+  - reservation register (missing)
+  - policy exclusions (I5)
+  - capacity_intervals
+  freshness: Static text until the register exists; then each scan and import.
+  baseline: null
+  direction: neutral
+  thresholds: null
+  uncertainty: Usage evidence covers observed time only; earlier time is unknown.
+  missing_data: The card lists the missing inputs, where they come from and the onboarding step; it shows
+    no number.
+  value_kind: business_input
+  gate: business_input
+  privileges: None today (static text).
+  cardinality: One text panel.
+  drilldown: ttv-queues#26
+  action: Import reservations and join them to assets by vendor and serial or node.
+  fixture: tests/test_panel_contracts.py
+  expected: 'Text card titled ''E17 · Is reserved capacity still justified?'' naming the reservation register
+    as missing; no number. When built (§17): one shared reservation is never promised to two projects.'

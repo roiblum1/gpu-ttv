@@ -388,7 +388,7 @@ panels:
   gate: core
   privileges: SELECT on capacity_intervals, assets, identity_conflicts
   cardinality: ≤ 5 rows
-  drilldown: ttv-queues, ttv-evidence
+  drilldown: ttv-evidence
   action: Queues for pipeline waits, Evidence for unknown state.
   fixture: tests/test_dashboards_gpu_use_asset_pg.py
   expected: Not in a cluster yet 12, outside the target list 4 with the fixture.
@@ -475,7 +475,7 @@ panels:
   gate: core
   privileges: SELECT on capacity_intervals, assets, identity_conflicts
   cardinality: target clusters + 1 summary row
-  drilldown: ttv-gpu-use (cluster variable)
+  drilldown: ttv-gpu-use
   action: Configure unread target clusters in the clusters file.
   fixture: tests/test_dashboards_gpu_use_asset_pg.py
   expected: c1 Measured 16 GPUs (useful 12.5%); '1 cluster outside the target list' 4 GPUs with the fixture.
@@ -568,7 +568,7 @@ panels:
   gate: core
   privileges: SELECT on capacity_intervals, assets, identity_conflicts
   cardinality: ≤ 100 rows
-  drilldown: ttv-asset (asset cells)
+  drilldown: ttv-asset
   action: Serving scales down or consolidates NO_REAL_DEMAND deployments; owners fix not-Ready pods.
   fixture: tests/test_dashboards_gpu_use_asset_pg.py
   expected: First row ns1/Deployment/idle-chat, Waste candidate, 0 requests per GPU-hour; last row useful

@@ -197,7 +197,7 @@ panels:
   gate: core
   privileges: Network access to the engine read API
   cardinality: null
-  drilldown: engine /explain
+  drilldown: null
   action: Open the explanation.
   fixture: null
   expected: Link to http://ttv-engine:8080/explain/<asset>.
@@ -274,7 +274,7 @@ panels:
   gate: core
   privileges: SELECT on capacity_intervals
   cardinality: one row per bucket (≤ ~10)
-  drilldown: engine /explain
+  drilldown: null
   action: The stage owner of each IDLE bucket acts on its reason.
   fixture: tests/test_dashboards_gpu_use_asset_pg.py
   expected: 6 buckets summing to 8; GPU_MISSING stage clock '≥ 2026-10-01 00:00' with the fixture.

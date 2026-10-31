@@ -27,121 +27,121 @@
       "title": "Home",
       "type": "link",
       "url": "/d/ttv-home",
+      "tooltip": "Executive summary: scope, KPIs, queues and longest waits",
       "icon": "dashboard",
-      "tooltip": "",
+      "tags": [],
       "asDropdown": false,
       "includeVars": true,
       "keepTime": true,
-      "targetBlank": false,
-      "tags": []
+      "targetBlank": false
     },
     {
       "title": "Queues",
       "type": "link",
       "url": "/d/ttv-queues",
+      "tooltip": "E03: where GPUs are stuck and why",
       "icon": "dashboard",
-      "tooltip": "",
+      "tags": [],
       "asDropdown": false,
       "includeVars": true,
       "keepTime": true,
-      "targetBlank": false,
-      "tags": []
+      "targetBlank": false
     },
     {
       "title": "Delivery",
       "type": "link",
       "url": "/d/ttv-delivery",
+      "tooltip": "E02: are we getting faster?",
       "icon": "dashboard",
-      "tooltip": "",
+      "tags": [],
       "asDropdown": false,
       "includeVars": true,
       "keepTime": true,
-      "targetBlank": false,
-      "tags": []
+      "targetBlank": false
     },
     {
       "title": "GPU use",
       "type": "link",
       "url": "/d/ttv-gpu-use",
+      "tooltip": "E12: are GPUs doing useful work?",
       "icon": "dashboard",
-      "tooltip": "",
+      "tags": [],
       "asDropdown": false,
       "includeVars": true,
       "keepTime": true,
-      "targetBlank": false,
-      "tags": []
+      "targetBlank": false
     },
     {
       "title": "Asset",
       "type": "link",
       "url": "/d/ttv-asset",
+      "tooltip": "One server's GPUs, stages and evidence",
       "icon": "dashboard",
-      "tooltip": "",
+      "tags": [],
       "asDropdown": false,
       "includeVars": true,
       "keepTime": true,
-      "targetBlank": false,
-      "tags": []
+      "targetBlank": false
     },
     {
       "title": "Evidence",
       "type": "link",
       "url": "/d/ttv-evidence",
+      "tooltip": "E18: can I trust these numbers?",
       "icon": "dashboard",
-      "tooltip": "",
+      "tags": [],
       "asDropdown": false,
       "includeVars": true,
       "keepTime": true,
-      "targetBlank": false,
-      "tags": []
+      "targetBlank": false
     },
     {
       "title": "Actions",
       "type": "link",
       "url": "/d/ttv-actions",
+      "tooltip": "E05, E16: team actions (R2/R3, missing input)",
       "icon": "dashboard",
-      "tooltip": "",
+      "tags": [],
       "asDropdown": false,
       "includeVars": true,
       "keepTime": true,
-      "targetBlank": false,
-      "tags": []
+      "targetBlank": false
     },
     {
       "title": "Capacity",
       "type": "link",
       "url": "/d/ttv-capacity",
+      "tooltip": "E06, E08, E09, E14, E17: capacity and commitments (R3, missing input)",
       "icon": "dashboard",
-      "tooltip": "",
+      "tags": [],
       "asDropdown": false,
       "includeVars": true,
       "keepTime": true,
-      "targetBlank": false,
-      "tags": []
+      "targetBlank": false
     },
     {
       "title": "Service",
       "type": "link",
       "url": "/d/ttv-service",
+      "tooltip": "E10, E11: service and adoption (R2, missing input)",
       "icon": "dashboard",
-      "tooltip": "",
+      "tags": [],
       "asDropdown": false,
       "includeVars": true,
       "keepTime": true,
-      "targetBlank": false,
-      "tags": []
+      "targetBlank": false
     },
     {
       "title": "Economics",
       "type": "link",
       "url": "/d/ttv-economics",
+      "tooltip": "E13, E15: economics and energy (R2/R3, missing input)",
       "icon": "dashboard",
-      "tooltip": "",
+      "tags": [],
       "asDropdown": false,
       "includeVars": true,
       "keepTime": true,
-      "targetBlank": false,
-      "tags": []
+      "targetBlank": false
     }
   ],
   "annotations": {
@@ -250,7 +250,7 @@
       "type": "stat",
       "id": 2,
       "title": "Idle GPUs",
-      "description": "Definition: GPUs in open IDLE intervals (the latest engine scan), all stage owners together; the queue table splits them by owner.\nFilters: site, stage_owner.\nUnknown vs zero: UNKNOWN GPUs are never counted here; 'no scan yet' until the engine has completed a scan.",
+      "description": "Definition: GPUs in open IDLE intervals (the latest engine scan), all stage owners together; the queue table splits them by owner.\nFilters: site, stage_owner.\nUnknown vs zero: UNKNOWN GPUs are never counted here; 'no GPUs in scope' before the first scan or when the site filter matches no GPU.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "ttv-postgres"
@@ -271,7 +271,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT CASE WHEN EXISTS (SELECT 1 FROM scan_runs WHERE status IN ('ok', 'partial') AND finished_at IS NOT NULL) THEN coalesce((\n  SELECT sum(i.gpus)\n  FROM capacity_intervals i\nJOIN assets a ON a.asset_id = i.asset_id\n  WHERE i.ended_at IS NULL AND i.category = 'IDLE' AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site)) AND ('__all__' IN ($stage_owner) OR i.stage_owner IN ($stage_owner))), 0) END AS \"Idle GPUs\""
+          "rawSql": "SELECT CASE WHEN EXISTS (SELECT 1 FROM capacity_intervals i0 JOIN assets a0 ON a0.asset_id = i0.asset_id WHERE i0.ended_at IS NULL AND ('__all__' IN ($site) OR coalesce(a0.site, '(none)') IN ($site))) THEN coalesce((\n  SELECT sum(i.gpus)\n  FROM capacity_intervals i\nJOIN assets a ON a.asset_id = i.asset_id\n  WHERE i.ended_at IS NULL AND i.category = 'IDLE' AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site)) AND ('__all__' IN ($stage_owner) OR i.stage_owner IN ($stage_owner))), 0) END AS \"Idle GPUs\""
         }
       ],
       "options": {
@@ -302,7 +302,7 @@
             "mode": "fixed",
             "fixedColor": "orange"
           },
-          "noValue": "no scan yet",
+          "noValue": "no GPUs in scope",
           "decimals": 0,
           "links": [
             {
@@ -339,7 +339,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "WITH v AS (\n  SELECT coalesce(sum(i.gpus), 0) AS gpus,\n         sum(i.gpus * r.per_gpu_hour_usd) AS usd,\n         coalesce(sum(i.gpus) FILTER (WHERE r.per_gpu_hour_usd IS NULL), 0) AS unpriced\n  FROM capacity_intervals i\nJOIN assets a ON a.asset_id = i.asset_id\n  LEFT JOIN gpu_model_aliases ga ON ga.raw_model = i.gpu_model\nLEFT JOIN pricing_rates r ON r.snapshot_id = '${snapshot}' AND r.gpu_model = ga.canonical\n  WHERE i.ended_at IS NULL AND i.category = 'IDLE' AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site)) AND ('__all__' IN ($stage_owner) OR i.stage_owner IN ($stage_owner))\n), s AS (\n  SELECT region || ', ' || to_char(publication_date AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS label\n  FROM pricing_snapshots WHERE snapshot_id = '${snapshot}'\n)\nSELECT CASE WHEN EXISTS (SELECT 1 FROM scan_runs WHERE status IN ('ok', 'partial') AND finished_at IS NOT NULL) AND EXISTS (SELECT 1 FROM s) THEN coalesce(v.usd, CASE WHEN v.gpus = 0 THEN 0 END) END AS usd,\n       coalesce((SELECT label FROM s), 'no price snapshot')\n       || CASE WHEN v.unpriced > 0 THEN ' · at least (' || v.unpriced || ' GPUs unpriced)' ELSE '' END AS label\nFROM v"
+          "rawSql": "WITH v AS (\n  SELECT coalesce(sum(i.gpus), 0) AS gpus,\n         sum(i.gpus * r.per_gpu_hour_usd) AS usd,\n         coalesce(sum(i.gpus) FILTER (WHERE r.per_gpu_hour_usd IS NULL), 0) AS unpriced\n  FROM capacity_intervals i\nJOIN assets a ON a.asset_id = i.asset_id\n  LEFT JOIN gpu_model_aliases ga ON ga.raw_model = i.gpu_model\nLEFT JOIN pricing_rates r ON r.snapshot_id = '${snapshot}' AND r.gpu_model = ga.canonical\n  WHERE i.ended_at IS NULL AND i.category = 'IDLE' AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site)) AND ('__all__' IN ($stage_owner) OR i.stage_owner IN ($stage_owner))\n), s AS (\n  SELECT region || ', ' || to_char(publication_date AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS label\n  FROM pricing_snapshots WHERE snapshot_id = '${snapshot}'\n)\nSELECT CASE WHEN EXISTS (SELECT 1 FROM capacity_intervals i0 JOIN assets a0 ON a0.asset_id = i0.asset_id WHERE i0.ended_at IS NULL AND ('__all__' IN ($site) OR coalesce(a0.site, '(none)') IN ($site))) AND EXISTS (SELECT 1 FROM s) THEN coalesce(v.usd, CASE WHEN v.gpus = 0 THEN 0 END) END AS usd,\n       coalesce((SELECT label FROM s), 'no price snapshot')\n       || CASE WHEN v.unpriced > 0 THEN ' · at least (' || v.unpriced || ' GPUs unpriced)' ELSE '' END AS label\nFROM v"
         }
       ],
       "options": {
@@ -464,7 +464,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT CASE WHEN EXISTS (SELECT 1 FROM scan_runs WHERE status IN ('ok', 'partial') AND finished_at IS NOT NULL) THEN coalesce((\n  SELECT sum(i.gpus) FROM capacity_intervals i\nJOIN assets a ON a.asset_id = i.asset_id\n  WHERE i.ended_at IS NULL AND i.category = 'UNKNOWN' AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))), 0) END AS \"Unknown GPUs\""
+          "rawSql": "SELECT CASE WHEN EXISTS (SELECT 1 FROM capacity_intervals i0 JOIN assets a0 ON a0.asset_id = i0.asset_id WHERE i0.ended_at IS NULL AND ('__all__' IN ($site) OR coalesce(a0.site, '(none)') IN ($site))) THEN coalesce((\n  SELECT sum(i.gpus) FROM capacity_intervals i\nJOIN assets a ON a.asset_id = i.asset_id\n  WHERE i.ended_at IS NULL AND i.category = 'UNKNOWN' AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))), 0) END AS \"Unknown GPUs\""
         }
       ],
       "options": {
@@ -495,7 +495,7 @@
             "mode": "fixed",
             "fixedColor": "purple"
           },
-          "noValue": "no scan yet",
+          "noValue": "no GPUs in scope",
           "decimals": 0,
           "links": [
             {
@@ -532,7 +532,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT CASE WHEN EXISTS (SELECT 1 FROM scan_runs WHERE status IN ('ok', 'partial') AND finished_at IS NOT NULL) THEN coalesce((\n  SELECT sum(i.gpus) FROM capacity_intervals i\nJOIN assets a ON a.asset_id = i.asset_id\n  WHERE i.ended_at IS NULL AND i.reason_code = 'OUTSIDE_TARGET_CLUSTERS' AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))), 0) END AS \"Not measured GPUs\""
+          "rawSql": "SELECT CASE WHEN EXISTS (SELECT 1 FROM capacity_intervals i0 JOIN assets a0 ON a0.asset_id = i0.asset_id WHERE i0.ended_at IS NULL AND ('__all__' IN ($site) OR coalesce(a0.site, '(none)') IN ($site))) THEN coalesce((\n  SELECT sum(i.gpus) FROM capacity_intervals i\nJOIN assets a ON a.asset_id = i.asset_id\n  WHERE i.ended_at IS NULL AND i.reason_code = 'OUTSIDE_TARGET_CLUSTERS' AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))), 0) END AS \"Not measured GPUs\""
         }
       ],
       "options": {
@@ -563,7 +563,7 @@
             "mode": "fixed",
             "fixedColor": "purple"
           },
-          "noValue": "no scan yet",
+          "noValue": "no GPUs in scope",
           "decimals": 0
         },
         "overrides": []
@@ -678,7 +678,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "WITH owners(owner, ord) AS (VALUES ('DC', 1), ('Redbull', 2), ('POPAI', 3), ('Serving', 4)),\niv AS (\n  SELECT i.stage_owner, i.asset_id, i.stage_entered_at, i.stage_entered_lower_bound AS lb, i.gpus, i.reason_code,\n         o.objective, r.per_gpu_hour_usd AS rate\n  FROM capacity_intervals i\nJOIN assets a ON a.asset_id = i.asset_id\n  LEFT JOIN stage_objectives o ON o.stage = i.stage AND o.policy_version = i.policy_version\n  LEFT JOIN gpu_model_aliases ga ON ga.raw_model = i.gpu_model\nLEFT JOIN pricing_rates r ON r.snapshot_id = '${snapshot}' AND r.gpu_model = ga.canonical\n  WHERE i.ended_at IS NULL AND i.category = 'IDLE' AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))\n), ep AS (\n  SELECT stage_owner, asset_id, stage_entered_at, bool_or(lb) AS lb\n  FROM iv GROUP BY stage_owner, asset_id, stage_entered_at\n), agg AS (\n  SELECT stage_owner,\n         sum(gpus) AS gpus,\n         coalesce(sum(gpus) FILTER (WHERE objective IS NOT NULL AND now() > stage_entered_at + objective), 0) AS overdue,\n         max(extract(epoch FROM objective)) / 86400 AS objective_d,\n         sum(gpus * rate) AS usd,\n         coalesce(sum(gpus) FILTER (WHERE rate IS NULL), 0) AS unpriced\n  FROM iv GROUP BY stage_owner\n), waits AS (\n  SELECT stage_owner, count(*) AS servers, bool_or(lb) AS lb,\n         max(extract(epoch FROM now() - stage_entered_at)) / 86400 AS oldest_d,\n         percentile_cont(0.5) WITHIN GROUP (ORDER BY extract(epoch FROM now() - stage_entered_at)) / 86400 AS median_d\n  FROM ep GROUP BY stage_owner\n), top_reason AS (\n  SELECT DISTINCT ON (stage_owner) stage_owner, reason_code\n  FROM (SELECT stage_owner, reason_code, sum(gpus) AS g FROM iv GROUP BY 1, 2) x\n  ORDER BY stage_owner, g DESC, reason_code\n)\nSELECT ow.owner AS \"Stage owner\",\n       CASE WHEN EXISTS (SELECT 1 FROM scan_runs WHERE status IN ('ok', 'partial') AND finished_at IS NOT NULL) THEN coalesce(g.gpus, 0) END AS \"Idle GPUs\",\n       CASE WHEN EXISTS (SELECT 1 FROM scan_runs WHERE status IN ('ok', 'partial') AND finished_at IS NOT NULL) THEN coalesce(g.overdue, 0) END AS \"Overdue GPUs\",\n       w.servers AS \"Servers\",\n       CASE WHEN w.lb THEN '≥ ' ELSE '' END || to_char(w.oldest_d, 'FM99990.0') || ' d' AS \"Oldest wait\",\n       to_char(g.objective_d, 'FM9990.##') || ' d' AS \"Objective\",\n       CASE WHEN g.gpus IS NULL THEN NULL\n            WHEN g.usd IS NULL THEN 'unpriced'\n            ELSE CASE WHEN g.unpriced > 0 THEN '≥ ' ELSE '' END || '$' || to_char(g.usd, 'FM999,999,990') END AS \"Idle value / h\",\n       t.reason_code AS \"Main reason\"\nFROM owners ow\nLEFT JOIN agg g ON g.stage_owner = ow.owner\nLEFT JOIN waits w ON w.stage_owner = ow.owner\nLEFT JOIN top_reason t ON t.stage_owner = ow.owner\nORDER BY ow.ord"
+          "rawSql": "WITH owners(owner, ord) AS (VALUES ('DC', 1), ('Redbull', 2), ('POPAI', 3), ('Serving', 4)),\niv AS (\n  SELECT i.stage_owner, i.asset_id, i.stage_entered_at, i.stage_entered_lower_bound AS lb, i.gpus, i.reason_code,\n         o.objective, r.per_gpu_hour_usd AS rate\n  FROM capacity_intervals i\nJOIN assets a ON a.asset_id = i.asset_id\n  LEFT JOIN stage_objectives o ON o.stage = i.stage AND o.policy_version = i.policy_version\n  LEFT JOIN gpu_model_aliases ga ON ga.raw_model = i.gpu_model\nLEFT JOIN pricing_rates r ON r.snapshot_id = '${snapshot}' AND r.gpu_model = ga.canonical\n  WHERE i.ended_at IS NULL AND i.category = 'IDLE' AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))\n), ep AS (\n  SELECT stage_owner, asset_id, stage_entered_at, bool_or(lb) AS lb\n  FROM iv GROUP BY stage_owner, asset_id, stage_entered_at\n), agg AS (\n  SELECT stage_owner,\n         sum(gpus) AS gpus,\n         coalesce(sum(gpus) FILTER (WHERE objective IS NOT NULL AND now() > stage_entered_at + objective), 0) AS overdue,\n         max(extract(epoch FROM objective)) / 86400 AS objective_d,\n         sum(gpus * rate) AS usd,\n         coalesce(sum(gpus) FILTER (WHERE rate IS NULL), 0) AS unpriced\n  FROM iv GROUP BY stage_owner\n), waits AS (\n  SELECT stage_owner, count(*) AS servers, bool_or(lb) AS lb,\n         max(extract(epoch FROM now() - stage_entered_at)) / 86400 AS oldest_d,\n         percentile_cont(0.5) WITHIN GROUP (ORDER BY extract(epoch FROM now() - stage_entered_at)) / 86400 AS median_d\n  FROM ep GROUP BY stage_owner\n), top_reason AS (\n  SELECT DISTINCT ON (stage_owner) stage_owner, reason_code\n  FROM (SELECT stage_owner, reason_code, sum(gpus) AS g FROM iv GROUP BY 1, 2) x\n  ORDER BY stage_owner, g DESC, reason_code\n)\nSELECT ow.owner AS \"Stage owner\",\n       CASE WHEN EXISTS (SELECT 1 FROM capacity_intervals i0 JOIN assets a0 ON a0.asset_id = i0.asset_id WHERE i0.ended_at IS NULL AND ('__all__' IN ($site) OR coalesce(a0.site, '(none)') IN ($site))) THEN coalesce(g.gpus, 0) END AS \"Idle GPUs\",\n       CASE WHEN EXISTS (SELECT 1 FROM capacity_intervals i0 JOIN assets a0 ON a0.asset_id = i0.asset_id WHERE i0.ended_at IS NULL AND ('__all__' IN ($site) OR coalesce(a0.site, '(none)') IN ($site))) THEN coalesce(g.overdue, 0) END AS \"Overdue GPUs\",\n       w.servers AS \"Servers\",\n       CASE WHEN w.lb THEN '≥ ' ELSE '' END || to_char(w.oldest_d, 'FM99990.0') || ' d' AS \"Oldest wait\",\n       to_char(g.objective_d, 'FM9990.##') || ' d' AS \"Objective\",\n       CASE WHEN g.gpus IS NULL THEN NULL\n            WHEN g.usd IS NULL THEN 'unpriced'\n            ELSE CASE WHEN g.unpriced > 0 THEN '≥ ' ELSE '' END || '$' || to_char(g.usd, 'FM999,999,990') END AS \"Idle value / h\",\n       t.reason_code AS \"Main reason\"\nFROM owners ow\nLEFT JOIN agg g ON g.stage_owner = ow.owner\nLEFT JOIN waits w ON w.stage_owner = ow.owner\nLEFT JOIN top_reason t ON t.stage_owner = ow.owner\nORDER BY ow.ord"
         }
       ],
       "options": {
@@ -924,7 +924,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT coalesce(sum(i.gpus) FILTER (WHERE i.category = 'PRODUCTIVE'), 0) AS \"Productive\",\n       coalesce(sum(i.gpus) FILTER (WHERE i.category = 'IDLE'), 0) AS \"Idle\",\n       coalesce(sum(i.gpus) FILTER (WHERE i.category = 'NOT_CHARGED'), 0) AS \"Not charged\",\n       coalesce(sum(i.gpus) FILTER (WHERE i.category = 'UNKNOWN'), 0) AS \"Unknown\"\nFROM capacity_intervals i\nJOIN assets a ON a.asset_id = i.asset_id\nWHERE i.ended_at IS NULL AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))\nHAVING EXISTS (SELECT 1 FROM scan_runs WHERE status IN ('ok', 'partial') AND finished_at IS NOT NULL)"
+          "rawSql": "SELECT coalesce(sum(i.gpus) FILTER (WHERE i.category = 'PRODUCTIVE'), 0) AS \"Productive\",\n       coalesce(sum(i.gpus) FILTER (WHERE i.category = 'IDLE'), 0) AS \"Idle\",\n       coalesce(sum(i.gpus) FILTER (WHERE i.category = 'NOT_CHARGED'), 0) AS \"Not charged\",\n       coalesce(sum(i.gpus) FILTER (WHERE i.category = 'UNKNOWN'), 0) AS \"Unknown\"\nFROM capacity_intervals i\nJOIN assets a ON a.asset_id = i.asset_id\nWHERE i.ended_at IS NULL AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))\nHAVING count(*) > 0"
         }
       ],
       "options": {
@@ -1462,7 +1462,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "WITH w AS (SELECT $__timeFrom()::timestamptz AS t0, least($__timeTo()::timestamptz, now()) AS t1),\niv AS (\n  SELECT i.gpus,\n         greatest(i.started_at, w.t0) AS s,\n         least(coalesce(i.ended_at, now()), w.t1) AS e,\n         CASE WHEN o.objective IS NULL OR i.stage_entered_at IS NULL THEN NULL\n              ELSE greatest(i.started_at, i.stage_entered_at + o.objective, w.t0) END AS os,\n         r.per_gpu_hour_usd AS rate\n  FROM capacity_intervals i\n  JOIN assets a ON a.asset_id = i.asset_id\n  LEFT JOIN stage_objectives o ON o.stage = i.stage AND o.policy_version = i.policy_version\n  LEFT JOIN gpu_model_aliases ga ON ga.raw_model = i.gpu_model\nLEFT JOIN pricing_rates r ON r.snapshot_id = '${snapshot}' AND r.gpu_model = ga.canonical\n  CROSS JOIN w\n  WHERE i.category = 'IDLE' AND i.started_at < w.t1 AND coalesce(i.ended_at, now()) > w.t0\n    AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site)) AND ('__all__' IN ($stage_owner) OR i.stage_owner IN ($stage_owner))\n)\nSELECT CASE WHEN EXISTS (SELECT 1 FROM scan_runs WHERE status IN ('ok', 'partial') AND finished_at IS NOT NULL) THEN coalesce(sum(gpus * extract(epoch FROM e - s)) / 3600, 0) END AS \"Idle GPU-h\" FROM iv"
+          "rawSql": "WITH w AS (SELECT $__timeFrom()::timestamptz AS t0, least($__timeTo()::timestamptz, now()) AS t1),\niv AS (\n  SELECT i.gpus,\n         greatest(i.started_at, w.t0) AS s,\n         least(coalesce(i.ended_at, now()), w.t1) AS e,\n         CASE WHEN o.objective IS NULL OR i.stage_entered_at IS NULL THEN NULL\n              ELSE greatest(i.started_at, i.stage_entered_at + o.objective, w.t0) END AS os,\n         r.per_gpu_hour_usd AS rate\n  FROM capacity_intervals i\n  JOIN assets a ON a.asset_id = i.asset_id\n  LEFT JOIN stage_objectives o ON o.stage = i.stage AND o.policy_version = i.policy_version\n  LEFT JOIN gpu_model_aliases ga ON ga.raw_model = i.gpu_model\nLEFT JOIN pricing_rates r ON r.snapshot_id = '${snapshot}' AND r.gpu_model = ga.canonical\n  CROSS JOIN w\n  WHERE i.category = 'IDLE' AND i.started_at < w.t1 AND coalesce(i.ended_at, now()) > w.t0\n    AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site)) AND ('__all__' IN ($stage_owner) OR i.stage_owner IN ($stage_owner))\n)\nSELECT CASE WHEN EXISTS (SELECT 1 FROM capacity_intervals i0 JOIN assets a0 ON a0.asset_id = i0.asset_id WHERE i0.ended_at IS NULL AND ('__all__' IN ($site) OR coalesce(a0.site, '(none)') IN ($site))) THEN coalesce(sum(gpus * extract(epoch FROM e - s)) / 3600, 0) END AS \"Idle GPU-h\" FROM iv"
         }
       ],
       "options": {
@@ -1524,7 +1524,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "WITH w AS (SELECT $__timeFrom()::timestamptz AS t0, least($__timeTo()::timestamptz, now()) AS t1),\niv AS (\n  SELECT i.gpus,\n         greatest(i.started_at, w.t0) AS s,\n         least(coalesce(i.ended_at, now()), w.t1) AS e,\n         CASE WHEN o.objective IS NULL OR i.stage_entered_at IS NULL THEN NULL\n              ELSE greatest(i.started_at, i.stage_entered_at + o.objective, w.t0) END AS os,\n         r.per_gpu_hour_usd AS rate\n  FROM capacity_intervals i\n  JOIN assets a ON a.asset_id = i.asset_id\n  LEFT JOIN stage_objectives o ON o.stage = i.stage AND o.policy_version = i.policy_version\n  LEFT JOIN gpu_model_aliases ga ON ga.raw_model = i.gpu_model\nLEFT JOIN pricing_rates r ON r.snapshot_id = '${snapshot}' AND r.gpu_model = ga.canonical\n  CROSS JOIN w\n  WHERE i.category = 'IDLE' AND i.started_at < w.t1 AND coalesce(i.ended_at, now()) > w.t0\n    AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site)) AND ('__all__' IN ($stage_owner) OR i.stage_owner IN ($stage_owner))\n)\nSELECT CASE WHEN EXISTS (SELECT 1 FROM scan_runs WHERE status IN ('ok', 'partial') AND finished_at IS NOT NULL) THEN coalesce(sum(gpus * extract(epoch FROM greatest(e - os, interval '0'))) FILTER (WHERE os IS NOT NULL) / 3600, 0) END AS \"Overdue GPU-h\" FROM iv"
+          "rawSql": "WITH w AS (SELECT $__timeFrom()::timestamptz AS t0, least($__timeTo()::timestamptz, now()) AS t1),\niv AS (\n  SELECT i.gpus,\n         greatest(i.started_at, w.t0) AS s,\n         least(coalesce(i.ended_at, now()), w.t1) AS e,\n         CASE WHEN o.objective IS NULL OR i.stage_entered_at IS NULL THEN NULL\n              ELSE greatest(i.started_at, i.stage_entered_at + o.objective, w.t0) END AS os,\n         r.per_gpu_hour_usd AS rate\n  FROM capacity_intervals i\n  JOIN assets a ON a.asset_id = i.asset_id\n  LEFT JOIN stage_objectives o ON o.stage = i.stage AND o.policy_version = i.policy_version\n  LEFT JOIN gpu_model_aliases ga ON ga.raw_model = i.gpu_model\nLEFT JOIN pricing_rates r ON r.snapshot_id = '${snapshot}' AND r.gpu_model = ga.canonical\n  CROSS JOIN w\n  WHERE i.category = 'IDLE' AND i.started_at < w.t1 AND coalesce(i.ended_at, now()) > w.t0\n    AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site)) AND ('__all__' IN ($stage_owner) OR i.stage_owner IN ($stage_owner))\n)\nSELECT CASE WHEN EXISTS (SELECT 1 FROM capacity_intervals i0 JOIN assets a0 ON a0.asset_id = i0.asset_id WHERE i0.ended_at IS NULL AND ('__all__' IN ($site) OR coalesce(a0.site, '(none)') IN ($site))) THEN coalesce(sum(gpus * extract(epoch FROM greatest(e - os, interval '0'))) FILTER (WHERE os IS NOT NULL) / 3600, 0) END AS \"Overdue GPU-h\" FROM iv"
         }
       ],
       "options": {
@@ -1586,7 +1586,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "WITH w AS (SELECT $__timeFrom()::timestamptz AS t0, least($__timeTo()::timestamptz, now()) AS t1),\niv AS (\n  SELECT i.gpus,\n         greatest(i.started_at, w.t0) AS s,\n         least(coalesce(i.ended_at, now()), w.t1) AS e,\n         CASE WHEN o.objective IS NULL OR i.stage_entered_at IS NULL THEN NULL\n              ELSE greatest(i.started_at, i.stage_entered_at + o.objective, w.t0) END AS os,\n         r.per_gpu_hour_usd AS rate\n  FROM capacity_intervals i\n  JOIN assets a ON a.asset_id = i.asset_id\n  LEFT JOIN stage_objectives o ON o.stage = i.stage AND o.policy_version = i.policy_version\n  LEFT JOIN gpu_model_aliases ga ON ga.raw_model = i.gpu_model\nLEFT JOIN pricing_rates r ON r.snapshot_id = '${snapshot}' AND r.gpu_model = ga.canonical\n  CROSS JOIN w\n  WHERE i.category = 'IDLE' AND i.started_at < w.t1 AND coalesce(i.ended_at, now()) > w.t0\n    AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site)) AND ('__all__' IN ($stage_owner) OR i.stage_owner IN ($stage_owner))\n)\n\nSELECT CASE WHEN EXISTS (SELECT 1 FROM scan_runs WHERE status IN ('ok', 'partial') AND finished_at IS NOT NULL) AND EXISTS (SELECT 1 FROM pricing_snapshots WHERE snapshot_id = '${snapshot}')\n            THEN coalesce(sum(gpus * extract(epoch FROM e - s) * rate) / 3600, CASE WHEN count(*) = 0 THEN 0 END) END AS usd,\n       CASE WHEN bool_or(rate IS NULL) THEN 'at least · ' || to_char(sum(gpus * extract(epoch FROM e - s)) FILTER (WHERE rate IS NULL) / 3600, 'FM9,999,990') || ' GPU-h unpriced'\n            ELSE 'present-day prices' END AS label\nFROM iv"
+          "rawSql": "WITH w AS (SELECT $__timeFrom()::timestamptz AS t0, least($__timeTo()::timestamptz, now()) AS t1),\niv AS (\n  SELECT i.gpus,\n         greatest(i.started_at, w.t0) AS s,\n         least(coalesce(i.ended_at, now()), w.t1) AS e,\n         CASE WHEN o.objective IS NULL OR i.stage_entered_at IS NULL THEN NULL\n              ELSE greatest(i.started_at, i.stage_entered_at + o.objective, w.t0) END AS os,\n         r.per_gpu_hour_usd AS rate\n  FROM capacity_intervals i\n  JOIN assets a ON a.asset_id = i.asset_id\n  LEFT JOIN stage_objectives o ON o.stage = i.stage AND o.policy_version = i.policy_version\n  LEFT JOIN gpu_model_aliases ga ON ga.raw_model = i.gpu_model\nLEFT JOIN pricing_rates r ON r.snapshot_id = '${snapshot}' AND r.gpu_model = ga.canonical\n  CROSS JOIN w\n  WHERE i.category = 'IDLE' AND i.started_at < w.t1 AND coalesce(i.ended_at, now()) > w.t0\n    AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site)) AND ('__all__' IN ($stage_owner) OR i.stage_owner IN ($stage_owner))\n)\n\nSELECT CASE WHEN EXISTS (SELECT 1 FROM capacity_intervals i0 JOIN assets a0 ON a0.asset_id = i0.asset_id WHERE i0.ended_at IS NULL AND ('__all__' IN ($site) OR coalesce(a0.site, '(none)') IN ($site))) AND EXISTS (SELECT 1 FROM pricing_snapshots WHERE snapshot_id = '${snapshot}')\n            THEN coalesce(sum(gpus * extract(epoch FROM e - s) * rate) / 3600, CASE WHEN count(*) = 0 THEN 0 END) END AS usd,\n       CASE WHEN bool_or(rate IS NULL) THEN 'at least · ' || to_char(sum(gpus * extract(epoch FROM e - s)) FILTER (WHERE rate IS NULL) / 3600, 'FM9,999,990') || ' GPU-h unpriced'\n            ELSE 'present-day prices' END AS label\nFROM iv"
         }
       ],
       "options": {
