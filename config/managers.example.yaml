@@ -1,0 +1,21 @@
+# Managers the profile-less GPU collector reads (TTV_MANAGERS_FILE), read-only (ADR-0004).
+# Accounts: server-scan's own (user decision C4); read-only is enforced in the collector's code.
+# Passwords live in mounted files, never here.
+ucs_central:
+  - name: central-1
+    host: ucs-central.example.internal          # bare host, port 443
+    username: svc-gpu-ttv
+    password_file: /var/run/secrets/ttv/ucs-central/password
+    # One UCS Manager login valid on every registered domain, for the per-domain GPU fallback:
+    # ucsm_username: svc-gpu-ttv
+    # ucsm_password_file: /var/run/secrets/ttv/ucs-manager/password
+    ca_bundle: /etc/pki/ttv/ca-bundle.pem
+openmanage:
+  - name: ome-1
+    url: https://ome.example.internal
+    username: svc-gpu-ttv                       # Viewer role (never Device Manager: it is scoped)
+    password_file: /var/run/secrets/ttv/ome/password
+    ca_bundle: /etc/pki/ttv/ca-bundle.pem
+    # Read-only iDRAC account for the Redfish GPU fallback, when OME inventory has no GPU detail:
+    # idrac_username: svc-gpu-ttv-ro
+    # idrac_password_file: /var/run/secrets/ttv/idrac/password

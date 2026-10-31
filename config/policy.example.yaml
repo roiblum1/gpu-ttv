@@ -79,3 +79,9 @@ pools: []
 team_map:
   workloads: {}     # "namespace/Kind/name": team
   namespaces: {}    # namespace: team
+
+# Profile-less collector (ADR-0002 rows 3-5). A bound profile whose name matches the pattern is an OCP
+# profile (case-sensitive re.search, the same rule server-scan's collectors use; verify with probe P-SS-1).
+# collector:
+#   ocp_profile_pattern: "^ocp"
+#   handover_grace: 6h          # an OCP-profile GPU server missing from server-scan longer than this is flagged

@@ -79,6 +79,7 @@ def create_app(engine: Engine, scan_interval: timedelta) -> FastAPI:
                 status_code=404, detail=f"{asset_id} was not classified in the last scan"
             )
         server = report.servers.get(asset_id)
+        collected = report.collector.get(asset_id)
         intervals = await engine.store.intervals_for(asset_id) if engine.store else []
         return {
             "asset_id": asset_id,
@@ -92,6 +93,7 @@ def create_app(engine: Engine, scan_interval: timedelta) -> FastAPI:
             "stage_clocks": {k: asdict(v) for k, v in decision.stage_clocks.items()},
             "milestones": [asdict(m) for m in decision.milestones],
             "serverscan": asdict(server) if server else None,
+            "collector": asdict(collected) if collected else None,
             "recent_intervals": intervals,
         }
 

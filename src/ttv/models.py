@@ -70,6 +70,7 @@ class Flag(enum.StrEnum):
     ALLOCATED_IDLE = "allocated_idle"
     LOW_USE_UNVERIFIED = "low_use_unverified"
     USER_ATTRIBUTION_UNVERIFIED = "user_attribution_unverified"
+    HANDOVER_OVERDUE = "handover_overdue"
 
 
 @dataclass(frozen=True)
@@ -222,6 +223,8 @@ class AssetInput:
         collector (ManagerServer | None): The collector's record, for an asset server-scan does
             not have (rows 3-5).
         collector_first_seen (datetime | None): When the collector first saw it (a lower bound).
+        collector_profile_since (datetime | None): When the collector first saw its current
+            profile name bound (the handover clock of row 5).
     """
 
     asset_id: str
@@ -229,6 +232,7 @@ class AssetInput:
     conflict: str | None = None
     collector: ManagerServer | None = None
     collector_first_seen: datetime | None = None
+    collector_profile_since: datetime | None = None
 
 
 @dataclass(frozen=True)

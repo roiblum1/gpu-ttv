@@ -136,6 +136,7 @@ async def _run(args: argparse.Namespace) -> int:
         tombstone_after=settings.tombstone_after,
         clusters=cluster_sources,
         cluster_timeout=settings.cluster_timeout_seconds,
+        collector_stale_after=settings.collector_stale_after,
         pricing=pricing,
     )
     log.info(

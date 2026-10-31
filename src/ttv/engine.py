@@ -13,7 +13,13 @@ from typing import Any, Protocol
 
 import structlog
 
-from ttv.classify import SERVERSCAN_SOURCE, ClassifyContext, classify, gpu_count
+from ttv.classify import (
+    COLLECTOR_SOURCE_PREFIX,
+    SERVERSCAN_SOURCE,
+    ClassifyContext,
+    classify,
+    gpu_count,
+)
 from ttv.cluster_view import ClusterView, build_cluster_view, clean_hostname
 from ttv.config import ClusterConnection, Policy
 from ttv.identity import IdentityConflict, build_assets
@@ -23,6 +29,7 @@ from ttv.models import (
     AssetInput,
     Decision,
     KubeSnapshot,
+    ManagerServer,
     ServerScanServer,
     SourceStatus,
     ThanosSnapshot,
@@ -31,7 +38,7 @@ from ttv.pricing.catalog import canonical_gpu_model
 from ttv.pricing.importer import PresentPricing
 from ttv.sources.http import SourceError
 from ttv.sources.serverscan import ServerScanError, ServerScanFetch
-from ttv.store import AssetRow, LedgerState, Milestone, PostgresStore
+from ttv.store import AssetRow, CollectorState, LedgerState, Milestone, PostgresStore
 
 log = structlog.get_logger(__name__)
 
@@ -124,6 +131,7 @@ class ScanReport:
         finished_at (datetime): End time.
         decisions (dict[str, Decision]): Decisions by asset id.
         servers (dict[str, ServerScanServer]): server-scan record by asset id.
+        collector (dict[str, ManagerServer]): Collector record of collector-only assets.
         coverage (dict[str, Any]): Counts of what was and was not classified.
         plan_counts (dict[str, int]): Opens, closes and refreshes planned.
         errors (list[str]): Error summaries.
@@ -135,6 +143,7 @@ class ScanReport:
     finished_at: datetime
     decisions: dict[str, Decision] = field(default_factory=dict)
     servers: dict[str, ServerScanServer] = field(default_factory=dict)
+    collector: dict[str, ManagerServer] = field(default_factory=dict)
     coverage: dict[str, Any] = field(default_factory=dict)
     plan_counts: dict[str, int] = field(default_factory=dict)
     errors: list[str] = field(default_factory=list)
@@ -155,6 +164,7 @@ class Engine:
         tombstone_after: timedelta,
         clusters: Sequence[ClusterSources] = (),
         cluster_timeout: float = 120.0,
+        collector_stale_after: timedelta = timedelta(hours=1),
         pricing: PresentPricing | None = None,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
@@ -171,6 +181,8 @@ class Engine:
             tombstone_after (timedelta): Absence from complete listings before an asset is retired.
             clusters (Sequence[ClusterSources]): Observed target clusters.
             cluster_timeout (float): Deadline for each cluster source read, in seconds.
+            collector_stale_after (timedelta): Age after which a manager's latest complete
+                collector read no longer counts, so its collector-only assets turn UNKNOWN.
             pricing (PresentPricing | None): Present-day snapshot; None prices nothing.
             clock (Callable[[], datetime]): Time source (tests inject one).
         """
@@ -184,6 +196,7 @@ class Engine:
         self.clock = clock
         self.clusters = list(clusters)
         self.cluster_timeout = cluster_timeout
+        self.collector_stale_after = collector_stale_after
         self.pricing = pricing
         self.last_fetch: ServerScanFetch | None = None
         self.last_report: ScanReport | None = None
@@ -210,10 +223,15 @@ class Engine:
         )
         assets, conflicts = build_assets(fetch.servers if fetch else ())
         assets, node_conflicts = _node_claims(assets, set(views))
-        conflicts = conflicts + node_conflicts
+        collector = await store.load_collector_state() if store else None
+        collector_sources, collector_ok = self._collector_status(collector, now)
+        from_collector, collector_conflicts = _collector_assets(
+            collector, {a.asset_id for a in assets}
+        )
+        conflicts = conflicts + node_conflicts + collector_conflicts
         ctx = ClassifyContext(
             policy=self.policy,
-            sources={SERVERSCAN_SOURCE: status},
+            sources={SERVERSCAN_SOURCE: status, **collector_sources},
             unknown_grace_scans=self.grace,
             clusters=views,
             now=now,
@@ -249,6 +267,19 @@ class Engine:
             else:
                 coverage["gpu_assets"] += 1
                 decisions[asset.asset_id] = classify(asset, ctx)
+        collected: dict[str, ManagerServer] = {}
+        for asset in from_collector:
+            record = asset.collector
+            assert record is not None
+            if record.gpu_models is None:
+                coverage["collector_gpu_inventory_unread"] += 1
+                carry.add(asset.asset_id)
+            elif not record.gpu_models:
+                decisions[asset.asset_id] = _empty(asset.asset_id, self.policy)
+            else:
+                coverage["collector_gpu_assets"] += 1
+                collected[asset.asset_id] = record
+                decisions[asset.asset_id] = classify(asset, ctx)
         pending = len(fetch.pending_detail_ids) if fetch else 0
         coverage["pending_detail"] = pending
 
@@ -256,7 +287,7 @@ class Engine:
         fresh_complete = complete and fetch is not None and fetch is self.last_fetch
         vanished = (
             self._vanished(state, set(decisions) | carry, now)
-            if fresh_complete and pending == 0
+            if fresh_complete and pending == 0 and collector_ok
             else {}
         )
         ledger_plan = plan(
@@ -272,11 +303,14 @@ class Engine:
             await store.apply(
                 scan_id,
                 ledger_plan,
-                assets=[_asset_row(a, servers[a]) for a in sorted(gpu_ids)],
+                assets=[
+                    _asset_row(a, servers[a]) if a in servers else _collector_row(a, collected[a])
+                    for a in sorted(gpu_ids)
+                ],
                 milestones=[
                     m
                     for a in sorted(gpu_ids)
-                    for m in _milestones(a, servers[a], decisions[a], now)
+                    for m in _milestones(a, servers.get(a), decisions[a], now)
                 ],
                 conflicts=conflicts,
                 resolve_missing_conflicts=fresh_complete,
@@ -302,6 +336,7 @@ class Engine:
             finished_at=finished,
             decisions=decisions,
             servers=servers,
+            collector=collected,
             coverage=dict(coverage) | {"conflicts": len(conflicts)},
             plan_counts=_counts(ledger_plan),
             errors=errors,
@@ -360,6 +395,33 @@ class Engine:
             return await self.store.record_source(name, ok=ok, now=now, error=error)
         self._failed[name] = 0 if ok else self._failed[name] + 1
         return SourceStatus(name, self._failed[name], now if ok else None)
+
+    def _collector_status(
+        self, collector: CollectorState | None, now: datetime
+    ) -> tuple[dict[str, SourceStatus], bool]:
+        """
+        Health of each collector manager, from the age of its latest complete read.
+
+        Args:
+            collector (CollectorState | None): The collector's latest view (None: no database).
+            now (datetime): Scan time.
+
+        Returns:
+            tuple[dict[str, SourceStatus], bool]: Status by source name, and whether every
+            manager is fresh and its latest attempt complete (only then may assets vanish).
+        """
+        if collector is None:
+            return {}, True
+        complete_at = {r.manager: r.finished_at for r in collector.reads}
+        statuses: dict[str, SourceStatus] = {}
+        all_ok = True
+        for manager, (_, attempt_complete) in collector.last_attempt.items():
+            last_ok = complete_at.get(manager)
+            fresh = last_ok is not None and now - last_ok <= self.collector_stale_after
+            name = COLLECTOR_SOURCE_PREFIX + manager
+            statuses[name] = SourceStatus(name, 0 if fresh else self.grace, last_ok)
+            all_ok = all_ok and fresh and attempt_complete
+        return statuses, all_ok
 
     async def _read_clusters(self, now: datetime, errors: list[str]) -> dict[str, ClusterView]:
         """
@@ -592,15 +654,90 @@ def _node_claims(
     return marked, conflicts
 
 
+def _collector_assets(
+    collector: CollectorState | None, serverscan_ids: set[str]
+) -> tuple[list[AssetInput], list[IdentityConflict]]:
+    """
+    Assets for servers only the collector knows; server-scan wins for the same vendor + serial.
+
+    Args:
+        collector (CollectorState | None): The collector's latest view.
+        serverscan_ids (set[str]): Asset ids server-scan already provides.
+
+    Returns:
+        tuple[list[AssetInput], list[IdentityConflict]]: Collector-only assets, and a
+        `COLLECTOR_DUPLICATE` conflict for each serial seen by two managers or twice in one.
+    """
+    if collector is None:
+        return [], []
+    groups: dict[str, list[ManagerServer]] = defaultdict(list)
+    for read in collector.reads:
+        for m in read.servers:
+            serial = m.serial_normalized
+            fallback = f"{m.vendor}:collector-id:{m.manager}:{m.source_id}"
+            asset_id = f"{m.vendor}:{serial}" if serial else fallback
+            if asset_id not in serverscan_ids:
+                groups[asset_id].append(m)
+    assets: list[AssetInput] = []
+    conflicts: list[IdentityConflict] = []
+    for asset_id in sorted(groups):
+        members = groups[asset_id]
+        m = members[0]
+        conflict = None
+        if len(members) > 1:
+            ids = tuple(sorted(f"{x.manager}/{x.source_id}" for x in members))
+            conflicts.append(IdentityConflict("COLLECTOR_DUPLICATE", asset_id, ids))
+            conflict = f"{len(members)} manager records share this serial: {', '.join(ids)}"
+        key = (m.vendor, m.serial_normalized)
+        assets.append(
+            AssetInput(
+                asset_id=asset_id,
+                serverscan=None,
+                conflict=conflict,
+                collector=m,
+                collector_first_seen=collector.first_seen.get(key),
+                collector_profile_since=collector.profile_since.get((*key, m.profile_name or "")),
+            )
+        )
+    return assets, conflicts
+
+
+def _collector_row(asset_id: str, m: ManagerServer) -> AssetRow:
+    """
+    Describe a collector-only asset.
+
+    Args:
+        asset_id (str): Asset id.
+        m (ManagerServer): Its collector record.
+
+    Returns:
+        AssetRow: The row to upsert.
+    """
+    models = Counter(m.gpu_models or ())
+    return AssetRow(
+        asset_id=asset_id,
+        vendor=m.vendor,
+        serial=m.serial_normalized,
+        system_uuid=None,
+        name=m.name or m.source_id,
+        model=m.model,
+        site=None,
+        gpu_model=models.most_common(1)[0][0] if models else None,
+        gpu_count=None if m.gpu_models is None else len(m.gpu_models),
+        source=m.manager,
+        aliases={"collector_source_id": m.source_id, "manager": m.manager},
+    )
+
+
 def _milestones(
-    asset_id: str, s: ServerScanServer, decision: Decision, now: datetime
+    asset_id: str, s: ServerScanServer | None, decision: Decision, now: datetime
 ) -> list[Milestone]:
     """
     First-time facts from server-scan and from this scan's classification.
 
     Args:
         asset_id (str): Asset id.
-        s (ServerScanServer): Its record.
+        s (ServerScanServer | None): Its server-scan record (None for collector-only assets).
         decision (Decision): Its decision (carries cluster milestones).
         now (datetime): Scan time.
 
@@ -610,7 +747,7 @@ def _milestones(
     result = [
         Milestone(asset_id, "first_seen", now, lower_bound=True, evidence={"source": "ttv-engine"})
     ]
-    if s.created_at is not None:
+    if s is not None and s.created_at is not None:
         result.append(
             Milestone(
                 asset_id,

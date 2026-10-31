@@ -23,9 +23,11 @@ Rules are evaluated per asset in order; the first match wins. A server-level mat
 | 1 | `EXCLUDED` | Asset in the exclusion list (I5) | NOT_CHARGED | — | 1 |
 | 2 | `SOURCE_STALE` | The asset's source failed beyond `unknown_grace_scans`, or server-scan marks the record `stale` | UNKNOWN | — | 1 |
 | 2b | `IDENTITY_CONFLICT` | Two source records claim the same asset id | UNKNOWN | — | 1 |
-| 3 | `PROFILE_NONE` | Collector-only GPU server with no bound profile | IDLE | PRE_PROVISIONING | 3 |
-| 4 | `OTHER_INTENDED_USE` | Collector-only GPU server whose profile name is not OCP (I6) | NOT_CHARGED | — | 3 |
-| 5 | `HANDOVER_PENDING` | Collector-only, OCP profile, absent from server-scan after grace | UNKNOWN (+ data-quality alert) | — | 3 |
+| 3 | `PROFILE_NONE` | Collector-only GPU server with no bound profile. Stage clock: the collector's first sighting, a lower bound | IDLE | PRE_PROVISIONING | 3 |
+| 4 | `OTHER_INTENDED_USE` | Collector-only GPU server whose bound profile name does not match `collector.ocp_profile_pattern` (`^ocp`, case-sensitive `re.search`, as server-scan; I6) | NOT_CHARGED | — | 3 |
+| 5 | `HANDOVER_PENDING` | Collector-only GPU server with an OCP profile, not (yet) in server-scan. Past `collector.handover_grace` (6 h) from the first sighting of that profile, flagged `handover_overdue` for the data-quality alert | UNKNOWN | — | 3 |
+
+Collector-only assets *(added, slice 3)*: a server from the collector's latest complete read of each manager whose `<vendor>:<serial>` server-scan does not list (server-scan wins for the same vendor and serial). For them, row 2 means the manager's latest complete read is older than `TTV_COLLECTOR_STALE_AFTER` (1 h). A serial reported by two managers, or twice by one, is a `COLLECTOR_DUPLICATE` conflict (row 2b). A server whose GPU inventory the manager could not read is carried and counted, never zero. Collector-only assets are retired only after `tombstone_after` of absence while every manager's latest read is fresh and complete.
 | 6a | `MAINTENANCE` | `maintenance.enabled` | IDLE | PRE_PROVISIONING | 1 |
 | 6b | `HARDWARE_CRITICAL`, `BMC_UNREACHABLE` | `health.overall` is a configured critical value, or `reachable == false`, **and the server is not INSTALLED in any cluster** (C3: running work wins). For INSTALLED servers they become flags; in a target cluster whose node is observed not Ready, 6b applies there (slice 2). | IDLE | PRE_PROVISIONING | 1 |
 | 7 | `CONTESTED` | `openshift.contested_with` is set | UNKNOWN | — | 1 |
@@ -75,7 +77,7 @@ How the GPU rows are applied *(added)*:
 
 A server-scan record whose `hardware.gpus` is empty is not a GPU asset and gets no buckets. A record whose GPU inventory is unread (server-scan lists `hardware.gpus` in `unread_fields`; at `defe172` the list itself is never null) is counted in the coverage gauge `ttv_gpu_inventory_unread_servers`, never as zero GPUs, and keeps any intervals it already has. A GPU without a model name is recorded with no model, so it is unpriced rather than priced as a model called "".
 
-## Invariants (tested: `tests/test_classify.py`, `tests/test_classify_cluster.py`, `tests/test_engine_clusters_pg.py`)
+## Invariants (tested: `tests/test_classify.py`, `tests/test_classify_cluster.py`, `tests/test_classify_collector.py`, `tests/test_engine_clusters_pg.py`, `tests/test_engine_collector_pg.py`)
 
 - Per asset, bucket GPU counts sum to `E`; each GPU has exactly one category.
 - UNKNOWN and NOT_CHARGED buckets are never valued.

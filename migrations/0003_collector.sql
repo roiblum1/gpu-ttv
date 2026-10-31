@@ -35,3 +35,12 @@ CREATE TABLE IF NOT EXISTS collector_first_seen (
     first_seen_at     timestamptz NOT NULL,
     PRIMARY KEY (vendor, serial_normalized)
 );
+
+-- First time each profile name was seen bound to a server: the handover clock of row 5.
+CREATE TABLE IF NOT EXISTS collector_profile_first_seen (
+    vendor            text NOT NULL,
+    serial_normalized text NOT NULL,
+    profile_name      text NOT NULL,
+    first_seen_at     timestamptz NOT NULL,
+    PRIMARY KEY (vendor, serial_normalized, profile_name)
+);
