@@ -1,5 +1,5 @@
 {
-  "snapshot_id": "aws-ec2-ondemand-us-east-1-20261029T175634Z-map-2026-10-31.1",
+  "snapshot_id": "aws-ec2-ondemand-us-east-1-20261029T175634Z-map-2026-10-31.2",
   "provider": "aws",
   "service": "AmazonEC2",
   "region": "us-east-1",
@@ -10,15 +10,15 @@
   "billing_unit": "Hrs",
   "publication_date": "2026-10-29T17:56:34Z",
   "offer_version": "20261029175634",
-  "captured_at": "2026-10-30T23:48:02.125468Z",
+  "captured_at": "2026-10-31T01:18:17.319070Z",
   "source_urls": [
     "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/us-east-1/index.csv"
   ],
   "raw_sha256": "cce748e4a6eaa35e349e2590ef36a957071b1e01b316369aaccaf51d270abe33",
   "raw_bytes": 302903252,
   "parser_version": "ttv-aws-ec2-csv/1",
-  "map_version": "2026-10-31.1",
-  "catalog_version": "server-scan@defe172+ttv.1",
+  "map_version": "2026-10-31.2",
+  "catalog_version": "server-scan@defe172+ttv.2",
   "filters": {
     "TermType": "OnDemand",
     "MarketOption": "OnDemand",
@@ -136,6 +136,46 @@
       ]
     },
     {
+      "gpu_model": "NVIDIA B300 288GB",
+      "instance_type": "p6-b300.48xlarge",
+      "sku": "G2B25BSJJUB6HQPQ",
+      "rate_code": "G2B25BSJJUB6HQPQ.JRTCKXETXF.6YS6EN2CT7",
+      "instance_hourly_usd": "142.416",
+      "instance_gpus": 8,
+      "per_gpu_hour_usd": "17.802",
+      "kind": "exact",
+      "confidence": "high",
+      "reason": "AWS: 8 x NVIDIA B300, 2148 GiB (8 x 268 GiB = 288 GB). Same GPU and memory. Price list: SKU G2B25BSJJUB6HQPQ, 8 GPUs, 2144 GB HBM3e.",
+      "effective_date": "2026-10-01",
+      "price_description": "$142.416 per On Demand Linux p6-b300.48xlarge Instance Hour",
+      "gpu_memory": "2144 GB HBM3e",
+      "vcpu": "192",
+      "memory": "4096 GiB",
+      "map_sources": [
+        "https://docs.aws.amazon.com/ec2/latest/instancetypes/ac.html"
+      ]
+    },
+    {
+      "gpu_model": "NVIDIA H100 (memory unknown)",
+      "instance_type": "p5.48xlarge",
+      "sku": "3D4V8UAYEMB38GU2",
+      "rate_code": "3D4V8UAYEMB38GU2.JRTCKXETXF.6YS6EN2CT7",
+      "instance_hourly_usd": "55.04",
+      "instance_gpus": 8,
+      "per_gpu_hour_usd": "6.88",
+      "kind": "proxy",
+      "confidence": "medium",
+      "reason": "The inventory reports a bare H100 without its memory size (80 GB or 94 GB). Every H100 capacity is valued at P5's H100 rate, so the missing size does not change the value.",
+      "effective_date": "2026-10-01",
+      "price_description": "$55.04 per On Demand Linux p5.48xlarge Instance Hour",
+      "gpu_memory": "640 GB HBM3",
+      "vcpu": "192",
+      "memory": "2048 GiB",
+      "map_sources": [
+        "https://docs.aws.amazon.com/ec2/latest/instancetypes/ac.html"
+      ]
+    },
+    {
       "gpu_model": "NVIDIA H100 80GB",
       "instance_type": "p5.48xlarge",
       "sku": "3D4V8UAYEMB38GU2",
@@ -146,6 +186,46 @@
       "kind": "exact",
       "confidence": "medium",
       "reason": "AWS: 8 x NVIDIA H100, 640 GiB (8 x 80 GiB). Same GPU and memory. AWS uses the SXM part; a PCIe H100 (fewer SMs, lower memory bandwidth) is valued at the SXM rate.",
+      "effective_date": "2026-10-01",
+      "price_description": "$55.04 per On Demand Linux p5.48xlarge Instance Hour",
+      "gpu_memory": "640 GB HBM3",
+      "vcpu": "192",
+      "memory": "2048 GiB",
+      "map_sources": [
+        "https://docs.aws.amazon.com/ec2/latest/instancetypes/ac.html"
+      ]
+    },
+    {
+      "gpu_model": "NVIDIA H100 94GB",
+      "instance_type": "p5.48xlarge",
+      "sku": "3D4V8UAYEMB38GU2",
+      "rate_code": "3D4V8UAYEMB38GU2.JRTCKXETXF.6YS6EN2CT7",
+      "instance_hourly_usd": "55.04",
+      "instance_gpus": 8,
+      "per_gpu_hour_usd": "6.88",
+      "kind": "proxy",
+      "confidence": "low",
+      "reason": "Inventory reports an H100 with 94-95 GB (the H100 NVL or a 94 GB board; the name does not say which). No EC2 instance has a 94 GB H100; valued at P5's H100 80GB rate, the only H100 on EC2.",
+      "effective_date": "2026-10-01",
+      "price_description": "$55.04 per On Demand Linux p5.48xlarge Instance Hour",
+      "gpu_memory": "640 GB HBM3",
+      "vcpu": "192",
+      "memory": "2048 GiB",
+      "map_sources": [
+        "https://docs.aws.amazon.com/ec2/latest/instancetypes/ac.html"
+      ]
+    },
+    {
+      "gpu_model": "NVIDIA H100 NVL 94GB",
+      "instance_type": "p5.48xlarge",
+      "sku": "3D4V8UAYEMB38GU2",
+      "rate_code": "3D4V8UAYEMB38GU2.JRTCKXETXF.6YS6EN2CT7",
+      "instance_hourly_usd": "55.04",
+      "instance_gpus": 8,
+      "per_gpu_hour_usd": "6.88",
+      "kind": "proxy",
+      "confidence": "low",
+      "reason": "No EC2 instance has the H100 NVL; P5's H100 SXM 80GB is the only H100 on EC2. Same GH100 GPU, but the NVL is a PCIe card with more memory (94 GB) and a lower power limit, so this is a comparison at the nearest H100 rate, not a match.",
       "effective_date": "2026-10-01",
       "price_description": "$55.04 per On Demand Linux p5.48xlarge Instance Hour",
       "gpu_memory": "640 GB HBM3",
@@ -353,11 +433,6 @@
       "instance_type": null
     },
     {
-      "gpu_model": "NVIDIA H100 NVL 94GB",
-      "reason": "No EC2 instance type with this GPU; P5 uses an 80 GiB H100.",
-      "instance_type": null
-    },
-    {
       "gpu_model": "NVIDIA H800 80GB",
       "reason": "China-market H100 variant; no EC2 instance type.",
       "instance_type": null
@@ -403,5 +478,5 @@
       "instance_type": null
     }
   ],
-  "content_sha256": "99b7debd569e4601498437899c5385332c1df2cc095d966e52ea008b635184c3"
+  "content_sha256": "e51c649cbfa1e73197cfc3c7e4e5d8037c6f48740253b6fbb9be5e042eebf901"
 }

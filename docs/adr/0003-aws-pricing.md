@@ -1,6 +1,6 @@
 # ADR-0003: AWS On-Demand comparison pricing in USD
 
-- **Status:** accepted 2026-10-31. Proxies and the size rule below still need the user's approval.
+- **Status:** accepted 2026-10-31. The user approved the proxies, the size rule and the unpriced V100 16GB the same day, and asked for B300 and H100 94/95GB (map 2026-10-31.2).
 - **Context:** AGENT.md §0.5, §10 "AWS comparison pricing", §17 "Numerical checks", §20.5, §20.7, §20.11; user decision of 2026-10-31 in `docs/discovery.md` ("Inputs from the user").
 - **Code:** `src/ttv/pricing/` (`catalog.py`, `mapping.py`, `snapshot.py`, `capture.py`, `importer.py`, `cli.py`), `migrations/0002_pricing.sql`, `src/ttv/queries.py`, `grafana/dashboards/ttv-queues.json` (panels 16-20).
 
@@ -29,11 +29,11 @@ The per-GPU rate **allocates the whole instance price, including the host's CPUs
   2. a bare family that shipped in several capacities (`NVIDIA A100`) becomes `NVIDIA A100 (memory unknown)`, not a guess.
   Anything else unrecognised (e.g. `NVIDIA RTX A6000`, `""`) has no canonical name and is **unpriced**.
 - **`gpu_model_aliases`** records raw → canonical with the catalogue version. The engine upserts the models it sees on every scan, in the same transaction as the intervals, and re-canonicalises every raw model in the ledger at startup. Rows change only when the mapping or the catalogue version changes. A catalogue upgrade can re-map a raw name, and with it the value of past intervals. That is an identity correction, not a price change, and the version is recorded.
-- **Kinds.** `exact` means the same GPU model and memory; form-factor differences are stated in `reason`. `proxy` means a different but comparable GPU; proxies **need the user's approval** and are listed below. `unpriced` means there is no defensible AWS equivalent, with the reason; it is shown as unpriced GPU-hours, never as $0. Every catalogue model has an entry (tested).
+- **Kinds.** `exact` means the same GPU model and memory; form-factor differences are stated in `reason`. `proxy` means a different but comparable GPU; every proxy is approved by the user and listed below. `unpriced` means there is no defensible AWS equivalent, with the reason; it is shown as unpriced GPU-hours, never as $0. Every catalogue model has an entry (tested).
 - **Size rule.** Use the smallest size with at least 4 GPUs of the model. That matches 4-8 GPU servers and gives each GPU the least host in the split. P families sell one multi-GPU size (8 GPUs). For G families the rule matters because the 8-GPU sizes carry a disproportionately large host. See the alternatives in `docs/discovery.md`, "AWS pricing".
 - Mapping facts come from AWS's instance-type specifications (`documented`), cross-checked at capture against the price list's `GPU` column.
 
-**Needs user approval:**
+**Approved by the user (2026-10-31):**
 
 | Item | Choice | Alternative |
 | --- | --- | --- |
@@ -41,6 +41,8 @@ The per-GPU rate **allocates the whole instance price, including the host's CPUs
 | Proxy `NVIDIA A100 (memory unknown)` | `p4d.24xlarge` (A100 40GB rate, the lower of the two A100 capacities' rates, so a lower bound) | unpriced; better: teach server-scan the model (`INVENTORY_GPU_MODELS`) |
 | Size rule for G families | smallest ≥ 4-GPU size (`g6e.12xlarge`, `g6.12xlarge`, `g5.12xlarge`, `g4dn.12xlarge`, `g7e.24xlarge`) | 8-GPU sizes: L40S +44 %, L4 +45 %, A10 +44 % per GPU-hour; T4 and RTX PRO 6000 unchanged |
 | `NVIDIA Tesla V100 16GB` | unpriced: AWS's current specification pages no longer document p3 | `p3.8xlarge` ($3.06/GPU-h in the price list) if the price list alone is accepted as evidence |
+| `NVIDIA B300 288GB` (added on request) | exact: `p6-b300.48xlarge`, 8 x B300 (268 GiB = 288 GB each) | — |
+| Proxy `NVIDIA H100 NVL 94GB` and `NVIDIA H100 94GB` (inventory "H100 95GB"; added on request) | `p5.48xlarge` (H100 SXM 80GB, the only H100 on EC2) | unpriced |
 
 ### Snapshots: immutable, dated, offline
 

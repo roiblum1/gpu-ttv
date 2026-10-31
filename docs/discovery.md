@@ -35,6 +35,7 @@ Every fact carries one evidence label (AGENT.md §3.6):
 | 2026-10-30 | A GPU server that is AVAILABLE in server-scan is Redbull's; once INSTALLED in a target cluster, the node and GPU rows (§20.2 rows 11–22) decide. | Matches §20.2 rows 8–22 as amended by C3, C6 and C7. |
 | 2026-10-31 | **Money is AWS On-Demand cost in US dollars.** Value idle and productive GPU-hours at the AWS On-Demand per-GPU rate (Linux, shared tenancy; instance price ÷ physical GPUs, from a dated offline snapshot) and display it in **USD**. | Overrides AGENT.md §0.5's ILS display default: dashboards show USD, so no exchange rate is needed to display value. The region stays a configuration input (I3); set to us-east-1 in the next row. Pricing is slice 4. |
 | 2026-10-31 | **Pricing region us-east-1** (resolves I3). Value is computed at query time from a selected, immutable, dated, offline snapshot; intervals never store money. Historical valuation uses the snapshot in force at the time, present-day valuation a selected snapshot; a price refresh never rewrites history. Unpriced or unmapped models are shown as unpriced GPU-hours, never as $0. | Built in slice 4: ADR-0003 and "AWS pricing" below. |
+| 2026-10-31 | **Pricing decisions approved:** proxies A10 → A10G (g5) and bare `NVIDIA A100` → the A100 40GB rate (a lower bound); the "smallest size with ≥ 4 GPUs" rule; V100 16GB stays unpriced. **Add B300 and H100 95GB.** | Map 2026-10-31.2: B300 exact (`p6-b300.48xlarge`, $17.802/GPU-h). H100 NVL 94GB and H100 94GB (inventory "H100 95GB") are proxies at P5's H100 rate. Both names are local catalogue additions, absent from server-scan's catalogue at `defe172` and on main of 2026-10-29. |
 | 2026-10-31 | Start slice 2 (target clusters). A second lab cluster is provided: OpenShift 4.22 with KServe LLMInferenceService + llm-d and vLLM on a CPU node (no GPUs). | Kube and Thanos adapters are lab-tested against it; GPU rows stay fixture-tested until a GPU cluster is read. Findings below ("Lab cluster observations"). |
 
 ## server-scan
@@ -575,7 +576,7 @@ Status: **built; snapshot captured 2026-10-31.** Region us-east-1 (I3, user deci
 - `p5e.48xlarge` (8 x H200) has **no** row of any kind in the us-east-1 file; H200 maps to `p5en.48xlarge`.
 - Every priced row's `EffectiveDate` is 2026-10-01, before the publication date.
 
-### Mapping and snapshot `aws-ec2-ondemand-us-east-1-20261029T175634Z-map-2026-10-31.1`
+### Mapping and snapshot `aws-ec2-ondemand-us-east-1-20261029T175634Z-map-2026-10-31.2`
 
 Instance facts are `documented` from AWS's instance-type specifications, retrieved 2026-10-31: [ac.html](https://docs.aws.amazon.com/ec2/latest/instancetypes/ac.html) (current generation) and [pg.html](https://docs.aws.amazon.com/ec2/latest/instancetypes/pg.html) (previous generation, p3dn only). Prices are `documented` from the price list above. The capture cross-checked every GPU count against the price list's `GPU` column.
 
@@ -584,6 +585,7 @@ Instance facts are `documented` from AWS's instance-type specifications, retriev
 | NVIDIA H100 80GB | p5.48xlarge | exact | 8 | 55.04 | 6.88 | AWS uses SXM; PCIe H100 is valued at the SXM rate |
 | NVIDIA H200 141GB | p5en.48xlarge | exact | 8 | 63.296 | 7.912 | p5e has no us-east-1 offer |
 | NVIDIA B200 180GB | p6-b200.48xlarge | exact | 8 | 113.9328 | 14.2416 | AWS states 179 GiB per GPU |
+| NVIDIA B300 288GB | p6-b300.48xlarge | exact | 8 | 142.416 | 17.802 | AWS: 8 x 268 GiB; added 2026-10-31 |
 | NVIDIA A100 40GB | p4d.24xlarge | exact | 8 | 21.957642 | 2.74470525 | SXM4 |
 | NVIDIA A100 80GB | p4de.24xlarge | exact | 8 | 27.44705 | 3.43088125 | SXM4 |
 | NVIDIA L40S 48GB | g6e.12xlarge | exact | 4 | 10.49264 | 2.62316 | g6e.48xlarge: 3.7663975 |
@@ -593,10 +595,15 @@ Instance facts are `documented` from AWS's instance-type specifications, retriev
 | NVIDIA Tesla V100 32GB | p3dn.24xlarge | exact | 8 | 31.212 | 3.9015 | previous generation, SXM2 |
 | NVIDIA A10 24GB | g5.12xlarge | **proxy** | 4 | 5.672 | 1.418 | A10G; g5.48xlarge: 2.036 |
 | NVIDIA A100 (memory unknown) | p4d.24xlarge | **proxy** | 8 | 21.957642 | 2.74470525 | lower bound (40GB rate) |
+| NVIDIA H100 NVL 94GB | p5.48xlarge | **proxy** | 8 | 55.04 | 6.88 | no H100 NVL on EC2; nearest H100 |
+| NVIDIA H100 94GB | p5.48xlarge | **proxy** | 8 | 55.04 | 6.88 | inventory "H100 95GB"; nearest H100 |
+| NVIDIA H100 (memory unknown) | p5.48xlarge | **proxy** | 8 | 55.04 | 6.88 | every H100 size has this rate |
 
-Unpriced, with the reason recorded in the snapshot: every AMD Instinct model (EC2 has none), A16, A30, A40, A2, L40 (G6e is the L40S), H100 NVL 94GB, A800, H800, Quadro RTX 6000/8000, Tesla P100, Tesla V100 16GB (p3 is no longer in AWS's specification pages, although the price list still prices it at $3.06/GPU-h), and the `(memory unknown)` families of P100, V100 and A800. Raw models outside the catalogue (e.g. `NVIDIA RTX A6000`) have no canonical name and are unpriced.
+All proxies were approved by the user on 2026-10-31.
 
-Snapshot file: `config/pricing/snapshots/aws-ec2-ondemand-us-east-1-20261029T175634Z-map-2026-10-31.1.json`, content sha256 `99b7debd569e4601498437899c5385332c1df2cc095d966e52ea008b635184c3`, captured with `ttv-pricing capture --region us-east-1` on 2026-10-31.
+Unpriced, with the reason recorded in the snapshot: every AMD Instinct model (EC2 has none), A16, A30, A40, A2, L40 (G6e is the L40S), A800, H800, Quadro RTX 6000/8000, Tesla P100, Tesla V100 16GB (p3 is no longer in AWS's specification pages, although the price list still prices it at $3.06/GPU-h), and the `(memory unknown)` families of P100, V100 and A800. Raw models outside the catalogue (e.g. `NVIDIA RTX A6000`) have no canonical name and are unpriced.
+
+Snapshot file: `config/pricing/snapshots/aws-ec2-ondemand-us-east-1-20261029T175634Z-map-2026-10-31.2.json`, content sha256 `e51c649cbfa1e73197cfc3c7e4e5d8037c6f48740253b6fbb9be5e042eebf901`. Parsed with `ttv-pricing capture --region us-east-1 --from-file` from the same raw download as map .1 (raw sha256 unchanged), which it supersedes. Map .1 was never used outside the lab.
 
 ### Raw GPU model names
 

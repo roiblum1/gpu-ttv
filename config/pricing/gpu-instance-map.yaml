@@ -1,7 +1,8 @@
 # Canonical GPU model (src/ttv/pricing/catalog.py) -> AWS EC2 instance for the On-Demand comparison.
-# exact = same GPU and memory; proxy = comparable GPU, NEEDS USER APPROVAL; unpriced = never $0.
+# exact = same GPU and memory; proxy = comparable GPU, approved by the user; unpriced = never $0.
+# User decisions of 2026-10-31: proxies below approved; size rule kept; V100 16GB stays unpriced.
 # Bump map_version on every change: it is part of every snapshot id (docs/adr/0003-aws-pricing.md).
-map_version: "2026-10-31.1"
+map_version: "2026-10-31.2"
 retrieved: "2026-10-31"
 size_rule: >-
   The smallest size with at least 4 GPUs of the model, so each GPU carries the least host
@@ -35,6 +36,15 @@ entries:
     instance_gpus: 8
     confidence: high
     reason: AWS 8 x NVIDIA B200, 1432 GiB (8 x 179 GiB). Same GPU; AWS states 179 GiB per GPU.
+    sources: [https://docs.aws.amazon.com/ec2/latest/instancetypes/ac.html]
+  - gpu_model: NVIDIA B300 288GB
+    kind: exact
+    instance_type: p6-b300.48xlarge
+    instance_gpus: 8
+    confidence: high
+    reason: >-
+      AWS: 8 x NVIDIA B300, 2148 GiB (8 x 268 GiB = 288 GB). Same GPU and memory. Price list:
+      SKU G2B25BSJJUB6HQPQ, 8 GPUs, 2144 GB HBM3e.
     sources: [https://docs.aws.amazon.com/ec2/latest/instancetypes/ac.html]
   - gpu_model: NVIDIA A100 40GB
     kind: exact
@@ -97,7 +107,7 @@ entries:
       AWS uses the SXM2 part.
     sources: [https://docs.aws.amazon.com/ec2/latest/instancetypes/pg.html]
 
-  # --- proxy: needs user approval -------------------------------------------------------------
+  # --- proxy: approved by the user on 2026-10-31 -----------------------------------------------
   - gpu_model: NVIDIA A10 24GB
     kind: proxy
     instance_type: g5.12xlarge
@@ -116,6 +126,35 @@ entries:
       The inventory reports a bare A100 without its memory size (40GB and 80GB both exist).
       Valued at the 40GB (p4d) rate, the lower of the two A100 rates, so the value is a lower
       bound. Teaching server-scan the model (INVENTORY_GPU_MODELS) removes the need.
+    sources: [https://docs.aws.amazon.com/ec2/latest/instancetypes/ac.html]
+  - gpu_model: NVIDIA H100 NVL 94GB
+    kind: proxy
+    instance_type: p5.48xlarge
+    instance_gpus: 8
+    confidence: low
+    reason: >-
+      No EC2 instance has the H100 NVL; P5's H100 SXM 80GB is the only H100 on EC2. Same GH100
+      GPU, but the NVL is a PCIe card with more memory (94 GB) and a lower power limit, so this
+      is a comparison at the nearest H100 rate, not a match.
+    sources: [https://docs.aws.amazon.com/ec2/latest/instancetypes/ac.html]
+  - gpu_model: NVIDIA H100 (memory unknown)
+    kind: proxy
+    instance_type: p5.48xlarge
+    instance_gpus: 8
+    confidence: medium
+    reason: >-
+      The inventory reports a bare H100 without its memory size (80 GB or 94 GB). Every H100
+      capacity is valued at P5's H100 rate, so the missing size does not change the value.
+    sources: [https://docs.aws.amazon.com/ec2/latest/instancetypes/ac.html]
+  - gpu_model: NVIDIA H100 94GB
+    kind: proxy
+    instance_type: p5.48xlarge
+    instance_gpus: 8
+    confidence: low
+    reason: >-
+      Inventory reports an H100 with 94-95 GB (the H100 NVL or a 94 GB board; the name does not
+      say which). No EC2 instance has a 94 GB H100; valued at P5's H100 80GB rate, the only H100
+      on EC2.
     sources: [https://docs.aws.amazon.com/ec2/latest/instancetypes/ac.html]
 
   # --- unpriced: no defensible AWS equivalent -------------------------------------------------
@@ -157,9 +196,6 @@ entries:
   - gpu_model: NVIDIA L40 48GB
     kind: unpriced
     reason: No EC2 instance type with this GPU; G6e uses the L40S, a different SKU.
-  - gpu_model: NVIDIA H100 NVL 94GB
-    kind: unpriced
-    reason: No EC2 instance type with this GPU; P5 uses an 80 GiB H100.
   - gpu_model: NVIDIA A800 40GB
     kind: unpriced
     reason: China-market A100 variant; no EC2 instance type.

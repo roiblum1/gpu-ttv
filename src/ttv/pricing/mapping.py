@@ -35,7 +35,7 @@ class MapEntry(BaseModel):
 
     Attributes:
         gpu_model (str): Canonical name from `ttv.pricing.catalog`.
-        kind (MappingKind): `exact`, `proxy` (needs user approval) or `unpriced`.
+        kind (MappingKind): `exact`, `proxy` (user-approved) or `unpriced`.
         instance_type (str | None): AWS instance type; None when unpriced.
         instance_gpus (int | None): Physical GPUs in that instance per AWS docs (cross-checked
             against the price list's GPU column at capture).

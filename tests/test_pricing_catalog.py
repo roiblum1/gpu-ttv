@@ -49,7 +49,7 @@ def test_capacity_must_agree_and_a10_never_matches_a100() -> None:
     # A Cisco PID's trailing number must equal the row's VRAM; equality, never substring.
     assert canonical_gpu_model("UCSC-GPU-A100-41") is None
     assert canonical_gpu_model("NVIDIA A10") == "NVIDIA A10 24GB"
-    assert canonical_gpu_model("NVIDIA H100") is None  # H100 also ships as NVL 94GB
+    assert canonical_gpu_model("NVIDIA H100") == "NVIDIA H100 (memory unknown)"  # 80 or 94 GB
 
 
 def test_instance_map_covers_every_catalogue_model_once() -> None:
@@ -59,9 +59,23 @@ def test_instance_map_covers_every_catalogue_model_once() -> None:
         assert entry.sources, entry.gpu_model
 
 
-def test_proxies_are_few_and_labelled() -> None:
+def test_proxies_are_only_the_user_approved_ones() -> None:
+    # Approved 2026-10-31 (docs/adr/0003-aws-pricing.md); a new proxy must be approved first.
     proxies = [e.gpu_model for e in load_instance_map().entries if e.kind is MappingKind.PROXY]
-    assert sorted(proxies) == ["NVIDIA A10 24GB", "NVIDIA A100 (memory unknown)"]
+    assert sorted(proxies) == [
+        "NVIDIA A10 24GB",
+        "NVIDIA A100 (memory unknown)",
+        "NVIDIA H100 (memory unknown)",
+        "NVIDIA H100 94GB",
+        "NVIDIA H100 NVL 94GB",
+    ]
+
+
+def test_b300_and_h100_95gb_are_recognised() -> None:
+    assert canonical_gpu_model("NVIDIA B300 SXM6 AC") == "NVIDIA B300 288GB"
+    assert canonical_gpu_model("NVIDIA B300") == "NVIDIA B300 288GB"
+    assert canonical_gpu_model("NVIDIA H100 95GB") == "NVIDIA H100 94GB"
+    assert canonical_gpu_model("NVIDIA H100 NVL") == "NVIDIA H100 NVL 94GB"
 
 
 def test_map_refuses_unknown_models_and_inconsistent_entries() -> None:

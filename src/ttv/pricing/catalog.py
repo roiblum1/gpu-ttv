@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from functools import cache
 
 # Bump the suffix whenever the table or the matching rules below change.
-CATALOG_VERSION = "server-scan@defe172+ttv.1"
+CATALOG_VERSION = "server-scan@defe172+ttv.2"
 
 # (canonical name, VRAM in GB, identifiers this row matches), verbatim from server-scan.
 GPU_MODELS: tuple[tuple[str, int, tuple[str, ...]], ...] = (
@@ -100,6 +100,13 @@ GPU_MODELS: tuple[tuple[str, int, tuple[str, ...]], ...] = (
     ),
     ("NVIDIA H200 141GB", 141, ("H200", "H200 NVL", "H200-SXM-141GB", "H200 141GB")),
     ("NVIDIA B200 180GB", 180, ("B200", "B200 180GB")),
+    # Local additions, absent from server-scan (defe172 and main of 2026-10-29); user, 2026-10-31.
+    (
+        "NVIDIA B300 288GB",
+        288,
+        ("B300", "B300 288GB", "B300 268GB", "B300 SXM6 AC", "HGX B300"),
+    ),
+    ("NVIDIA H100 94GB", 94, ("H100 94GB", "H100 95GB")),
     (
         "NVIDIA RTX PRO 6000 Blackwell 96GB",
         96,
@@ -137,7 +144,7 @@ _TRAILING_NOISE = frozenset(
     }
 )
 _TRAILING_WATTAGE = re.compile(r"\d+W")
-_FORM_FACTOR_WORDS = frozenset({"PCIE", "SXM", "SXM2", "SXM4", "SXM5", "OAM"})
+_FORM_FACTOR_WORDS = frozenset({"PCIE", "SXM", "SXM2", "SXM4", "SXM5", "SXM6", "OAM"})
 _CAPACITY_WORD = re.compile(r"(\d+)GB")
 _CAPACITY_SUFFIX = re.compile(r"\s+\d+GB$")
 

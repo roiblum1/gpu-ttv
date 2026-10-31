@@ -86,7 +86,7 @@ class Rate(BaseModel):
         instance_hourly_usd (str): Instance On-Demand price per hour, decimal string.
         instance_gpus (int): Physical GPUs in the instance (price list GPU column).
         per_gpu_hour_usd (str): `instance_hourly_usd / instance_gpus`, decimal string.
-        kind (Literal["exact", "proxy"]): Mapping kind; proxies need user approval.
+        kind (Literal["exact", "proxy"]): Mapping kind; proxies are user-approved.
         confidence (Confidence): Mapping confidence.
         reason (str): Why this instance, including hardware differences.
         effective_date (str): The price term's EffectiveDate from AWS.
