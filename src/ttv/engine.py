@@ -228,6 +228,10 @@ class Engine:
         from_collector, collector_conflicts = _collector_assets(
             collector, {a.asset_id for a in assets}
         )
+        held_no_listing = 0
+        if fetch is None:
+            # Without any server-scan listing, "not in server-scan" is unknowable (ADR-0004).
+            held_no_listing, from_collector, collector_conflicts = len(from_collector), [], []
         conflicts = conflicts + node_conflicts + collector_conflicts
         ctx = ClassifyContext(
             policy=self.policy,
@@ -280,6 +284,8 @@ class Engine:
                 coverage["collector_gpu_assets"] += 1
                 collected[asset.asset_id] = record
                 decisions[asset.asset_id] = classify(asset, ctx)
+        if held_no_listing:
+            coverage["collector_held_no_serverscan"] = held_no_listing
         pending = len(fetch.pending_detail_ids) if fetch else 0
         coverage["pending_detail"] = pending
 

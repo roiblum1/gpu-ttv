@@ -174,6 +174,11 @@ async def run(
     Returns:
         int: With `once`, 0 when every read was complete, else 1; never returns otherwise.
     """
+    if store:
+        configured = {m.source.name: m.kind for m in managers}
+        removed = await store.sync_collector_managers(configured, datetime.now(UTC))
+        if removed:
+            log.warning("collector.managers_removed", managers=removed)
     while True:
         started = time.monotonic()
         now = datetime.now(UTC)

@@ -113,11 +113,12 @@ panels:
   audience: Operators, platform team
   decision: Whether any source is blind right now.
   definition: sources (server-scan, each cluster's kube API and Thanos) whose latest read failed or that
-    never succeeded, plus collector managers with no complete read within 1 h (TTV_COLLECTOR_STALE_AFTER
-    default). 0 = every source answered on its latest attempt. The tables below name them.
+    never succeeded, plus configured collector managers with no complete read within 1 h (TTV_COLLECTOR_STALE_AFTER
+    default; a manager removed from TTV_MANAGERS_FILE no longer counts). 0 = every source answered on
+    its latest attempt. The tables below name them.
   unit: sources
-  numerator: source_state rows failing or never successful + collector managers with no complete read
-    within 1 h
+  numerator: source_state rows failing or never successful + active collector managers (configured, or
+    read and not removed) with no complete read within 1 h
   denominator: null
   population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
     knows.'
@@ -128,6 +129,7 @@ panels:
   lineage:
   - source_state
   - collector_reads
+  - collector_managers
   freshness: Latest engine scan (every 5 min); the Data age card shows its age.
   baseline: null
   direction: lower_is_better
@@ -136,7 +138,7 @@ panels:
   missing_data: '''no source read yet'' before the first scan.'
   value_kind: observed
   gate: core
-  privileges: SELECT on source_state, collector_reads
+  privileges: SELECT on source_state, collector_reads, collector_managers
   cardinality: 1 value
   drilldown: ttv-evidence#21
   action: null
@@ -251,11 +253,11 @@ panels:
   status: built
   audience: Operators, platform team
   decision: Whether the profile-less collector's managers are read and fresh.
-  definition: 'one row per UCS Central / OpenManage manager the collector has read (ADR-0004). State:
-    ok; latest read incomplete (no server can be retired); stale (no complete read within 1 h, the TTV_COLLECTOR_STALE_AFTER
-    default: its collector-only servers are UNKNOWN); never complete. Counts come from the latest complete
-    read: servers listed, servers with GPUs, servers whose GPU inventory could not be read, servers whose
-    profile binding is ambiguous.'
+  definition: 'one row per UCS Central / OpenManage manager in TTV_MANAGERS_FILE, or read by the collector
+    and not since removed from it (ADR-0004). State: never read; ok; latest read incomplete (no server
+    can be retired); stale (no complete read within 1 h, the TTV_COLLECTOR_STALE_AFTER default: its collector-only
+    servers are UNKNOWN); never complete. Counts come from the latest complete read: servers listed, servers
+    with GPUs, servers whose GPU inventory could not be read, servers whose profile binding is ambiguous.'
   unit: servers
   numerator: null
   denominator: null
@@ -268,6 +270,7 @@ panels:
   lineage:
   - collector_reads
   - collector_servers
+  - collector_managers
   freshness: Latest engine scan (every 5 min); the Data age card shows its age.
   baseline: null
   direction: neutral
@@ -276,7 +279,7 @@ panels:
   missing_data: A message names TTV_MANAGERS_FILE / ttv-collector when no manager has been read.
   value_kind: observed
   gate: core
-  privileges: SELECT on collector_reads, collector_servers
+  privileges: SELECT on collector_reads, collector_servers, collector_managers
   cardinality: one row per manager
   drilldown: null
   action: null

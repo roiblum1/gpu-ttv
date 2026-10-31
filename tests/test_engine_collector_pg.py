@@ -18,6 +18,7 @@ from ttv.engine import Engine
 from ttv.metrics import EngineMetrics
 from ttv.models import CollectorRead, ManagerServer
 from ttv.queries import IDLE_GPU_HOURS_BY_OWNER
+from ttv.sources.serverscan import ServerScanError
 from ttv.store import PostgresStore
 
 pytestmark = pytest.mark.skipif(not DSN, reason="TTV_TEST_DSN not set")
@@ -186,3 +187,55 @@ async def test_unresolved_profile_is_an_identity_conflict(
     assert await open_rows(store) == {("dell:svc0001", "UNKNOWN", "IDENTITY_CONFLICT", 8)}
     kinds = await rows(store, "SELECT kind FROM identity_conflicts WHERE resolved_at IS NULL")
     assert kinds == [{"kind": "COLLECTOR_PROFILE_AMBIGUOUS"}]
+
+
+async def test_cold_start_without_server_scan_holds_collector_servers(
+    store: PostgresStore, policy: Policy
+) -> None:
+    await store.sync_objectives(policy)
+    ocp = dell("cis0001", vendor="cisco", profile_name="ocp4-prod-gpu-01")
+    await store.record_collector_read(read(T0, ocp, dell("svc0001")))
+    source, clock = FakeSource(), Clock()
+    source.answers = [ServerScanError("connection refused"), [server(lifecycle_state="AVAILABLE")]]
+    eng = engine(store, policy, source, clock)
+    report = await eng.run_once()
+    # No listing yet: whether a server is in server-scan is unknown, so nothing is classified.
+    assert report.status == "failed"
+    assert report.coverage["collector_held_no_serverscan"] == 2
+    assert await open_rows(store) == set()
+    clock.now = T0 + timedelta(minutes=5)
+    await eng.run_once()
+    assert await open_rows(store) == {
+        ("cisco:cis0001", "IDLE", "NOT_IN_CLUSTER", 8),
+        ("dell:svc0001", "IDLE", "PROFILE_NONE", 8),
+    }
+
+
+async def test_a_removed_manager_no_longer_holds_its_servers_unknown(
+    store: PostgresStore, policy: Policy
+) -> None:
+    gone = "openmanage:ome-gone"
+    await store.record_collector_read(
+        CollectorRead(
+            gone,
+            "openmanage",
+            T0 - timedelta(hours=3),
+            T0 - timedelta(hours=2),
+            True,
+            (dell("svc0009", manager=gone),),
+        )
+    )
+    await store.record_collector_read(read(T0, dell("svc0001")))
+    source, clock = FakeSource(), Clock()
+    source.answers = [[]] * 2
+    eng = engine(store, policy, source, clock)
+    await eng.run_once()
+    assert ("dell:svc0009", "UNKNOWN", "SOURCE_STALE", 8) in await open_rows(store)
+    # Removed from TTV_MANAGERS_FILE: its servers are absent like any missing server and retire
+    # after the tombstone period, and the other manager's absences can retire again.
+    await store.sync_collector_managers({MANAGER: "openmanage"}, T0)
+    clock.now = T0 + timedelta(days=2)
+    await store.record_collector_read(read(clock.now, dell("svc0001")))
+    report = await eng.run_once()
+    assert {r[0] for r in await open_rows(store)} == {"dell:svc0001"}
+    assert report.plan_counts["closes"] >= 1

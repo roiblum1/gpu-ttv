@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -215,3 +216,21 @@ def test_print_config_and_missing_managers(
     config = json.loads(out[out.index("{") :])
     assert config["managers"]["openmanage"][0]["inventory_types"] == ["serverDeviceCards"]
     assert "secret" not in out
+
+
+@pytest.mark.skipif(not DSN, reason="TTV_TEST_DSN not set")
+async def test_a_manager_removed_from_the_config_is_ignored(store: PostgresStore) -> None:
+    now = datetime.fromisoformat("2026-10-31T12:00:00+00:00")
+    old = dataclasses.replace(good_read(now - timedelta(days=3)), manager="openmanage:ome-old")
+    await store.record_collector_read(old)
+    managers = [Manager("openmanage", FakeSource("openmanage:ome-1", good_read(now)))]
+    assert await run(managers, store, interval_seconds=900, once=True) == 0
+    state = await store.load_collector_state()
+    assert [r.manager for r in state.reads] == ["openmanage:ome-1"]
+    assert set(state.last_attempt) == {"openmanage:ome-1"}
+    # Configured again: its reads count again; removing it twice reports it once.
+    assert await store.sync_collector_managers({"openmanage:ome-old": "openmanage"}, now) == [
+        "openmanage:ome-1"
+    ]
+    assert await store.sync_collector_managers({"openmanage:ome-old": "openmanage"}, now) == []
+    assert [r.manager for r in (await store.load_collector_state()).reads] == ["openmanage:ome-old"]

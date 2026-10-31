@@ -189,18 +189,24 @@ groups:
               rawQuery: true
               editorMode: code
               rawSql: |-
-                SELECT r.manager, r.kind,
-                       (extract(epoch FROM now() - coalesce(max(r.finished_at) FILTER (WHERE r.complete),
-                                                            min(r.started_at))) / 60)::float8
-                         AS minutes_since_complete_read
-                FROM collector_reads r
-                GROUP BY r.manager, r.kind
+                WITH active AS (
+                  SELECT manager, kind, added_at AS since FROM collector_managers WHERE removed_at IS NULL
+                  UNION ALL
+                  SELECT r.manager, min(r.kind), min(r.started_at) FROM collector_reads r
+                  WHERE NOT EXISTS (SELECT 1 FROM collector_managers m WHERE m.manager = r.manager)
+                  GROUP BY r.manager
+                )
+                SELECT a.manager, a.kind,
+                       (extract(epoch FROM now() - coalesce(
+                          (SELECT max(r.finished_at) FROM collector_reads r WHERE r.manager = a.manager AND r.complete),
+                          a.since)) / 60)::float8 AS minutes_since_complete_read
+                FROM active a
                 UNION ALL
                 SELECT '(no collector reads)', '(none)',
                        (extract(epoch FROM now() - coalesce(
                           (SELECT applied_at FROM schema_migrations WHERE version = '0003_collector'),
                           (SELECT min(applied_at) FROM schema_migrations))) / 60)::float8
-                WHERE NOT EXISTS (SELECT 1 FROM collector_reads)
+                WHERE NOT EXISTS (SELECT 1 FROM active)
           - refId: B
             relativeTimeRange: {from: 600, to: 0}
             datasourceUid: ttv-postgres
@@ -211,26 +217,33 @@ groups:
               rawQuery: true
               editorMode: code
               rawSql: |-
-                WITH latest AS (
-                  SELECT DISTINCT ON (manager) manager, kind, finished_at, complete, errors
+                WITH active AS (
+                  SELECT manager, kind, added_at AS since FROM collector_managers WHERE removed_at IS NULL
+                  UNION ALL
+                  SELECT r.manager, min(r.kind), min(r.started_at) FROM collector_reads r
+                  WHERE NOT EXISTS (SELECT 1 FROM collector_managers m WHERE m.manager = r.manager)
+                  GROUP BY r.manager
+                ), latest AS (
+                  SELECT DISTINCT ON (manager) manager, finished_at, complete, errors
                   FROM collector_reads ORDER BY manager, finished_at DESC, id DESC
                 )
-                SELECT l.manager, l.kind,
+                SELECT a.manager, a.kind,
                        coalesce((SELECT to_char(max(r.finished_at) AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI "UTC"')
-                                   FROM collector_reads r WHERE r.manager = l.manager AND r.complete), 'never')
+                                   FROM collector_reads r WHERE r.manager = a.manager AND r.complete), 'never')
                          AS last_complete_read,
-                       to_char(l.finished_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI "UTC"')
-                         || CASE WHEN l.complete THEN ' (complete)' ELSE ' (incomplete)' END AS last_attempt,
-                       CASE WHEN l.errors = '[]'::jsonb THEN 'none'
+                       coalesce(to_char(l.finished_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI "UTC"')
+                         || CASE WHEN l.complete THEN ' (complete)' ELSE ' (incomplete)' END, 'never') AS last_attempt,
+                       CASE WHEN l.errors IS NULL OR l.errors = '[]'::jsonb THEN 'none'
                             ELSE left(regexp_replace(l.errors::text, '\s+', ' ', 'g'), 300) END AS last_errors,
                        coalesce((SELECT sum(i.gpus) FROM capacity_intervals i
                                   WHERE i.ended_at IS NULL AND i.category = 'UNKNOWN'
-                                    AND i.reason_code = 'SOURCE_STALE' AND i.evidence ->> 'manager' = l.manager),
+                                    AND i.reason_code = 'SOURCE_STALE' AND i.evidence ->> 'manager' = a.manager),
                                 0)::float8 AS unknown_gpus
-                FROM latest l
+                FROM active a
+                LEFT JOIN latest l ON l.manager = a.manager
                 UNION ALL
                 SELECT '(no collector reads)', '(none)', 'never', 'never', 'none', 0
-                WHERE NOT EXISTS (SELECT 1 FROM collector_reads)
+                WHERE NOT EXISTS (SELECT 1 FROM active)
           - refId: C
             datasourceUid: __expr__
             model:
@@ -464,7 +477,9 @@ groups:
                    WHERE name = 'serverscan' AND failed_scans = 0
                      AND last_attempt_at > now() - interval '30 minutes'
                 ), managers AS (
-                  SELECT DISTINCT manager FROM collector_reads
+                  SELECT DISTINCT r.manager FROM collector_reads r
+                  WHERE NOT EXISTS (SELECT 1 FROM collector_managers cm
+                                    WHERE cm.manager = r.manager AND cm.removed_at IS NOT NULL)
                   UNION
                   SELECT coalesce(evidence ->> 'manager', '(unknown manager)') FROM capacity_intervals
                    WHERE ended_at IS NULL AND reason_code = 'HANDOVER_PENDING'
@@ -488,7 +503,9 @@ groups:
               editorMode: code
               rawSql: |-
                 WITH managers AS (
-                  SELECT DISTINCT manager FROM collector_reads
+                  SELECT DISTINCT r.manager FROM collector_reads r
+                  WHERE NOT EXISTS (SELECT 1 FROM collector_managers cm
+                                    WHERE cm.manager = r.manager AND cm.removed_at IS NOT NULL)
                   UNION
                   SELECT coalesce(evidence ->> 'manager', '(unknown manager)') FROM capacity_intervals
                    WHERE ended_at IS NULL AND reason_code = 'HANDOVER_PENDING'

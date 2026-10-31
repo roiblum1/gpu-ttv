@@ -292,6 +292,25 @@ async def test_collector_manager_stale_per_manager_and_never_read(store: Postgre
     assert b["ome-c"]["last_complete_read"] == "never"
 
 
+async def test_collector_manager_stale_ignores_removed_and_counts_configured(
+    store: PostgresStore,
+) -> None:
+    uid = "ttv-collector-manager-stale"
+    now = await db_now(store)
+    await collector_read(store, "ome-old", now - 3 * HOUR, complete=True)
+    await collector_read(store, "ome-1", now - 5 * MIN, complete=True)
+    # The job's start: ome-old left the managers file; ucs-new is configured but not read yet.
+    await store.sync_collector_managers(
+        {"ome-1": "openmanage", "ucs-new": "ucs_central"}, now - 2 * HOUR
+    )
+    got = await by(store, uid, "manager")
+    assert {k: v.firing for k, v in got.items()} == {"ome-1": False, "ucs-new": True}
+    assert got["ucs-new"].value == pytest.approx(120, abs=1)  # since it was configured
+    b = await detail(store, uid, "manager")
+    assert set(b) == {"ome-1", "ucs-new"}
+    assert b["ucs-new"]["last_attempt"] == "never"
+
+
 async def test_unknown_share_high(store: PostgresStore) -> None:
     uid = "ttv-unknown-share-high"
     assert await evaluate(store, uid) == []  # empty ledger: Grafana raises DatasourceNoData

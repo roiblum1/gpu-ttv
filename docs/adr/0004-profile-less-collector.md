@@ -17,6 +17,7 @@ server-scan only lists servers it reaches through an OCP service profile, so a G
 | An OCP profile, but not in server-scan | 5 `HANDOVER_PENDING` | UNKNOWN; flag `handover_overdue` once the profile has been seen for longer than `handover_grace` (6 h) |
 
 - **server-scan wins.** A record whose `vendor:serial_normalized` server-scan also lists is ignored; the server-scan rows apply (an AVAILABLE GPU server there is Redbull's).
+- **No server-scan listing, no collector-only rows.** "Not in server-scan" needs at least one server-scan listing since the engine started. A failed cold-start scan holds every collector server at its last ledger state and counts it as `collector_held_no_serverscan`; otherwise one scan would reclassify server-scan's own servers (for example to `HANDOVER_PENDING`). After that the last good listing is used, as for server-scan's own rows.
 - **Identity** is `vendor:serial_normalized` with server-scan's normalisation. A record with no usable serial gets `vendor:collector-id:<manager>:<source_id>` and is never merged. The same serial from two records is a `COLLECTOR_DUPLICATE` conflict.
 - **Only servers with GPUs are classified.** `gpu_models=()` means the manager reports none; `None` means GPU inventory was not read, and the engine keeps the server's last state instead of reading it as zero.
 
@@ -35,6 +36,10 @@ Both readers first marked the whole read incomplete for a single server's gap (o
 - **A read that raises** is stored as a failed attempt (`complete=false`, no servers, the error), so it blocks retirement and, after an hour, shows as staleness. A crash in a reader (`UnsafeRequestError` included) is logged and recorded the same way; it never stops the loop.
 - **No outer deadline.** Each reader bounds itself: OME by a whole-read deadline, UCS by a deadline on every SDK call. Cancelling a UCS read from outside could send a logout while an abandoned SDK thread still holds the handle, which the per-call poisoning exists to prevent. A read that hangs anyway shows up as a stale manager.
 - **Probe mode:** `ttv-collector --once --dry-run --servers` reads every manager, prints each record, stores nothing and needs no database. `--print-config` prints the settings (database password masked) and the managers file.
+
+### Removing a manager
+
+Each start of the job records the managers in `TTV_MANAGERS_FILE` in `collector_managers` and sets `removed_at` on every other manager it has read. The engine, Evidence and the "collector manager stale" alert then ignore a removed manager's reads. Its servers are treated like servers missing from a complete read: they keep their last state and retire after `tombstone_after`, unless another manager or server-scan lists them. Adding the manager back clears `removed_at`. Before this, a decommissioned manager stayed stale forever, which kept its servers UNKNOWN, blocked every retirement and kept the alert firing.
 
 ## Cisco (UCS Central)
 

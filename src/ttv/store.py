@@ -179,9 +179,33 @@ INSERT INTO collector_profile_first_seen (vendor, serial_normalized, profile_nam
 VALUES (%s, %s, %s, %s) ON CONFLICT (vendor, serial_normalized, profile_name) DO NOTHING
 """
 _LATEST_COLLECTOR_READS = """
-SELECT DISTINCT ON (manager) id, manager, kind, started_at, finished_at, complete, coverage, errors
-FROM collector_reads WHERE complete OR NOT %(complete_only)s
-ORDER BY manager, finished_at DESC, id DESC
+SELECT DISTINCT ON (r.manager)
+       r.id, r.manager, r.kind, r.started_at, r.finished_at, r.complete, r.coverage, r.errors
+FROM collector_reads r
+WHERE (r.complete OR NOT %(complete_only)s)
+  AND NOT EXISTS (SELECT 1 FROM collector_managers m
+                  WHERE m.manager = r.manager AND m.removed_at IS NOT NULL)
+ORDER BY r.manager, r.finished_at DESC, r.id DESC
+"""
+_UPSERT_COLLECTOR_MANAGER = """
+INSERT INTO collector_managers (manager, kind, added_at) VALUES (%s, %s, %s)
+ON CONFLICT (manager) DO UPDATE SET
+    kind = EXCLUDED.kind,
+    added_at = CASE WHEN collector_managers.removed_at IS NULL
+                    THEN collector_managers.added_at ELSE EXCLUDED.added_at END,
+    removed_at = NULL
+"""
+_REMOVE_UNREGISTERED_MANAGERS = """
+INSERT INTO collector_managers (manager, kind, added_at, removed_at)
+SELECT manager, min(kind), min(started_at), %(now)s FROM collector_reads
+WHERE manager <> ALL(%(configured)s::text[]) GROUP BY manager
+ON CONFLICT (manager) DO NOTHING
+RETURNING manager
+"""
+_REMOVE_UNCONFIGURED_MANAGERS = """
+UPDATE collector_managers SET removed_at = %(now)s
+WHERE removed_at IS NULL AND manager <> ALL(%(configured)s::text[])
+RETURNING manager
 """
 _COLLECTOR_SERVERS = """
 SELECT s.*, f.first_seen_at, p.first_seen_at AS profile_since
@@ -604,6 +628,27 @@ class PostgresStore:
                         (m.vendor, m.serial_normalized, m.profile_name, read.finished_at),
                     )
         return read_id
+
+    async def sync_collector_managers(
+        self, configured: Mapping[str, str], now: datetime
+    ) -> list[str]:
+        """
+        Record the configured managers and mark every other known manager removed.
+
+        Args:
+            configured (Mapping[str, str]): Kind by manager name, from `TTV_MANAGERS_FILE`.
+            now (datetime): When the collector job started.
+
+        Returns:
+            list[str]: Managers newly marked removed, sorted.
+        """
+        params = {"configured": list(configured), "now": now}
+        async with self.conn.transaction():
+            for name, kind in configured.items():
+                await self.conn.execute(_UPSERT_COLLECTOR_MANAGER, (name, kind, now))
+            removed = await self._all(_REMOVE_UNREGISTERED_MANAGERS, params)
+            removed += await self._all(_REMOVE_UNCONFIGURED_MANAGERS, params)
+        return sorted(r["manager"] for r in removed)
 
     async def load_collector_state(self) -> CollectorState:
         """

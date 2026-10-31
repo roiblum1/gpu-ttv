@@ -428,7 +428,7 @@
       "type": "stat",
       "id": 43,
       "title": "Failing sources",
-      "description": "Definition: sources (server-scan, each cluster's kube API and Thanos) whose latest read failed or that never succeeded, plus collector managers with no complete read within 1 h (TTV_COLLECTOR_STALE_AFTER default). 0 = every source answered on its latest attempt. The tables below name them.\nFilters: none.",
+      "description": "Definition: sources (server-scan, each cluster's kube API and Thanos) whose latest read failed or that never succeeded, plus configured collector managers with no complete read within 1 h (TTV_COLLECTOR_STALE_AFTER default; a manager removed from TTV_MANAGERS_FILE no longer counts). 0 = every source answered on its latest attempt. The tables below name them.\nFilters: none.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "ttv-postgres"
@@ -449,7 +449,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT (SELECT count(*) FROM source_state WHERE failed_scans > 0 OR last_success_at IS NULL)\n     + (SELECT count(*) FROM (\n          SELECT manager, max(finished_at) FILTER (WHERE complete) AS ok\n          FROM collector_reads GROUP BY manager) m\n        WHERE m.ok IS NULL OR m.ok < now() - interval '1 hour') AS \"Failing sources\"\nWHERE EXISTS (SELECT 1 FROM source_state)"
+          "rawSql": "WITH active AS (\n  SELECT manager, kind, added_at AS since FROM collector_managers WHERE removed_at IS NULL\n  UNION ALL\n  SELECT r.manager, min(r.kind), min(r.started_at) FROM collector_reads r\n  WHERE NOT EXISTS (SELECT 1 FROM collector_managers m WHERE m.manager = r.manager)\n  GROUP BY r.manager\n)\nSELECT (SELECT count(*) FROM source_state WHERE failed_scans > 0 OR last_success_at IS NULL)\n     + (SELECT count(*) FROM active a\n        WHERE NOT EXISTS (SELECT 1 FROM collector_reads r\n                          WHERE r.manager = a.manager AND r.complete\n                            AND r.finished_at >= now() - interval '1 hour')) AS \"Failing sources\"\nWHERE EXISTS (SELECT 1 FROM source_state)"
         }
       ],
       "options": {
@@ -655,7 +655,7 @@
       "type": "table",
       "id": 21,
       "title": "Source health (source_state)",
-      "description": "Definition: engine-side health per source (server-scan, each target cluster, collector targets): consecutive failed scans, last success, last attempt and last error.\nUnits: counts; timestamps in the dashboard timezone; time since success as duration.\nState: 'ok' (green) = last fetch succeeded; 'failing, within grace' (orange) = 1-2 consecutive failures; 'beyond grace: assets UNKNOWN' (red) = 3+ failures, beyond the default unknown_grace_scans of 2, so the source's assets are UNKNOWN; 'never succeeded' (purple) = no complete fetch yet. Thresholds assume the default grace; change the SQL if the policy changes it.\nFilters: none.\nUnknown vs zero: 'never' = the source has not completed a fetch since the engine started tracking it; its assets are UNKNOWN, not empty.",
+      "description": "Definition: engine-side health per source (server-scan, each target cluster, collector targets): consecutive failed scans, last success, last attempt and last error.\nUnits: counts; timestamps in the dashboard timezone; time since success as duration.\nState: 'ok' (green) = last fetch succeeded; 'failing, within grace' (orange) = 1 consecutive failure; 'beyond grace: assets UNKNOWN' (red) = 2 or more, the default unknown_grace_scans, at which the engine turns the source's assets UNKNOWN; 'never succeeded' (purple) = no complete fetch yet. Thresholds assume the default grace; change the SQL if the policy changes it.\nFilters: none.\nUnknown vs zero: 'never' = the source has not completed a fetch since the engine started tracking it; its assets are UNKNOWN, not empty.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "ttv-postgres"
@@ -676,7 +676,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT name AS \"Source\",\n       CASE WHEN last_success_at IS NULL THEN 'never succeeded'\n            WHEN failed_scans = 0 THEN 'ok'\n            WHEN failed_scans <= 2 THEN 'failing, within grace'\n            ELSE 'beyond grace: assets UNKNOWN' END AS \"State\",\n       failed_scans AS \"Consecutive failed scans\",\n       last_success_at AS \"Last success\",\n       extract(epoch FROM now() - last_success_at) AS \"Since last success\",\n       last_attempt_at AS \"Last attempt\",\n       last_error AS \"Last error\"\nFROM source_state\nORDER BY (last_success_at IS NULL) DESC, failed_scans DESC, name"
+          "rawSql": "SELECT name AS \"Source\",\n       CASE WHEN last_success_at IS NULL THEN 'never succeeded'\n            WHEN failed_scans = 0 THEN 'ok'\n            WHEN failed_scans < 2 THEN 'failing, within grace'\n            ELSE 'beyond grace: assets UNKNOWN' END AS \"State\",\n       failed_scans AS \"Consecutive failed scans\",\n       last_success_at AS \"Last success\",\n       extract(epoch FROM now() - last_success_at) AS \"Since last success\",\n       last_attempt_at AS \"Last attempt\",\n       last_error AS \"Last error\"\nFROM source_state\nORDER BY (last_success_at IS NULL) DESC, failed_scans DESC, name"
         }
       ],
       "fieldConfig": {
@@ -963,7 +963,7 @@
       "type": "table",
       "id": 30,
       "title": "Profile-less collector: managers",
-      "description": "Definition: one row per UCS Central / OpenManage manager the collector has read (ADR-0004). State: ok; latest read incomplete (no server can be retired); stale (no complete read within 1 h, the TTV_COLLECTOR_STALE_AFTER default: its collector-only servers are UNKNOWN); never complete. Counts come from the latest complete read: servers listed, servers with GPUs, servers whose GPU inventory could not be read, servers whose profile binding is ambiguous.\nEmpty = no manager configured (TTV_MANAGERS_FILE) or the collector has not run.\nFilters: none.",
+      "description": "Definition: one row per UCS Central / OpenManage manager in TTV_MANAGERS_FILE, or read by the collector and not since removed from it (ADR-0004). State: never read; ok; latest read incomplete (no server can be retired); stale (no complete read within 1 h, the TTV_COLLECTOR_STALE_AFTER default: its collector-only servers are UNKNOWN); never complete. Counts come from the latest complete read: servers listed, servers with GPUs, servers whose GPU inventory could not be read, servers whose profile binding is ambiguous.\nEmpty = no manager configured (TTV_MANAGERS_FILE) or the collector has not run.\nFilters: none.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "ttv-postgres"
@@ -984,7 +984,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "WITH latest AS (\n  SELECT DISTINCT ON (manager) manager, kind, finished_at, complete, errors\n  FROM collector_reads ORDER BY manager, finished_at DESC, id DESC\n), ok AS (\n  SELECT DISTINCT ON (manager) manager, id, finished_at\n  FROM collector_reads WHERE complete ORDER BY manager, finished_at DESC, id DESC\n), srv AS (\n  SELECT read_id, count(*) AS servers,\n         count(*) FILTER (WHERE jsonb_array_length(gpu_models) > 0) AS gpu_servers,\n         count(*) FILTER (WHERE gpu_models IS NULL) AS unread,\n         count(*) FILTER (WHERE profile_unresolved IS NOT NULL) AS unresolved\n  FROM collector_servers GROUP BY read_id\n)\nSELECT l.manager AS \"Manager\",\n       l.kind AS \"Kind\",\n       CASE WHEN ok.finished_at IS NULL THEN 'never complete'\n            WHEN now() - ok.finished_at > interval '1 hour' THEN 'stale: servers UNKNOWN'\n            WHEN NOT l.complete THEN 'latest read incomplete'\n            ELSE 'ok' END AS \"State\",\n       ok.finished_at AS \"Last complete read\",\n       s.servers AS \"Servers\",\n       s.gpu_servers AS \"GPU servers\",\n       s.unread AS \"GPUs unread\",\n       s.unresolved AS \"Profile unresolved\",\n       jsonb_array_length(l.errors) AS \"Errors (latest read)\",\n       l.errors ->> 0 AS \"First error\"\nFROM latest l\nLEFT JOIN ok ON ok.manager = l.manager\nLEFT JOIN srv s ON s.read_id = ok.id\nORDER BY 1"
+          "rawSql": "WITH active AS (\n  SELECT manager, kind, added_at AS since FROM collector_managers WHERE removed_at IS NULL\n  UNION ALL\n  SELECT r.manager, min(r.kind), min(r.started_at) FROM collector_reads r\n  WHERE NOT EXISTS (SELECT 1 FROM collector_managers m WHERE m.manager = r.manager)\n  GROUP BY r.manager\n), latest AS (\n  SELECT DISTINCT ON (manager) manager, finished_at, complete, errors\n  FROM collector_reads ORDER BY manager, finished_at DESC, id DESC\n), ok AS (\n  SELECT DISTINCT ON (manager) manager, id, finished_at\n  FROM collector_reads WHERE complete ORDER BY manager, finished_at DESC, id DESC\n), srv AS (\n  SELECT read_id, count(*) AS servers,\n         count(*) FILTER (WHERE jsonb_array_length(gpu_models) > 0) AS gpu_servers,\n         count(*) FILTER (WHERE gpu_models IS NULL) AS unread,\n         count(*) FILTER (WHERE profile_unresolved IS NOT NULL) AS unresolved\n  FROM collector_servers GROUP BY read_id\n)\nSELECT a.manager AS \"Manager\",\n       a.kind AS \"Kind\",\n       CASE WHEN l.manager IS NULL THEN 'never read'\n            WHEN ok.finished_at IS NULL THEN 'never complete'\n            WHEN now() - ok.finished_at > interval '1 hour' THEN 'stale: servers UNKNOWN'\n            WHEN NOT l.complete THEN 'latest read incomplete'\n            ELSE 'ok' END AS \"State\",\n       ok.finished_at AS \"Last complete read\",\n       s.servers AS \"Servers\",\n       s.gpu_servers AS \"GPU servers\",\n       s.unread AS \"GPUs unread\",\n       s.unresolved AS \"Profile unresolved\",\n       jsonb_array_length(l.errors) AS \"Errors (latest read)\",\n       l.errors ->> 0 AS \"First error\"\nFROM active a\nLEFT JOIN latest l ON l.manager = a.manager\nLEFT JOIN ok ON ok.manager = a.manager\nLEFT JOIN srv s ON s.read_id = ok.id\nORDER BY 1"
         }
       ],
       "options": {
@@ -1083,6 +1083,10 @@
                       "never complete": {
                         "color": "purple",
                         "index": 6
+                      },
+                      "never read": {
+                        "color": "purple",
+                        "index": 7
                       }
                     }
                   }
