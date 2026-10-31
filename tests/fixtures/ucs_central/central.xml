@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Synthetic UCS Central inventory: no real hosts, serials or profile names; addresses are RFC 5737.
+  Each element is one configResolveClass outConfigs row with ucscsdk 0.9.0.8 wire attribute names;
+  the test transport answers a class query with every row of that class.
+
+  dc1-dom-a (1001): Central's graphicsCard replica is populated.
+  dc1-dom-b (1002): Central lists its servers but no graphicsCard row (UCS Manager fallback).
+-->
+<fixture>
+  <computeSystem dn="compute/sys-1001" id="1001" name="dc1-dom-a" address="192.0.2.21"
+      inventoryStatus="ok" lastRefreshedTs="2026-10-31T11:52:07.000" totalPhysicalCnt="6"
+      availablePhysicalCnt="2"/>
+  <computeSystem dn="compute/sys-1002" id="1002" name="dc1-dom-b" address="192.0.2.22"
+      inventoryStatus="ok" lastRefreshedTs="2026-10-31T11:49:41.000" totalPhysicalCnt="3"
+      availablePhysicalCnt="2"/>
+
+  <!-- dc1-dom-a: a blade with no profile and 8 GPUs; an empty slot. -->
+  <computeBlade dn="compute/sys-1001/chassis-1/blade-1" chassisId="1" slotId="1"
+      serial="FCH2650A0B1" model="UCSB-B200-M6" vendor="Cisco Systems Inc" presence="equipped"
+      assignedToDn="" lsDn="" association="none" name=""/>
+  <computeBlade dn="compute/sys-1001/chassis-1/blade-2" chassisId="1" slotId="2"
+      serial="" model="" vendor="" presence="missing" assignedToDn="" lsDn="" association="none"
+      name=""/>
+
+  <!-- dc1-dom-a rack units: OCP profile; non-OCP profile bound only through pnDn in a failed
+       state; placeholder serial with no profile; a profile Central does not list. -->
+  <computeRackUnit dn="compute/sys-1001/rack-unit-1" id="1" serial="WZP27080AB1"
+      model="UCSC-C845A-M8" vendor="Cisco Systems Inc" presence="equipped"
+      assignedToDn="org-root/org-ocp/ls-ocp4-prod-gpu-site1-w01"
+      lsDn="org-root/org-ocp/ls-ocp4-prod-gpu-site1-w01" association="associated" name=""/>
+  <computeRackUnit dn="compute/sys-1001/rack-unit-2" id="2" serial="WZP27080AB2"
+      model="UCSC-C240-M7" vendor="Cisco Systems Inc" presence="equipped" assignedToDn=""
+      lsDn="" association="failed" name=""/>
+  <computeRackUnit dn="compute/sys-1001/rack-unit-3" id="3" serial="To be filled by O.E.M."
+      model="UCSC-C220-M7" vendor="Cisco Systems Inc" presence="equipped" assignedToDn=""
+      lsDn="" association="none" name=""/>
+  <computeRackUnit dn="compute/sys-1001/rack-unit-4" id="4" serial="WZP27080AB4"
+      model="UCSC-C240-M7" vendor="Cisco Systems Inc" presence="equipped"
+      assignedToDn="org-root/org-ocp/ls-ocp-legacy-07" lsDn="" association="associated" name=""/>
+
+  <!-- dc1-dom-b: listed by Central, GPUs only in UCS Manager (ucsm-dc1-dom-b.xml). -->
+  <computeRackUnit dn="compute/sys-1002/rack-unit-1" id="1" serial="WZP27090CC1"
+      model="UCSC-C845A-M8" vendor="Cisco Systems Inc" presence="equipped"
+      assignedToDn="org-root/org-ocp/ls-ocp4-prod-gpu-site1-w02" lsDn=""
+      association="associated" name=""/>
+  <computeRackUnit dn="compute/sys-1002/rack-unit-2" id="2" serial="WZP27090CC2"
+      model="UCSC-C220-M7" vendor="Cisco Systems Inc" presence="equipped" assignedToDn=""
+      lsDn="" association="none" name=""/>
+  <computeBlade dn="compute/sys-1002/chassis-2/blade-1" chassisId="2" slotId="1"
+      serial="FCH2650B0C1" model="UCSB-B200-M6" vendor="Cisco Systems Inc" presence="equipped"
+      assignedToDn="" lsDn="" association="none" name=""/>
+
+  <lsServer dn="org-root/org-ocp/ls-ocp4-prod-gpu-site1-w01" name="ocp4-prod-gpu-site1-w01"
+      type="instance" pnDn="compute/sys-1001/rack-unit-1" domain="dc1-dom-a"
+      assignState="assigned" assocState="associated" configState="applied" operState="ok"/>
+  <lsServer dn="org-root/org-vdi/ls-vdi-host-07" name="vdi-host-07" type="instance"
+      pnDn="sys/rack-unit-2" domain="dc1-dom-a" assignState="assigned" assocState="failed"
+      configState="failed-to-apply" operState="config-failure"/>
+  <lsServer dn="org-root/org-ocp/ls-ocp4-prod-gpu-site1-w02" name="ocp4-prod-gpu-site1-w02"
+      type="instance" pnDn="compute/sys-1002/rack-unit-1" domain="dc1-dom-b"
+      assignState="assigned" assocState="associated" configState="applied" operState="ok"/>
+  <lsServer dn="org-root/org-ocp/ls-ocp-gpu-template" name="ocp-gpu-template"
+      type="updating-template" pnDn="" domain="" assignState="unassigned"
+      assocState="unassociated" configState="not-applied" operState="unassociated"/>
+
+  <graphicsCard dn="compute/sys-1001/chassis-1/blade-1/board/graphics-card-1" id="1"
+      model="UCSC-GPU-H100-80" vendor="NVIDIA Corporation" presence="equipped" operState="operable"/>
+  <graphicsCard dn="compute/sys-1001/chassis-1/blade-1/board/graphics-card-2" id="2"
+      model="UCSC-GPU-H100-80" vendor="NVIDIA Corporation" presence="equipped" operState="operable"/>
+  <graphicsCard dn="compute/sys-1001/chassis-1/blade-1/board/graphics-card-3" id="3"
+      model="UCSC-GPU-H100-80" vendor="NVIDIA Corporation" presence="equipped" operState="operable"/>
+  <graphicsCard dn="compute/sys-1001/chassis-1/blade-1/board/graphics-card-4" id="4"
+      model="UCSC-GPU-H100-80" vendor="NVIDIA Corporation" presence="equipped" operState="operable"/>
+  <graphicsCard dn="compute/sys-1001/chassis-1/blade-1/board/graphics-card-5" id="5"
+      model="UCSC-GPU-H100-80" vendor="NVIDIA Corporation" presence="equipped" operState="operable"/>
+  <graphicsCard dn="compute/sys-1001/chassis-1/blade-1/board/graphics-card-6" id="6"
+      model="UCSC-GPU-H100-80" vendor="NVIDIA Corporation" presence="equipped" operState="operable"/>
+  <graphicsCard dn="compute/sys-1001/chassis-1/blade-1/board/graphics-card-7" id="7"
+      model="UCSC-GPU-H100-80" vendor="NVIDIA Corporation" presence="equipped" operState="operable"/>
+  <graphicsCard dn="compute/sys-1001/chassis-1/blade-1/board/graphics-card-8" id="8"
+      model="UCSC-GPU-H100-80" vendor="NVIDIA Corporation" presence="equipped" operState="operable"/>
+  <graphicsCard dn="compute/sys-1001/rack-unit-1/board/graphics-card-1" id="1"
+      model="UCSC-GPU-L40S" vendor="NVIDIA Corporation" presence="equipped" operState="operable"/>
+  <graphicsCard dn="compute/sys-1001/rack-unit-1/board/graphics-card-2" id="2"
+      model="UCSC-GPU-L40S" vendor="NVIDIA Corporation" presence="equipped" operState="operable"/>
+  <graphicsCard dn="compute/sys-1001/rack-unit-1/board/graphics-card-3" id="3"
+      model="UCSC-GPU-L40S" vendor="NVIDIA Corporation" presence="equipped" operState="operable"/>
+  <graphicsCard dn="compute/sys-1001/rack-unit-1/board/graphics-card-4" id="4"
+      model="UCSC-GPU-L40S" vendor="NVIDIA Corporation" presence="equipped" operState="operable"/>
+  <graphicsCard dn="compute/sys-1001/rack-unit-1/board/graphics-card-5" id="5"
+      model="" vendor="" presence="missing" operState="unknown"/>
+  <graphicsCard dn="compute/sys-1001/rack-unit-2/board/graphics-card-1" id="1"
+      model="UCSC-GPU-A16" vendor="NVIDIA Corporation" presence="equipped" operState="operable"/>
+  <graphicsCard dn="compute/sys-1001/rack-unit-2/board/graphics-card-2" id="2"
+      model="UCSC-GPU-A16" vendor="NVIDIA Corporation" presence="equipped" operState="operable"/>
+  <graphicsCard dn="compute/sys-1001/rack-unit-4/board/graphics-card-1" id="1"
+      model="UCSC-GPU-H100-80" vendor="NVIDIA Corporation" presence="equipped" operState="operable"/>
+  <graphicsCard dn="compute/sys-1001/rack-unit-4/board/graphics-card-2" id="2"
+      model="UCSC-GPU-H100-80" vendor="NVIDIA Corporation" presence="equipped" operState="operable"/>
+</fixture>
