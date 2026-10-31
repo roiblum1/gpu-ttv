@@ -1,0 +1,180 @@
+{
+  "@odata.context": "/api/$metadata#Collection(DeviceService.Device)",
+  "@odata.count": 6,
+  "value": [
+    {
+      "@odata.type": "#DeviceService.Device",
+      "@odata.id": "/api/DeviceService/Devices(10104)",
+      "Id": 10104,
+      "Type": 1000,
+      "Identifier": "SPARE01",
+      "DeviceServiceTag": "SPARE01",
+      "ChassisServiceTag": null,
+      "Model": "PowerEdge R660",
+      "PowerState": 17,
+      "ManagedState": 3000,
+      "Status": 1000,
+      "ConnectionState": true,
+      "AssetTag": null,
+      "SystemId": 2300,
+      "DeviceName": "idrac-spare01",
+      "LastInventoryTime": "2026-10-30 04:00:11.123",
+      "LastStatusTime": "2026-10-31 01:15:02.456",
+      "DeviceSubscription": null,
+      "DeviceCapabilities": [
+        1,
+        2,
+        3,
+        4,
+        7,
+        8,
+        9,
+        41,
+        50
+      ],
+      "SlotConfiguration": {},
+      "DeviceManagement": [
+        {
+          "ManagementId": 11104,
+          "NetworkAddress": "192.0.2.14",
+          "MacAddress": "00:00:5e:00:53:78",
+          "ManagementType": 2,
+          "InstrumentationName": "idrac-spare01",
+          "DnsName": "idrac-spare01",
+          "ManagementProfile": [
+            {
+              "ManagementProfileId": 12104,
+              "ProfileId": "WSMAN_OOB",
+              "ManagementId": 11104,
+              "AgentName": "iDRAC",
+              "Version": "7.10.30.00",
+              "ManagementURL": "https://192.0.2.14:443",
+              "HasCreds": 0,
+              "Status": 1000,
+              "StatusDateTime": "2026-10-31 01:15:02.456"
+            }
+          ]
+        }
+      ],
+      "Actions": null,
+      "SensorHealth@odata.navigationLink": "/api/DeviceService/Devices(10104)/SensorHealth",
+      "InventoryDetails@odata.navigationLink": "/api/DeviceService/Devices(10104)/InventoryDetails"
+    },
+    {
+      "@odata.type": "#DeviceService.Device",
+      "@odata.id": "/api/DeviceService/Devices(10105)",
+      "Id": 10105,
+      "Type": 1000,
+      "Identifier": "To Be Filled By O.E.M.",
+      "DeviceServiceTag": "To Be Filled By O.E.M.",
+      "ChassisServiceTag": null,
+      "Model": "PowerEdge XE8640",
+      "PowerState": 17,
+      "ManagedState": 3000,
+      "Status": 1000,
+      "ConnectionState": true,
+      "AssetTag": null,
+      "SystemId": 2300,
+      "DeviceName": "idrac-staged09",
+      "LastInventoryTime": "2026-10-30 04:00:11.123",
+      "LastStatusTime": "2026-10-31 01:15:02.456",
+      "DeviceSubscription": null,
+      "DeviceCapabilities": [
+        1,
+        2,
+        3,
+        4,
+        7,
+        8,
+        9,
+        41,
+        50
+      ],
+      "SlotConfiguration": {},
+      "DeviceManagement": [
+        {
+          "ManagementId": 11105,
+          "NetworkAddress": "192.0.2.15",
+          "MacAddress": "00:00:5e:00:53:79",
+          "ManagementType": 2,
+          "InstrumentationName": "idrac-staged09",
+          "DnsName": "idrac-staged09",
+          "ManagementProfile": [
+            {
+              "ManagementProfileId": 12105,
+              "ProfileId": "WSMAN_OOB",
+              "ManagementId": 11105,
+              "AgentName": "iDRAC",
+              "Version": "7.10.30.00",
+              "ManagementURL": "https://192.0.2.15:443",
+              "HasCreds": 0,
+              "Status": 1000,
+              "StatusDateTime": "2026-10-31 01:15:02.456"
+            }
+          ]
+        }
+      ],
+      "Actions": null,
+      "SensorHealth@odata.navigationLink": "/api/DeviceService/Devices(10105)/SensorHealth",
+      "InventoryDetails@odata.navigationLink": "/api/DeviceService/Devices(10105)/InventoryDetails"
+    },
+    {
+      "@odata.type": "#DeviceService.Device",
+      "@odata.id": "/api/DeviceService/Devices(25001)",
+      "Id": 25001,
+      "Type": 2000,
+      "Identifier": "MXCH001",
+      "DeviceServiceTag": "MXCH001",
+      "ChassisServiceTag": null,
+      "Model": "PowerEdge MX7000",
+      "PowerState": 17,
+      "ManagedState": 3000,
+      "Status": 1000,
+      "ConnectionState": true,
+      "AssetTag": null,
+      "SystemId": 2300,
+      "DeviceName": "mx7000-chassis-01",
+      "LastInventoryTime": "2026-10-30 04:00:11.123",
+      "LastStatusTime": "2026-10-31 01:15:02.456",
+      "DeviceSubscription": null,
+      "DeviceCapabilities": [
+        1,
+        2,
+        3,
+        4,
+        7,
+        8,
+        9,
+        41,
+        50
+      ],
+      "SlotConfiguration": {},
+      "DeviceManagement": [
+        {
+          "ManagementId": 26001,
+          "NetworkAddress": "192.0.2.50",
+          "MacAddress": "00:00:5e:00:53:a9",
+          "ManagementType": 2,
+          "InstrumentationName": "mx7000-chassis-01",
+          "DnsName": "mx7000-chassis-01",
+          "ManagementProfile": [
+            {
+              "ManagementProfileId": 27001,
+              "ProfileId": "WSMAN_OOB",
+              "ManagementId": 26001,
+              "AgentName": "iDRAC",
+              "Version": "7.10.30.00",
+              "ManagementURL": "https://192.0.2.50:443",
+              "HasCreds": 0,
+              "Status": 1000,
+              "StatusDateTime": "2026-10-31 01:15:02.456"
+            }
+          ]
+        }
+      ],
+      "Actions": null,
+      "SensorHealth@odata.navigationLink": "/api/DeviceService/Devices(25001)/SensorHealth",
+      "InventoryDetails@odata.navigationLink": "/api/DeviceService/Devices(25001)/InventoryDetails"
+    }
+  ]
+}

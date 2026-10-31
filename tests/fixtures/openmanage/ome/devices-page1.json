@@ -1,0 +1,181 @@
+{
+  "@odata.context": "/api/$metadata#Collection(DeviceService.Device)",
+  "@odata.count": 6,
+  "value": [
+    {
+      "@odata.type": "#DeviceService.Device",
+      "@odata.id": "/api/DeviceService/Devices(10101)",
+      "Id": 10101,
+      "Type": 1000,
+      "Identifier": "GPU8NP1",
+      "DeviceServiceTag": "GPU8NP1",
+      "ChassisServiceTag": null,
+      "Model": "PowerEdge XE9680",
+      "PowerState": 17,
+      "ManagedState": 3000,
+      "Status": 1000,
+      "ConnectionState": true,
+      "AssetTag": null,
+      "SystemId": 2300,
+      "DeviceName": "idrac-gpu8np1",
+      "LastInventoryTime": "2026-10-30 04:00:11.123",
+      "LastStatusTime": "2026-10-31 01:15:02.456",
+      "DeviceSubscription": null,
+      "DeviceCapabilities": [
+        1,
+        2,
+        3,
+        4,
+        7,
+        8,
+        9,
+        41,
+        50
+      ],
+      "SlotConfiguration": {},
+      "DeviceManagement": [
+        {
+          "ManagementId": 11101,
+          "NetworkAddress": "192.0.2.11",
+          "MacAddress": "00:00:5e:00:53:75",
+          "ManagementType": 2,
+          "InstrumentationName": "idrac-gpu8np1",
+          "DnsName": "idrac-gpu8np1",
+          "ManagementProfile": [
+            {
+              "ManagementProfileId": 12101,
+              "ProfileId": "WSMAN_OOB",
+              "ManagementId": 11101,
+              "AgentName": "iDRAC",
+              "Version": "7.10.30.00",
+              "ManagementURL": "https://192.0.2.11:443",
+              "HasCreds": 0,
+              "Status": 1000,
+              "StatusDateTime": "2026-10-31 01:15:02.456"
+            }
+          ]
+        }
+      ],
+      "Actions": null,
+      "SensorHealth@odata.navigationLink": "/api/DeviceService/Devices(10101)/SensorHealth",
+      "InventoryDetails@odata.navigationLink": "/api/DeviceService/Devices(10101)/InventoryDetails"
+    },
+    {
+      "@odata.type": "#DeviceService.Device",
+      "@odata.id": "/api/DeviceService/Devices(10102)",
+      "Id": 10102,
+      "Type": 1000,
+      "Identifier": "OCPGPU7",
+      "DeviceServiceTag": "OCPGPU7",
+      "ChassisServiceTag": null,
+      "Model": "PowerEdge R760xa",
+      "PowerState": 17,
+      "ManagedState": 3000,
+      "Status": 1000,
+      "ConnectionState": true,
+      "AssetTag": null,
+      "SystemId": 2300,
+      "DeviceName": "idrac-ocpgpu7",
+      "LastInventoryTime": "2026-10-30 04:00:11.123",
+      "LastStatusTime": "2026-10-31 01:15:02.456",
+      "DeviceSubscription": null,
+      "DeviceCapabilities": [
+        1,
+        2,
+        3,
+        4,
+        7,
+        8,
+        9,
+        41,
+        50
+      ],
+      "SlotConfiguration": {},
+      "DeviceManagement": [
+        {
+          "ManagementId": 11102,
+          "NetworkAddress": "192.0.2.12",
+          "MacAddress": "00:00:5e:00:53:76",
+          "ManagementType": 2,
+          "InstrumentationName": "idrac-ocpgpu7",
+          "DnsName": "idrac-ocpgpu7",
+          "ManagementProfile": [
+            {
+              "ManagementProfileId": 12102,
+              "ProfileId": "WSMAN_OOB",
+              "ManagementId": 11102,
+              "AgentName": "iDRAC",
+              "Version": "7.10.30.00",
+              "ManagementURL": "https://192.0.2.12:443",
+              "HasCreds": 0,
+              "Status": 1000,
+              "StatusDateTime": "2026-10-31 01:15:02.456"
+            }
+          ]
+        }
+      ],
+      "Actions": null,
+      "SensorHealth@odata.navigationLink": "/api/DeviceService/Devices(10102)/SensorHealth",
+      "InventoryDetails@odata.navigationLink": "/api/DeviceService/Devices(10102)/InventoryDetails"
+    },
+    {
+      "@odata.type": "#DeviceService.Device",
+      "@odata.id": "/api/DeviceService/Devices(10103)",
+      "Id": 10103,
+      "Type": 1000,
+      "Identifier": "VDIGPU3",
+      "DeviceServiceTag": "VDIGPU3",
+      "ChassisServiceTag": null,
+      "Model": "PowerEdge R750xa",
+      "PowerState": 17,
+      "ManagedState": 3000,
+      "Status": 1000,
+      "ConnectionState": true,
+      "AssetTag": null,
+      "SystemId": 2300,
+      "DeviceName": "idrac-vdigpu3",
+      "LastInventoryTime": "2026-10-30 04:00:11.123",
+      "LastStatusTime": "2026-10-31 01:15:02.456",
+      "DeviceSubscription": null,
+      "DeviceCapabilities": [
+        1,
+        2,
+        3,
+        4,
+        7,
+        8,
+        9,
+        41,
+        50
+      ],
+      "SlotConfiguration": {},
+      "DeviceManagement": [
+        {
+          "ManagementId": 11103,
+          "NetworkAddress": "192.0.2.13",
+          "MacAddress": "00:00:5e:00:53:77",
+          "ManagementType": 2,
+          "InstrumentationName": "idrac-vdigpu3",
+          "DnsName": "idrac-vdigpu3",
+          "ManagementProfile": [
+            {
+              "ManagementProfileId": 12103,
+              "ProfileId": "WSMAN_OOB",
+              "ManagementId": 11103,
+              "AgentName": "iDRAC",
+              "Version": "7.10.30.00",
+              "ManagementURL": "https://192.0.2.13:443",
+              "HasCreds": 0,
+              "Status": 1000,
+              "StatusDateTime": "2026-10-31 01:15:02.456"
+            }
+          ]
+        }
+      ],
+      "Actions": null,
+      "SensorHealth@odata.navigationLink": "/api/DeviceService/Devices(10103)/SensorHealth",
+      "InventoryDetails@odata.navigationLink": "/api/DeviceService/Devices(10103)/InventoryDetails"
+    }
+  ],
+  "@odata.nextLink": "/api/DeviceService/Devices?$skip=3&$top=3&$filter=Type%20eq%201000"
+}

@@ -1,0 +1,16 @@
+{
+  "@odata.context": "/api/$metadata#SessionService.Session",
+  "@odata.type": "#SessionService.Session",
+  "@odata.id": "/api/SessionService/Sessions('7c4f0e1a-5b2d-4c8e-9f31-0a6b2d9e4c11')",
+  "Id": "7c4f0e1a-5b2d-4c8e-9f31-0a6b2d9e4c11",
+  "Description": "ttv-viewer",
+  "Name": "API",
+  "UserName": "ttv-viewer",
+  "Roles": [
+    "VIEWER"
+  ],
+  "IpAddress": "192.0.2.200",
+  "StartTimeStamp": "2026-10-31 02:00:00.000",
+  "LastAccessedTimeStamp": "2026-10-31 02:00:00.000",
+  "DirectoryGroup": []
+}

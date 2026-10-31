@@ -430,6 +430,7 @@ The UCS Central XML API Programmer's Guide is no longer on cisco.com (unconfirme
 - **Dell.** Device-driven listing (`Type eq 1000`), joined to Profiles by `TargetId`, then Jobs for `DeploymentTaskId`.
   - GPU evidence comes from OME `InventoryDetails`, cached per device and refreshed slowly.
   - If the live probe shows OME exposes no GPU inventory, fall back to **copying** server-scan's Redfish GPU functions (`gpus_from_processors`, `is_gpu_pcie_device`, `gpus_from_pcie_devices`) with a read-only iDRAC account. The target is `DeviceManagement[0].NetworkAddress`.
+  - **As built (2026-10-31, `src/ttv/collector/openmanage.py`, `fixture-tested`):** both paths are in: OME `InventoryDetails('serverDeviceCards')` first, iDRAC Redfish (HTTP Basic, GET only) when OME lists no GPU. No Jobs are read (simplified rule). Binding, gates and enforcement: ADR-0004, "Dell (OpenManage Enterprise)".
 
 ## Target GPU clusters
 

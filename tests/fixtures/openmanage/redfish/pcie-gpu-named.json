@@ -1,0 +1,13 @@
+{
+  "@odata.id": "/redfish/v1/Chassis/System.Embedded.1/PCIeDevices/60-0",
+  "@odata.type": "#PCIeDevice.v1_11_0.PCIeDevice",
+  "Id": "60-0",
+  "Name": "GA102GL [A10] 3D controller",
+  "Description": "GA102GL [A10] 3D controller",
+  "Manufacturer": "NVIDIA Corporation",
+  "DeviceType": "SingleFunction",
+  "Status": {
+    "Health": "OK",
+    "State": "Enabled"
+  }
+}
