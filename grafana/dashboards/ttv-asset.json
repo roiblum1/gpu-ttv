@@ -1,0 +1,1963 @@
+{
+  "uid": "ttv-asset",
+  "title": "Asset: one server's GPUs and evidence",
+  "description": "Drill-down for one asset ($asset_id): identity, current GPU buckets with their evidence, milestones, identity conflicts, next-action annotations, the collector record and the category timeline, with a link to the engine's /explain. Other pages link asset cells here with /d/ttv-asset?var-asset_id=<asset>.",
+  "tags": [
+    "gpu-ttv",
+    "asset",
+    "drilldown"
+  ],
+  "id": null,
+  "version": 1,
+  "editable": false,
+  "graphTooltip": 1,
+  "timezone": "",
+  "fiscalYearStartMonth": 0,
+  "liveNow": false,
+  "weekStart": "",
+  "refresh": "5m",
+  "schemaVersion": 39,
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "timepicker": {},
+  "annotations": {
+    "list": []
+  },
+  "links": [
+    {
+      "title": "Home",
+      "type": "link",
+      "url": "/d/ttv-home",
+      "tooltip": "Executive summary (E01, E02, E03, E12, E18)",
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": []
+    },
+    {
+      "title": "Queues",
+      "type": "link",
+      "url": "/d/ttv-queues",
+      "tooltip": "E03: where GPUs are stuck",
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": []
+    },
+    {
+      "title": "Delivery",
+      "type": "link",
+      "url": "/d/ttv-delivery",
+      "tooltip": "E02: are we getting faster?",
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": []
+    },
+    {
+      "title": "GPU use",
+      "type": "link",
+      "url": "/d/ttv-gpu-use",
+      "tooltip": "E12: are GPUs doing useful work?",
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": []
+    },
+    {
+      "title": "Asset",
+      "type": "link",
+      "url": "/d/ttv-asset",
+      "tooltip": "One server's GPUs and evidence",
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": []
+    },
+    {
+      "title": "Evidence",
+      "type": "link",
+      "url": "/d/ttv-evidence",
+      "tooltip": "E18: can I trust these numbers?",
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": []
+    },
+    {
+      "title": "Actions",
+      "type": "link",
+      "url": "/d/ttv-actions",
+      "tooltip": "E05, E16 (R2/R3)",
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": []
+    },
+    {
+      "title": "Capacity",
+      "type": "link",
+      "url": "/d/ttv-capacity",
+      "tooltip": "E06, E08, E09, E14, E17 (R3)",
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": []
+    },
+    {
+      "title": "Service",
+      "type": "link",
+      "url": "/d/ttv-service",
+      "tooltip": "E10, E11 (R2)",
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": []
+    },
+    {
+      "title": "Economics",
+      "type": "link",
+      "url": "/d/ttv-economics",
+      "tooltip": "E13, E15 (R2/R3)",
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": []
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "asset_id",
+        "label": "Asset",
+        "description": "Asset id (<vendor>:<serial_normalized>) and name; type to search. Listed by idle GPUs now, most first, so the default is the asset with the most idle GPUs. Other pages link here with var-asset_id.",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "ttv-postgres"
+        },
+        "query": "SELECT a.asset_id AS __value,\n       a.asset_id || coalesce('  ·  ' || nullif(a.name, a.asset_id), '') AS __text\nFROM assets a\nLEFT JOIN (\n  SELECT asset_id, sum(gpus) AS idle_gpus\n  FROM capacity_intervals\n  WHERE ended_at IS NULL AND category = 'IDLE'\n  GROUP BY asset_id\n) c ON c.asset_id = a.asset_id\nORDER BY coalesce(c.idle_gpus, 0) DESC, a.asset_id",
+        "definition": "SELECT a.asset_id AS __value,\n       a.asset_id || coalesce('  ·  ' || nullif(a.name, a.asset_id), '') AS __text\nFROM assets a\nLEFT JOIN (\n  SELECT asset_id, sum(gpus) AS idle_gpus\n  FROM capacity_intervals\n  WHERE ended_at IS NULL AND category = 'IDLE'\n  GROUP BY asset_id\n) c ON c.asset_id = a.asset_id\nORDER BY coalesce(c.idle_gpus, 0) DESC, a.asset_id",
+        "refresh": 1,
+        "multi": false,
+        "includeAll": false,
+        "current": {},
+        "options": [],
+        "sort": 0,
+        "hide": 0,
+        "regex": "",
+        "skipUrlSync": false
+      },
+      {
+        "name": "ttv_api",
+        "label": "Engine API",
+        "description": "Base URL of the ttv-engine read API, used only for the /explain link. It must be reachable from the viewer's browser (e.g. the engine's Route). Default http://ttv-engine:8080; override with &var-ttv_api=<url>.",
+        "type": "textbox",
+        "query": "http://ttv-engine:8080",
+        "current": {
+          "selected": false,
+          "text": "http://ttv-engine:8080",
+          "value": "http://ttv-engine:8080"
+        },
+        "options": [
+          {
+            "selected": true,
+            "text": "http://ttv-engine:8080",
+            "value": "http://ttv-engine:8080"
+          }
+        ],
+        "hide": 2,
+        "skipUrlSync": false
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "row",
+      "id": 1,
+      "title": "Now: this server and its GPUs",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "id": 2,
+      "title": "GPUs in inventory",
+      "description": "Definition: assets.gpu_count, the GPUs inventory reports for this server (`E`: server-scan hardware.gpus, or the collector's GPU evidence). Every open bucket of the asset sums to it.\nUnits: physical GPUs.\nFilters: asset_id.\nUnknown vs zero: 'unread' = the source did not read the GPU inventory, never 0 GPUs.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT gpu_count AS gpus FROM assets WHERE asset_id = '$asset_id'"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "noValue": "unread",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "text": {
+          "titleSize": 14,
+          "valueSize": 40
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "id": 3,
+      "title": "Productive GPUs now",
+      "description": "Definition: sum(gpus) of this asset's open PRODUCTIVE intervals.\nUnits: physical GPUs.\nFilters: asset_id.\nUnknown vs zero: 0 = the latest scan put none of this asset's GPUs in the category; 'No open interval' = the ledger has no current state for this asset (not classified yet, or retired). Current state = the asset's intervals still open in the ledger (ended_at IS NULL), i.e. the latest engine scan.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 4,
+        "y": 1,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT CASE WHEN count(*) = 0 THEN NULL\n            ELSE coalesce(sum(gpus) FILTER (WHERE category = 'PRODUCTIVE'), 0) END AS gpus\nFROM capacity_intervals\nWHERE ended_at IS NULL AND asset_id = '$asset_id'"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "noValue": "No open interval",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "text": {
+          "titleSize": 14,
+          "valueSize": 40
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "id": 4,
+      "title": "Idle GPUs now",
+      "description": "Definition: sum(gpus) of this asset's open IDLE intervals.\nUnits: physical GPUs.\nFilters: asset_id.\nUnknown vs zero: 0 = the latest scan put none of this asset's GPUs in the category; 'No open interval' = the ledger has no current state for this asset (not classified yet, or retired). Current state = the asset's intervals still open in the ledger (ended_at IS NULL), i.e. the latest engine scan.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 1,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT CASE WHEN count(*) = 0 THEN NULL\n            ELSE coalesce(sum(gpus) FILTER (WHERE category = 'IDLE'), 0) END AS gpus\nFROM capacity_intervals\nWHERE ended_at IS NULL AND asset_id = '$asset_id'"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "noValue": "No open interval",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "orange"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "text": {
+          "titleSize": 14,
+          "valueSize": 40
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "id": 5,
+      "title": "Unknown GPUs now",
+      "description": "Definition: sum(gpus) of this asset's open UNKNOWN intervals.\nUnits: physical GPUs.\nFilters: asset_id.\nUnknown vs zero: 0 = the latest scan put none of this asset's GPUs in the category; 'No open interval' = the ledger has no current state for this asset (not classified yet, or retired). Current state = the asset's intervals still open in the ledger (ended_at IS NULL), i.e. the latest engine scan.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 1,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT CASE WHEN count(*) = 0 THEN NULL\n            ELSE coalesce(sum(gpus) FILTER (WHERE category = 'UNKNOWN'), 0) END AS gpus\nFROM capacity_intervals\nWHERE ended_at IS NULL AND asset_id = '$asset_id'"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "noValue": "No open interval",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "purple"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "text": {
+          "titleSize": 14,
+          "valueSize": 40
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "id": 6,
+      "title": "Not charged GPUs now",
+      "description": "Definition: sum(gpus) of this asset's open NOT_CHARGED intervals.\nUnits: physical GPUs.\nFilters: asset_id.\nUnknown vs zero: 0 = the latest scan put none of this asset's GPUs in the category; 'No open interval' = the ledger has no current state for this asset (not classified yet, or retired). Current state = the asset's intervals still open in the ledger (ended_at IS NULL), i.e. the latest engine scan.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 1,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT CASE WHEN count(*) = 0 THEN NULL\n            ELSE coalesce(sum(gpus) FILTER (WHERE category = 'NOT_CHARGED'), 0) END AS gpus\nFROM capacity_intervals\nWHERE ended_at IS NULL AND asset_id = '$asset_id'"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "noValue": "No open interval",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "text": {
+          "titleSize": 14,
+          "valueSize": 40
+        }
+      }
+    },
+    {
+      "type": "text",
+      "id": 7,
+      "title": "Why is it classified this way?",
+      "description": "Opens the engine's /explain/{asset_id} for this asset: rules evaluated in order, the matching row, its evidence and recent intervals, from the engine's last scan. The link uses the dashboard variable ttv_api (default http://ttv-engine:8080; set it to a URL your browser can reach, e.g. the engine's Route, by editing the variable default in grafana/dashboards/ttv-asset.json or adding &var-ttv_api=<url> to the page URL).",
+      "gridPos": {
+        "x": 20,
+        "y": 1,
+        "w": 4,
+        "h": 4
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "<a href=\"${ttv_api}/explain/${asset_id}\" target=\"_blank\" rel=\"noopener noreferrer\"><strong>Engine explanation ↗</strong></a>\n\nRules evaluated, the matching row and its evidence (`/explain`).",
+        "code": {
+          "language": "plaintext",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        }
+      }
+    },
+    {
+      "type": "table",
+      "id": 8,
+      "title": "Identity",
+      "description": "Definition: the assets row: asset_id = <vendor>:<serial_normalized> (server-scan's normalisation), the server name, model and site, which source reported it (server-scan provider, or the collector's manager for collector-only assets), inventory GPUs, and when the engine first and last observed it.\nUnits: times in the dashboard timezone (stored UTC).\nFilters: asset_id.\nUnknown vs zero: GPUs 'unread' = inventory not read, never 0; first observed is the engine's first sighting, not the delivery date.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 24,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT a.asset_id AS \"Asset\",\n       a.name AS \"Name\",\n       a.vendor AS \"Vendor\",\n       a.serial AS \"Serial\",\n       a.model AS \"Server model\",\n       coalesce(a.site, '(none)') AS \"Site\",\n       a.source AS \"Inventory source\",\n       a.gpu_count AS \"GPUs\",\n       a.gpu_model AS \"GPU model\",\n       a.first_observed_at AS \"First observed\",\n       a.last_observed_at AS \"Last observed\"\nFROM assets a\nWHERE a.asset_id = '$asset_id'"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          },
+          "noValue": "Unknown asset: not in the ledger"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Asset"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 160
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Name"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 190
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Vendor"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 70
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Serial"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 115
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Site"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 70
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Inventory source"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 135
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "GPUs"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 60
+              },
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "noValue",
+                "value": "unread"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "GPU model"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 140
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "First observed"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsIso"
+              },
+              {
+                "id": "custom.width",
+                "value": 155
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Last observed"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsIso"
+              },
+              {
+                "id": "custom.width",
+                "value": 155
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        },
+        "sortBy": []
+      },
+      "links": [
+        {
+          "title": "Engine explanation (/explain) for this asset",
+          "url": "${ttv_api}/explain/${asset_id}",
+          "targetBlank": true
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "id": 9,
+      "title": "Current GPU buckets",
+      "description": "Definition: the asset's open intervals: each bucket is a set of GPUs sharing category, reason, stage owner, holder, team and GPU model (ADR-0002). GPUs sum to the inventory count. 'Held by' is the holding workload (namespace/Kind/name) and its consuming team for productive GPUs; 'Evidence' picks the facts the rule matched on; 'Stage clock since' starts the overdue clock for IDLE buckets.\nUnits: physical GPUs; bucket start in the dashboard timezone; stage clock in UTC.\nFilters: asset_id.\nUnknown vs zero: '≥' = the stage began before the engine observed it (lower bound). UNKNOWN buckets are never idle or productive. Flags never change a category. Current state = the asset's intervals still open in the ledger (ended_at IS NULL), i.e. the latest engine scan. Full trace: the engine's /explain link in the panel menu.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 9,
+        "w": 24,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT i.category AS \"Category\",\n       i.reason_code AS \"Reason\",\n       coalesce(i.stage_owner, '—') AS \"Owner\",\n       i.gpus AS \"GPUs\",\n       i.gpu_model AS \"GPU model\",\n       i.cluster AS \"Cluster\",\n       coalesce(i.holder_ref || coalesce(' · team ' || i.team, ''), 'team ' || i.team) AS \"Held by\",\n       nullif(array_to_string(ARRAY(\n  SELECT CASE f\n    WHEN 'allocated_idle' THEN 'allocated, inactive (activity under the policy threshold)'\n    WHEN 'low_use_unverified' THEN 'useful-use threshold (I2) not approved'\n    WHEN 'user_attribution_unverified' THEN 'synthetic traffic not excluded'\n    WHEN 'hardware_critical' THEN 'hardware critical'\n    WHEN 'bmc_unreachable' THEN 'BMC unreachable'\n    WHEN 'handover_overdue' THEN 'handover overdue'\n    ELSE f END\n  FROM unnest(i.flags) AS f), '; '), '') AS \"Flags\",\n       CASE i.reason_code\n  WHEN 'SERVING_IN_USE' THEN format('%s genuine requests in %s h = %s per GPU-hour (counter %s)',\n       trim_scale(round((i.evidence->>'requests')::numeric, 1)), trim_scale((i.evidence->>'window_hours')::numeric),\n       trim_scale(round((i.evidence->>'requests_per_gpu_hour')::numeric, 1)), i.evidence->>'counter')\n  WHEN 'LOW_USE' THEN format('%s requests per GPU-hour, below the approved threshold %s (counter %s)',\n       trim_scale(round((i.evidence->>'requests_per_gpu_hour')::numeric, 1)), i.evidence->>'threshold', i.evidence->>'counter')\n  WHEN 'NO_REAL_DEMAND' THEN format('Loaded and Ready, 0 genuine requests in %s h (counter %s)',\n       trim_scale((i.evidence->>'window_hours')::numeric), i.evidence->>'counter')\n  WHEN 'TRAFFIC_UNOBSERVED' THEN 'Serving workload with no series for its request counter ('\n       || coalesce(translate((i.evidence->'tried')::text, '[]\"', ''), 'none') || '): demand unknown'\n  WHEN 'RUNAI_WORKLOAD' THEN 'Run:ai ' || coalesce(i.evidence->>'runai_kind', '') || ' workload: productive by presence'\n  WHEN 'WORKLOAD_NOT_READY' THEN 'Pod not Ready beyond warm-up'\n       || coalesce(': ' || translate((i.evidence->'waiting')::text, '[]\"', ''), '')\n  WHEN 'OTHER_WORKLOAD' THEN 'Held by a pod that is neither Run:ai nor serving (notebook, benchmark, debug ...)'\n  WHEN 'NO_WORKLOAD' THEN 'Healthy GPUs that no pod holds'\n  WHEN 'HOLDER_UNRESOLVED' THEN 'Held by a pod whose owner chain could not be read'\n  WHEN 'GPU_MISSING' THEN format('Inventory %s GPUs, allocatable %s, reporting DCGM %s', i.evidence->>'E', i.evidence->>'A', i.evidence->>'R')\n       || coalesce('; last XID ' || nullif(replace(translate((i.evidence->'last_xid')::text, '{}\"', ''), '.0', ''), ''), '')\n  WHEN 'GPU_PLATFORM_NOT_READY' THEN format('Node %s: allocatable %s, reporting DCGM %s', i.evidence->>'node', i.evidence->>'A', i.evidence->>'R')\n  WHEN 'NODE_NOT_READY' THEN 'Node ' || coalesce(i.evidence->>'node', '?') || ' is not Ready'\n  WHEN 'NODE_UNSCHEDULABLE' THEN 'Node ' || coalesce(i.evidence->>'node', '?') || ' is cordoned (unschedulable)'\n  WHEN 'NODE_NOT_FOUND' THEN format('No node named %s in cluster %s', i.evidence->>'node_name', i.evidence->>'cluster')\n  WHEN 'CLUSTER_UNREACHABLE' THEN 'Cluster ' || coalesce(i.evidence->>'cluster_name', '?') || ': kube API or Thanos unreachable beyond grace'\n  WHEN 'CLUSTER_NOT_OBSERVED' THEN 'Target cluster ' || coalesce(i.evidence->>'cluster_name', '?') || ' is not configured for reading'\n  WHEN 'OUTSIDE_TARGET_CLUSTERS' THEN 'Installed in ' || coalesce(i.evidence->>'cluster_name', '?') || ', not a target cluster'\n  WHEN 'NOT_IN_CLUSTER' THEN 'Not installed in a cluster yet (server-scan lifecycle AVAILABLE)'\n  WHEN 'IN_MCE_INVENTORY' THEN 'In MCE inventory ' || coalesce(i.evidence->>'mce_name', '') || ', not installed yet'\n  WHEN 'MEMBERSHIP_UNKNOWN' THEN 'OpenShift membership unknown (lifecycle ' || coalesce(i.evidence->>'lifecycle_state', 'missing') || ')'\n  WHEN 'IDENTITY_CONFLICT' THEN coalesce(i.evidence->>'conflict', 'Identity conflict')\n  WHEN 'CONTESTED' THEN 'Cluster claim contested with ' || coalesce(i.evidence->>'contested_with', '?')\n  WHEN 'SOURCE_STALE' THEN 'Inventory source stale or failing'\n       || CASE WHEN (i.evidence->>'record_stale')::boolean THEN ' (server-scan marks the record stale)' ELSE '' END\n  WHEN 'HARDWARE_CRITICAL' THEN 'Hardware health ' || coalesce(i.evidence->>'health_overall', '?')\n       || CASE WHEN i.evidence->>'reachable' = 'false' THEN ', BMC unreachable' ELSE '' END\n  WHEN 'BMC_UNREACHABLE' THEN 'BMC unreachable'\n  WHEN 'MAINTENANCE' THEN 'In maintenance' || coalesce(': ' || (i.evidence->>'maintenance_reason'), '')\n  WHEN 'PROFILE_NONE' THEN 'No server profile bound (manager ' || coalesce(i.evidence->>'manager', '?') || ')'\n  WHEN 'OTHER_INTENDED_USE' THEN 'Profile ' || coalesce(i.evidence->>'profile_name', '?') || ' is not an OCP profile'\n  WHEN 'HANDOVER_PENDING' THEN 'OCP profile ' || coalesce(i.evidence->>'profile_name', '?') || ' applied, not in server-scan yet'\n  WHEN 'EXCLUDED' THEN 'Excluded by configuration'\n  ELSE i.reason_code\nEND AS \"Evidence\",\n       i.started_at AS \"In this bucket since\",\n       CASE WHEN i.category = 'IDLE' THEN\n         coalesce(CASE WHEN i.stage_entered_lower_bound THEN '≥ ' ELSE '' END\n                  || to_char(i.stage_entered_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI'), 'unknown')\n       END AS \"Stage clock since (UTC)\"\nFROM capacity_intervals i\nWHERE i.ended_at IS NULL AND i.asset_id = '$asset_id'\nORDER BY array_position(ARRAY['PRODUCTIVE', 'IDLE', 'NOT_CHARGED', 'UNKNOWN'], i.category), array_position(ARRAY['DC', 'Redbull', 'POPAI', 'Serving'], i.stage_owner),\n         i.gpus DESC, i.reason_code, i.holder_ref"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          },
+          "noValue": "No open interval for this asset"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Category"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "PRODUCTIVE": {
+                        "color": "green",
+                        "index": 0
+                      },
+                      "IDLE": {
+                        "color": "orange",
+                        "index": 1
+                      },
+                      "UNKNOWN": {
+                        "color": "purple",
+                        "index": 2
+                      },
+                      "NOT_CHARGED": {
+                        "color": "blue",
+                        "index": 3
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.width",
+                "value": 110
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Reason"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 175
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Owner"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 75
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "GPUs"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "custom.width",
+                "value": 55
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "GPU model"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 125
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Cluster"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 80
+              },
+              {
+                "id": "noValue",
+                "value": "—"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Held by"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 200
+              },
+              {
+                "id": "noValue",
+                "value": "—"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto",
+                  "wrapText": true
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Flags"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 150
+              },
+              {
+                "id": "noValue",
+                "value": "—"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto",
+                  "wrapText": true
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Evidence"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto",
+                  "wrapText": true
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "In this bucket since"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsIso"
+              },
+              {
+                "id": "custom.width",
+                "value": 150
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Stage clock since (UTC)"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 140
+              },
+              {
+                "id": "noValue",
+                "value": "—"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        },
+        "sortBy": []
+      },
+      "links": [
+        {
+          "title": "Engine explanation (/explain) for this asset",
+          "url": "${ttv_api}/explain/${asset_id}",
+          "targetBlank": true
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "id": 10,
+      "title": "Now: lifecycle, identity and next actions",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 18
+      },
+      "panels": []
+    },
+    {
+      "type": "table",
+      "id": 11,
+      "title": "Milestones (first-time facts)",
+      "description": "Definition: the asset's milestones in pipeline order (first_seen, ocp_profile_seen, in_serverscan, assigned_cluster, node_ready, gpu_ready, workload_running, first_genuine_request; any other milestone name the engine writes is listed after them). Milestones are first-time facts that survive regressions; current condition is in 'Current GPU buckets'. A server can have reached every milestone and still be idle now (§13).\nUnits: UTC times.\nFilters: asset_id.\nUnknown vs zero: '≥' = lower bound (it happened at or before that time, e.g. before the engine first observed it); 'not observed yet' = no evidence, not 'never'. If the Grafana role cannot read the table (missing, or no SELECT grant) the panel shows one 'Not available' row instead of an error (the query runs through query_to_xml only when has_table_privilege allows it).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 19,
+        "w": 12,
+        "h": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH src AS (\n  SELECT CASE WHEN coalesce(has_table_privilege(to_regclass('milestones')::oid, 'SELECT'), false)\n              THEN query_to_xml(format('SELECT encode(convert_to(row_to_json(q)::text, ''UTF8''), ''base64'') AS j FROM (SELECT milestone, observed_at, lower_bound, evidence FROM milestones WHERE asset_id = %L) AS q', '$asset_id'), true, false, '')\n         END AS x\n), rows AS (\n  SELECT convert_from(decode((xpath('/row/j/text()', r))[1]::text, 'base64'), 'UTF8')::jsonb AS j\n  FROM src, unnest(xpath('/table/row', src.x)) AS r\n), steps(ord, milestone, label) AS (\n  VALUES (1, 'first_seen', 'First seen by the engine'),\n         (2, 'ocp_profile_seen', 'OCP profile seen by the collector'),\n         (3, 'in_serverscan', 'In server-scan'),\n         (4, 'assigned_cluster', 'Assigned to a cluster'),\n         (5, 'node_ready', 'Node Ready'),\n         (6, 'gpu_ready', 'GPU platform ready'),\n         (7, 'workload_running', 'Workload running'),\n         (8, 'first_genuine_request', 'First genuine request')\n), m AS (\n  SELECT j->>'milestone' AS milestone,\n         (j->>'observed_at')::timestamptz AS observed_at,\n         (j->>'lower_bound')::boolean AS lower_bound,\n         j->'evidence' AS evidence\n  FROM rows\n), u AS (\n  SELECT coalesce(s.ord, 99) AS ord,\n         coalesce(s.label, m.milestone) AS milestone,\n         CASE WHEN m.milestone IS NULL THEN 'not observed yet'\n              ELSE CASE WHEN m.lower_bound THEN '≥ ' ELSE '' END\n                   || to_char(m.observed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI') END AS observed,\n         CASE WHEN m.milestone IS NULL THEN NULL\n              WHEN m.lower_bound THEN 'lower bound: may be earlier'\n              ELSE 'exact' END AS precision,\n         nullif(concat_ws(', ',\n           'source ' || (m.evidence->>'source'),\n           'cluster ' || (m.evidence->>'cluster'),\n           'node ' || (m.evidence->>'node'),\n           'workload ' || (m.evidence->>'holder'),\n           'profile ' || (m.evidence->>'profile'),\n           'allocatable GPUs ' || (m.evidence->>'A')), '') AS evidence\n  FROM steps s\n  FULL JOIN m ON m.milestone = s.milestone\n  WHERE (SELECT x FROM src) IS NOT NULL\n  UNION ALL\n  SELECT 0, 'Not available', 'no access', NULL, 'No access: the Grafana role cannot read milestones (table missing or no SELECT grant; see grafana/README.md).'\n  WHERE (SELECT x FROM src) IS NULL\n)\nSELECT milestone AS \"Milestone\",\n       observed AS \"Observed at (UTC)\",\n       precision AS \"Precision\",\n       evidence AS \"Evidence\"\nFROM u\nORDER BY ord, milestone"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          },
+          "noValue": "No milestone recorded"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Milestone"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 230
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Observed at (UTC)"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 160
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Precision"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "exact": {
+                        "color": "text",
+                        "index": 0
+                      },
+                      "lower bound: may be earlier": {
+                        "color": "purple",
+                        "index": 1
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.width",
+                "value": 185
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Evidence"
+            },
+            "properties": [
+              {
+                "id": "noValue",
+                "value": "—"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto",
+                  "wrapText": true
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        },
+        "sortBy": []
+      }
+    },
+    {
+      "type": "table",
+      "id": 12,
+      "title": "Open identity conflicts naming this asset",
+      "description": "Definition: unresolved identity_conflicts rows whose key is this asset or whose candidates list it: several assets claiming one node (NODE_CLAIM), several server-scan or manager records sharing this serial, or an ambiguous profile binding. While open, the affected GPUs are UNKNOWN (IDENTITY_CONFLICT), never silently merged.\nUnits: times in the dashboard timezone.\nFilters: asset_id.\nUnknown vs zero: an empty table = no open conflict names this asset. If the Grafana role cannot read the table (missing, or no SELECT grant) the panel shows one 'Not available' row instead of an error (the query runs through query_to_xml only when has_table_privilege allows it).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 19,
+        "w": 12,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH src AS (\n  SELECT CASE WHEN coalesce(has_table_privilege(to_regclass('identity_conflicts')::oid, 'SELECT'), false)\n              THEN query_to_xml(format('SELECT encode(convert_to(row_to_json(q)::text, ''UTF8''), ''base64'') AS j FROM (SELECT kind, key, candidates, first_seen, last_seen FROM identity_conflicts WHERE resolved_at IS NULL AND (key = %L OR candidates @> jsonb_build_array(%L::text))) AS q', '$asset_id', '$asset_id'), true, false, '')\n         END AS x\n), rows AS (\n  SELECT convert_from(decode((xpath('/row/j/text()', r))[1]::text, 'base64'), 'UTF8')::jsonb AS j\n  FROM src, unnest(xpath('/table/row', src.x)) AS r\n), c AS (\n  SELECT j->>'kind' AS kind,\n         j->>'key' AS key,\n         j->'candidates' AS candidates,\n         (j->>'first_seen')::timestamptz AS first_seen,\n         (j->>'last_seen')::timestamptz AS last_seen\n  FROM rows\n)\nSELECT kind AS \"Kind\",\n       CASE kind\n         WHEN 'NODE_CLAIM' THEN 'Several assets claim one cluster node'\n         WHEN 'DUPLICATE_SERIAL' THEN 'Several server-scan records share this serial'\n         WHEN 'COLLECTOR_DUPLICATE' THEN 'Several manager records share this serial'\n         WHEN 'COLLECTOR_PROFILE_AMBIGUOUS' THEN 'The bound profile could not be determined'\n         ELSE kind END AS \"What it means\",\n       key AS \"Key\",\n       (SELECT string_agg(v, ', ' ORDER BY v) FROM jsonb_array_elements_text(candidates) AS v\n         WHERE v <> '$asset_id') AS \"Other parties\",\n       first_seen AS \"First seen\",\n       last_seen AS \"Last seen\"\nFROM c\nUNION ALL\nSELECT 'Not available', 'No access: the Grafana role cannot read identity_conflicts (table missing or no SELECT grant; see grafana/README.md).', NULL, NULL, NULL, NULL\nWHERE (SELECT x FROM src) IS NULL\nORDER BY 6 DESC NULLS FIRST, 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          },
+          "noValue": "No open identity conflict names this asset"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Kind"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 130
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "What it means"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto",
+                  "wrapText": true
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Key"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 200
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Other parties"
+            },
+            "properties": [
+              {
+                "id": "noValue",
+                "value": "—"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto",
+                  "wrapText": true
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "First seen"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsIso"
+              },
+              {
+                "id": "custom.width",
+                "value": 165
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Last seen"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsIso"
+              },
+              {
+                "id": "custom.width",
+                "value": 165
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        },
+        "sortBy": []
+      }
+    },
+    {
+      "type": "table",
+      "id": 13,
+      "title": "Next-action annotations (display only)",
+      "description": "Definition: next_action_annotations rows for this asset, newest first (up to 20): who must act next, why, who wrote it and until when. Display only: an annotation never changes the stage owner, a category or any total (AGENT.md §0.1, §20.5).\nUnits: times in the dashboard timezone.\nFilters: asset_id.\nUnknown vs zero: no annotation does not mean no action is needed. If the Grafana role cannot read the table (missing, or no SELECT grant) the panel shows one 'Not available' row instead of an error (the query runs through query_to_xml only when has_table_privilege allows it).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 24,
+        "w": 12,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH src AS (\n  SELECT CASE WHEN coalesce(has_table_privilege(to_regclass('next_action_annotations')::oid, 'SELECT'), false)\n              THEN query_to_xml(format('SELECT encode(convert_to(row_to_json(q)::text, ''UTF8''), ''base64'') AS j FROM (SELECT next_action_owner, reason, created_by, created_at, expires_at FROM next_action_annotations WHERE asset_id = %L ORDER BY created_at DESC, id DESC LIMIT 20) AS q', '$asset_id'), true, false, '')\n         END AS x\n), rows AS (\n  SELECT convert_from(decode((xpath('/row/j/text()', r))[1]::text, 'base64'), 'UTF8')::jsonb AS j\n  FROM src, unnest(xpath('/table/row', src.x)) AS r\n), n AS (\n  SELECT j->>'next_action_owner' AS owner,\n         j->>'reason' AS reason,\n         j->>'created_by' AS created_by,\n         (j->>'created_at')::timestamptz AS created_at,\n         (j->>'expires_at')::timestamptz AS expires_at\n  FROM rows\n)\nSELECT CASE WHEN expires_at > now() THEN 'active' ELSE 'expired' END AS \"Status\",\n       owner AS \"Next-action owner\",\n       reason AS \"Reason\",\n       created_by AS \"By\",\n       created_at AS \"Created\",\n       expires_at AS \"Expires\"\nFROM n\nUNION ALL\nSELECT 'Not available', NULL, 'No access: the Grafana role cannot read next_action_annotations (table missing or no SELECT grant; see grafana/README.md).', NULL, NULL, NULL\nWHERE (SELECT x FROM src) IS NULL\nORDER BY 1, 5 DESC NULLS FIRST"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          },
+          "noValue": "No next-action annotation for this asset"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Status"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "active": {
+                        "color": "orange",
+                        "index": 0
+                      },
+                      "expired": {
+                        "color": "text",
+                        "index": 1
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.width",
+                "value": 95
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Next-action owner"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 140
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Reason"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto",
+                  "wrapText": true
+                }
+              },
+              {
+                "id": "noValue",
+                "value": "—"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "By"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 110
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Created"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsIso"
+              },
+              {
+                "id": "custom.width",
+                "value": 165
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Expires"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsIso"
+              },
+              {
+                "id": "custom.width",
+                "value": 165
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        },
+        "sortBy": []
+      }
+    },
+    {
+      "type": "table",
+      "id": 14,
+      "title": "Latest collector record",
+      "description": "Definition: for assets the profile-less collector reports (collector-only assets: no server-scan record), the newest collector_servers row per manager and source id: manager, bound profile, GPUs it read, profile_unresolved (an ambiguous binding, treated as an identity conflict) and when that read finished. Matched on vendor and serial (or manager and source id when the serial is empty). A server-scan asset shows 'Not collector-only'.\nUnits: GPUs; times in the dashboard timezone.\nFilters: asset_id.\nUnknown vs zero: 'GPU inventory unread' = the manager did not return GPUs, never 0; 'none bound' = no profile (row 3, PROFILE_NONE). If the Grafana role cannot read the table (missing, or no SELECT grant) the panel shows one 'Not available' row instead of an error (the query runs through query_to_xml only when has_table_privilege allows it).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 29,
+        "w": 24,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH a AS (\n  SELECT * FROM assets WHERE asset_id = '$asset_id'\n), src AS (\n  SELECT CASE WHEN coalesce(has_table_privilege(to_regclass('collector_servers')::oid, 'SELECT'), false) AND coalesce(has_table_privilege(to_regclass('collector_reads')::oid, 'SELECT'), false)\n              THEN query_to_xml(format('SELECT encode(convert_to(row_to_json(q)::text, ''UTF8''), ''base64'') AS j FROM (SELECT DISTINCT ON (manager, source_id) * FROM (SELECT r.manager, r.kind, r.finished_at, r.complete, s.source_id, to_jsonb(s) AS s FROM collector_servers s JOIN collector_reads r ON r.id = s.read_id WHERE s.vendor = %L AND s.serial_normalized = %L UNION ALL SELECT r.manager, r.kind, r.finished_at, r.complete, s.source_id, to_jsonb(s) AS s FROM collector_servers s JOIN collector_reads r ON r.id = s.read_id WHERE r.manager = %L AND s.source_id = %L) AS u ORDER BY manager, source_id, finished_at DESC) AS q', (SELECT vendor FROM a), (SELECT nullif(serial, '') FROM a), (SELECT aliases->>'manager' FROM a WHERE coalesce(serial, '') = ''), (SELECT aliases->>'collector_source_id' FROM a WHERE coalesce(serial, '') = '')), true, false, '')\n         END AS x\n), rows AS (\n  SELECT convert_from(decode((xpath('/row/j/text()', r))[1]::text, 'base64'), 'UTF8')::jsonb AS j\n  FROM src, unnest(xpath('/table/row', src.x)) AS r\n), c AS (\n  SELECT j->>'manager' AS manager,\n         j->>'kind' AS kind,\n         (j->>'finished_at')::timestamptz AS read_at,\n         (j->>'complete')::boolean AS complete,\n         j->'s' AS s\n  FROM rows\n)\nSELECT manager AS \"Manager\",\n       kind AS \"Kind\",\n       s->>'source_id' AS \"Source id\",\n       s->>'name' AS \"Name\",\n       coalesce(s->>'profile_name', 'none bound') AS \"Profile\",\n       CASE WHEN jsonb_typeof(s->'gpu_models') = 'array' THEN jsonb_array_length(s->'gpu_models') END AS \"GPUs\",\n       CASE WHEN jsonb_typeof(s->'gpu_models') = 'array'\n            THEN coalesce((SELECT string_agg(g.model || ' × ' || g.n, ', ' ORDER BY g.model)\n                             FROM (SELECT value AS model, count(*) AS n\n                                   FROM jsonb_array_elements_text(s->'gpu_models') GROUP BY value) AS g), 'no GPUs')\n            ELSE 'GPU inventory unread' END AS \"GPU models\",\n       s->>'profile_unresolved' AS \"Profile unresolved\",\n       read_at AS \"Read finished\",\n       CASE WHEN complete THEN 'complete' ELSE 'partial' END AS \"Read\"\nFROM c\nUNION ALL\nSELECT 'Not available', NULL, NULL, NULL, NULL, NULL,\n       'No access: the Grafana role cannot read collector_servers and collector_reads (table missing or no SELECT grant; see grafana/README.md).', NULL, NULL, NULL\nWHERE (SELECT x FROM src) IS NULL\nUNION ALL\nSELECT 'Not collector-only', NULL, NULL, NULL, NULL, NULL,\n       'Inventory comes from server-scan (' || coalesce((SELECT source FROM a), 'unknown source')\n       || '); no collector record has this serial.', NULL, NULL, NULL\nWHERE (SELECT x FROM src) IS NOT NULL\n  AND NOT EXISTS (SELECT 1 FROM c)\n  AND NOT coalesce((SELECT aliases ? 'collector_source_id' FROM a), false)\nORDER BY 9 DESC NULLS FIRST, 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          },
+          "noValue": "No collector record for this asset"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Manager"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 140
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Kind"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 95
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Source id"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 140
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Name"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 160
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Profile"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 150
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "GPUs"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 60
+              },
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "noValue",
+                "value": "unread"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "GPU models"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto",
+                  "wrapText": true
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Profile unresolved"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 140
+              },
+              {
+                "id": "noValue",
+                "value": "—"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Read finished"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsIso"
+              },
+              {
+                "id": "custom.width",
+                "value": 155
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Read"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "complete": {
+                        "color": "text",
+                        "index": 0
+                      },
+                      "partial": {
+                        "color": "orange",
+                        "index": 1
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.width",
+                "value": 80
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        },
+        "sortBy": []
+      }
+    },
+    {
+      "type": "row",
+      "id": 15,
+      "title": "Selected period: category over time",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 34
+      },
+      "panels": []
+    },
+    {
+      "type": "state-timeline",
+      "id": 16,
+      "title": "GPUs by category and reason over time",
+      "description": "Definition: one row per category · reason this asset had in the range; the number in each segment is how many of its GPUs were in that bucket. Colour = category (green PRODUCTIVE, orange IDLE, purple UNKNOWN, blue NOT_CHARGED); the category is always written too.\nUnits: physical GPUs.\nFilters: asset_id.\nSampling: intervals are sampled on a grid of max($__interval, 1 min) (an interval counts at t when started_at <= t < ended_at); a state shorter than the step can fall between samples; zoom in for detail.\nUnknown vs zero: an empty stretch = no interval at that time (before the engine first observed the asset, or after it was retired), never 0 GPUs.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 35,
+        "w": 16,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT t AS time,\n       i.category || ' · ' || i.reason_code AS metric,\n       sum(i.gpus) AS value\nFROM generate_series($__timeFrom()::timestamptz, $__timeTo()::timestamptz,\n                     make_interval(secs => greatest($__interval_ms, 60000) / 1000.0)) AS t\nJOIN capacity_intervals i\n  ON i.asset_id = '$asset_id' AND i.started_at <= t AND (i.ended_at IS NULL OR i.ended_at > t)\nGROUP BY t, i.category, i.reason_code\nORDER BY t, array_position(ARRAY['PRODUCTIVE', 'IDLE', 'NOT_CHARGED', 'UNKNOWN'], i.category), i.reason_code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "noValue": "No interval for this asset in the time range",
+          "custom": {
+            "lineWidth": 0,
+            "fillOpacity": 75,
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*PRODUCTIVE · .*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*IDLE · .*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*UNKNOWN · .*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "purple"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*NOT_CHARGED · .*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "mergeValues": true,
+        "showValue": "auto",
+        "alignValue": "left",
+        "rowHeight": 0.85,
+        "perPage": 20,
+        "legend": {
+          "showLegend": false,
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "type": "table",
+      "id": 17,
+      "title": "GPU-hours in the selected range",
+      "description": "Definition: GPU-hours of this asset's intervals clipped to the time range (open intervals end at now), by category and reason.\nUnits: GPU-hours.\nFilters: asset_id.\nUnknown vs zero: time before the engine first observed the asset is not counted (unknown, not zero); UNKNOWN hours are never idle or productive. Overdue hours and AWS-equivalent value are on Queues.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 35,
+        "w": 8,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT i.category AS \"Category\",\n       i.reason_code AS \"Reason\",\n       sum(i.gpus * extract(epoch FROM least(coalesce(i.ended_at, now()), $__timeTo())\n                                      - greatest(i.started_at, $__timeFrom())) / 3600) AS \"GPU-hours\"\nFROM capacity_intervals i\nWHERE i.asset_id = '$asset_id'\n  AND i.started_at < $__timeTo()\n  AND (i.ended_at IS NULL OR i.ended_at > $__timeFrom())\nGROUP BY i.category, i.reason_code\nORDER BY array_position(ARRAY['PRODUCTIVE', 'IDLE', 'NOT_CHARGED', 'UNKNOWN'], i.category), 3 DESC, i.reason_code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          },
+          "noValue": "No interval for this asset in the time range"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Category"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "PRODUCTIVE": {
+                        "color": "green",
+                        "index": 0
+                      },
+                      "IDLE": {
+                        "color": "orange",
+                        "index": 1
+                      },
+                      "UNKNOWN": {
+                        "color": "purple",
+                        "index": 2
+                      },
+                      "NOT_CHARGED": {
+                        "color": "blue",
+                        "index": 3
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.width",
+                "value": 115
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "GPU-hours"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "custom.width",
+                "value": 95
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        },
+        "sortBy": []
+      }
+    }
+  ]
+}

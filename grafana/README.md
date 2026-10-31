@@ -39,6 +39,18 @@ The Grafana database user needs only `SELECT` on the ledger tables, including `g
   - "Historical" columns value each interval at the snapshot in force when it started, so importing a newer snapshot never changes them. Intervals older than every snapshot are unpriced historically.
   - **Unpriced is never $0.** GPUs whose model has no rate are counted in "Unpriced idle GPUs now" (purple), listed with the reason in "Unpriced idle GPUs now, by model", and shown as unpriced GPU-h beside every USD column. A USD cell reading "unpriced" means nothing in that row could be priced. The value-per-hour stat excludes unpriced GPUs, so it is a lower bound whenever that count is above 0.
   - Dollars use the unit `prefix:$` so they are exact, not abbreviated to K/M.
+- **GPU use (E12, `ttv-gpu-use`).** Each GPU falls in one use class, taken from its open interval:
+  - *Useful work*: PRODUCTIVE, i.e. a Run:ai workload, or serving with genuine requests.
+  - *Allocated, inactive*: PRODUCTIVE but flagged `allocated_idle`. The ledger still counts these GPUs as productive.
+  - *Waste candidate*: `NO_REAL_DEMAND`, `LOW_USE`, `OTHER_WORKLOAD`, `NO_WORKLOAD`.
+  - *Constrained or failed*: any other IDLE GPU on a matched node (`WORKLOAD_NOT_READY`, `GPU_MISSING`, platform or node not ready).
+  - *Use unknown*: in a measured cluster, but the evidence is missing (`TRAFFIC_UNOBSERVED`, `HOLDER_UNRESOLVED`, `NODE_NOT_FOUND`, `CLUSTER_UNREACHABLE`, a `NODE_CLAIM` conflict).
+  - *Not measured* (purple): the GPU is not in a target cluster the engine reads. "Why GPUs are not measured" gives the reasons.
+
+  The useful-work share is taken of measured GPUs. The not-measured share is taken of all GPUs, so the two are never added. "From allocation to useful work" shows that a held GPU or a loaded model is not delivered value. The `cluster` filter uses the interval's cluster, else the cluster named in its evidence or its `NODE_CLAIM` conflict. R1 has no source for per-GPU activity, memory pressure or SLO compliance, so those panels name the missing input instead of a number.
+- **Asset (`ttv-asset`).** Open it as `/d/ttv-asset?var-asset_id=<asset>`. Without that, it shows the asset with the most idle GPUs. The page shows identity, current buckets with their evidence in plain words, milestones (`≥` = lower bound), open identity conflicts, next-action annotations (display only), the latest collector record and a category timeline.
+  - "Engine explanation" opens `${ttv_api}/explain/<asset>`. `ttv_api` is a hidden textbox, default `http://ttv-engine:8080`, and must be a URL the viewer's browser can reach, e.g. the engine's Route. To change it, edit its default in `ttv-asset.json` or add `&var-ttv_api=<url>` to the page URL.
+  - The panels on `milestones`, `identity_conflicts`, `next_action_annotations` and the collector tables run their query (through `query_to_xml`) only when the Grafana role can read the table. Otherwise they show a "Not available" row, not an error. Grant `SELECT` on `collector_reads` and `collector_servers` (migration 0003) as well.
 
 Assumptions the SQL makes about the engine:
 1. All intervals of one stage episode carry the same `stage_entered_at`.
