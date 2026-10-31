@@ -1,20 +1,15 @@
 {
   "uid": "ttv-queues",
-  "title": "Queues — where GPUs are stuck",
+  "title": "Queues: where GPUs are stuck",
   "description": "E03 slice 1: idle GPUs by accountable stage owner, overdue GPU-hours against stage objectives, longest waits and reasons. Source: TTV ledger (Postgres). AWS-equivalent idle value in USD (On-Demand comparison, ADR-0003).",
   "tags": [
     "gpu-ttv",
     "E03",
     "queues"
   ],
-  "id": null,
-  "version": 2,
+  "timezone": "browser",
   "editable": false,
   "graphTooltip": 1,
-  "timezone": "",
-  "fiscalYearStartMonth": 0,
-  "liveNow": false,
-  "weekStart": "",
   "refresh": "5m",
   "schemaVersion": 39,
   "time": {
@@ -22,6 +17,135 @@
     "to": "now"
   },
   "timepicker": {},
+  "fiscalYearStartMonth": 0,
+  "liveNow": false,
+  "weekStart": "",
+  "version": 2,
+  "links": [
+    {
+      "title": "Home",
+      "type": "link",
+      "url": "/d/ttv-home",
+      "icon": "dashboard",
+      "tooltip": "",
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "tags": []
+    },
+    {
+      "title": "Queues",
+      "type": "link",
+      "url": "/d/ttv-queues",
+      "icon": "dashboard",
+      "tooltip": "",
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "tags": []
+    },
+    {
+      "title": "Delivery",
+      "type": "link",
+      "url": "/d/ttv-delivery",
+      "icon": "dashboard",
+      "tooltip": "",
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "tags": []
+    },
+    {
+      "title": "GPU use",
+      "type": "link",
+      "url": "/d/ttv-gpu-use",
+      "icon": "dashboard",
+      "tooltip": "",
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "tags": []
+    },
+    {
+      "title": "Asset",
+      "type": "link",
+      "url": "/d/ttv-asset",
+      "icon": "dashboard",
+      "tooltip": "",
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "tags": []
+    },
+    {
+      "title": "Evidence",
+      "type": "link",
+      "url": "/d/ttv-evidence",
+      "icon": "dashboard",
+      "tooltip": "",
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "tags": []
+    },
+    {
+      "title": "Actions",
+      "type": "link",
+      "url": "/d/ttv-actions",
+      "icon": "dashboard",
+      "tooltip": "",
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "tags": []
+    },
+    {
+      "title": "Capacity",
+      "type": "link",
+      "url": "/d/ttv-capacity",
+      "icon": "dashboard",
+      "tooltip": "",
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "tags": []
+    },
+    {
+      "title": "Service",
+      "type": "link",
+      "url": "/d/ttv-service",
+      "icon": "dashboard",
+      "tooltip": "",
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "tags": []
+    },
+    {
+      "title": "Economics",
+      "type": "link",
+      "url": "/d/ttv-economics",
+      "icon": "dashboard",
+      "tooltip": "",
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "tags": []
+    }
+  ],
+  "annotations": {
+    "list": []
+  },
   "templating": {
     "list": [
       {
@@ -107,44 +231,25 @@
       }
     ]
   },
-  "annotations": {
-    "list": []
-  },
-  "links": [
-    {
-      "title": "GPU Time-to-Value",
-      "type": "dashboards",
-      "tags": [
-        "gpu-ttv"
-      ],
-      "asDropdown": false,
-      "includeVars": true,
-      "keepTime": true,
-      "targetBlank": false,
-      "icon": "external link",
-      "tooltip": "",
-      "url": ""
-    }
-  ],
   "panels": [
     {
       "type": "row",
       "id": 1,
-      "title": "Scope and as-of",
-      "collapsed": false,
-      "panels": [],
+      "title": "Now: the four queues",
       "gridPos": {
-        "h": 1,
-        "w": 24,
         "x": 0,
-        "y": 0
-      }
+        "y": 0,
+        "w": 24,
+        "h": 1
+      },
+      "collapsed": false,
+      "panels": []
     },
     {
       "type": "stat",
-      "id": 2,
-      "title": "Data as of (last successful scan)",
-      "description": "Definition: finish time of the most recent scan_runs row with status 'ok', one value per scan kind (e.g. engine, collector).\nUnits: timestamp in the dashboard timezone (stored UTC).\nFilters: none.\nUnknown vs zero: a kind that has never finished an 'ok' scan has no value here; partial, failed and dry_run scans never count as success.",
+      "id": 21,
+      "title": "Idle GPUs",
+      "description": "Definition: GPUs in open IDLE intervals (the latest engine scan), all stage owners together; the queue table splits them by owner.\nFilters: site, stage_owner.\nUnknown vs zero: UNKNOWN GPUs are never counted here; 'no scan yet' until the engine has completed a scan.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "ttv-postgres"
@@ -152,7 +257,7 @@
       "gridPos": {
         "x": 0,
         "y": 1,
-        "w": 6,
+        "w": 4,
         "h": 4
       },
       "targets": [
@@ -165,61 +270,185 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT kind,\n       (extract(epoch FROM max(finished_at)) * 1000)::bigint AS last_ok\nFROM scan_runs\nWHERE status = 'ok' AND finished_at IS NOT NULL\nGROUP BY kind\nORDER BY kind"
+          "rawSql": "SELECT CASE WHEN EXISTS (SELECT 1 FROM scan_runs WHERE status IN ('ok', 'partial') AND finished_at IS NOT NULL) THEN coalesce((\n  SELECT sum(i.gpus)\n  FROM capacity_intervals i\nJOIN assets a ON a.asset_id = i.asset_id\n  WHERE i.ended_at IS NULL AND i.category = 'IDLE' AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site)) AND ('__all__' IN ($stage_owner) OR i.stage_owner IN ($stage_owner))), 0) END AS \"Idle GPUs\""
         }
       ],
-      "fieldConfig": {
-        "defaults": {
-          "displayName": "${__data.fields.kind}",
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "text"
-          },
-          "noValue": "No successful scan yet"
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "last_ok"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "dateTimeAsIso"
-              }
-            ]
-          }
-        ]
-      },
       "options": {
         "reduceOptions": {
           "values": true,
           "calcs": [
             "lastNotNull"
           ],
-          "fields": ""
+          "fields": "",
+          "limit": 1
         },
-        "colorMode": "none",
+        "colorMode": "value",
         "graphMode": "none",
-        "justifyMode": "auto",
-        "textMode": "value_and_name",
+        "justifyMode": "center",
+        "textMode": "value",
         "orientation": "auto",
         "wideLayout": true,
-        "showPercentChange": false
+        "showPercentChange": false,
+        "text": {
+          "titleSize": 14,
+          "valueSize": 40
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "orange"
+          },
+          "noValue": "no scan yet",
+          "decimals": 0,
+          "links": [
+            {
+              "title": "Queues",
+              "url": "/d/ttv-queues?${__url_time_range}&${stage_owner:queryparam}&${site:queryparam}"
+            }
+          ]
+        },
+        "overrides": []
       }
     },
     {
       "type": "stat",
-      "id": 3,
-      "title": "Data age",
-      "description": "Definition: now minus the finish time of the most recent 'ok' scan, per scan kind.\nUnits: duration. Colour: green under 20 min, orange from 20 min, red from 60 min; purple = never succeeded (unknown).\nFilters: none.\nUnknown vs zero: a kind with no successful scan shows no value in purple, never an age of 0.",
+      "id": 22,
+      "title": "Overdue now",
+      "description": "Definition: idle GPUs whose current stage episode has lasted longer than the stage objective of the interval's own policy version. Intervals with no objective are not counted (Selected period shows them).\nFilters: site, stage_owner.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "ttv-postgres"
       },
       "gridPos": {
-        "x": 6,
+        "x": 4,
+        "y": 1,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT CASE WHEN EXISTS (SELECT 1 FROM scan_runs WHERE status IN ('ok', 'partial') AND finished_at IS NOT NULL) THEN coalesce((\n  SELECT sum(i.gpus)\n  FROM capacity_intervals i\nJOIN assets a ON a.asset_id = i.asset_id\n  JOIN stage_objectives o ON o.stage = i.stage AND o.policy_version = i.policy_version\n  WHERE i.ended_at IS NULL AND i.category = 'IDLE' AND now() > i.stage_entered_at + o.objective\n    AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site)) AND ('__all__' IN ($stage_owner) OR i.stage_owner IN ($stage_owner))), 0) END AS \"Overdue GPUs\""
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": true,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "limit": 1
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "text": {
+          "titleSize": 14,
+          "valueSize": 40
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "red"
+          },
+          "noValue": "no scan yet",
+          "decimals": 0
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "id": 23,
+      "title": "Longest wait",
+      "description": "Definition: the longest current idle stage episode, in days since stage_entered_at. 'at least' = that stage began before observation, so the true wait is longer.\nFilters: site, stage_owner.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 1,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT extract(epoch FROM now() - i.stage_entered_at) / 86400 AS days,\n       CASE WHEN i.stage_entered_lower_bound THEN 'at least' ELSE 'observed' END AS label\nFROM capacity_intervals i\nJOIN assets a ON a.asset_id = i.asset_id\nWHERE i.ended_at IS NULL AND i.category = 'IDLE' AND i.stage_entered_at IS NOT NULL AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site)) AND ('__all__' IN ($stage_owner) OR i.stage_owner IN ($stage_owner))\nORDER BY i.stage_entered_at\nLIMIT 1"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": true,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "limit": 1
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value_and_name",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "text": {
+          "titleSize": 14,
+          "valueSize": 40
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: d",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "orange"
+          },
+          "noValue": "no idle GPUs",
+          "decimals": 1,
+          "displayName": "${__data.fields.label}"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "id": 17,
+      "title": "Idle value / hour (AWS)",
+      "description": "Definition: what the idle GPUs now would cost per hour at AWS On-Demand rates (Linux, shared tenancy) from the selected price snapshot, shown under the value. A comparison, not a bill, not our cost and not a loss (ADR-0003).\n'at least' means some idle GPUs have no price (their model has no rate) and are left out; Queues lists them. The line above the value names the snapshot's region and price date.\nFilters: site, stage_owner, snapshot.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 12,
         "y": 1,
         "w": 5,
         "h": 4
@@ -234,85 +463,55 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT kind,\n       extract(epoch FROM now() - max(finished_at)) AS age_s\nFROM scan_runs\nWHERE status = 'ok' AND finished_at IS NOT NULL\nGROUP BY kind\nORDER BY kind"
+          "rawSql": "WITH v AS (\n  SELECT coalesce(sum(i.gpus), 0) AS gpus,\n         sum(i.gpus * r.per_gpu_hour_usd) AS usd,\n         coalesce(sum(i.gpus) FILTER (WHERE r.per_gpu_hour_usd IS NULL), 0) AS unpriced\n  FROM capacity_intervals i\nJOIN assets a ON a.asset_id = i.asset_id\n  LEFT JOIN gpu_model_aliases ga ON ga.raw_model = i.gpu_model\nLEFT JOIN pricing_rates r ON r.snapshot_id = '${snapshot}' AND r.gpu_model = ga.canonical\n  WHERE i.ended_at IS NULL AND i.category = 'IDLE' AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site)) AND ('__all__' IN ($stage_owner) OR i.stage_owner IN ($stage_owner))\n), s AS (\n  SELECT region || ', ' || to_char(publication_date AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS label\n  FROM pricing_snapshots WHERE snapshot_id = '${snapshot}'\n)\nSELECT CASE WHEN EXISTS (SELECT 1 FROM scan_runs WHERE status IN ('ok', 'partial') AND finished_at IS NOT NULL) AND EXISTS (SELECT 1 FROM s) THEN coalesce(v.usd, CASE WHEN v.gpus = 0 THEN 0 END) END AS usd,\n       coalesce((SELECT label FROM s), 'no price snapshot')\n       || CASE WHEN v.unpriced > 0 THEN ' · at least (' || v.unpriced || ' GPUs unpriced)' ELSE '' END AS label\nFROM v"
         }
       ],
-      "fieldConfig": {
-        "defaults": {
-          "displayName": "${__data.fields.kind}",
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "purple",
-                "value": null
-              },
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "orange",
-                "value": 1200
-              },
-              {
-                "color": "red",
-                "value": 3600
-              }
-            ]
-          },
-          "noValue": "No successful scan yet"
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "age_s"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "s"
-              },
-              {
-                "id": "decimals",
-                "value": 0
-              }
-            ]
-          }
-        ]
-      },
       "options": {
         "reduceOptions": {
           "values": true,
           "calcs": [
             "lastNotNull"
           ],
-          "fields": ""
+          "fields": "",
+          "limit": 1
         },
         "colorMode": "value",
         "graphMode": "none",
-        "justifyMode": "auto",
+        "justifyMode": "center",
         "textMode": "value_and_name",
         "orientation": "auto",
         "wideLayout": true,
-        "showPercentChange": false
+        "showPercentChange": false,
+        "text": {
+          "titleSize": 14,
+          "valueSize": 40
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "prefix:$",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "orange"
+          },
+          "noValue": "unpriced or no snapshot",
+          "decimals": 0,
+          "displayName": "${__data.fields.label}"
+        },
+        "overrides": []
       }
     },
     {
       "type": "stat",
-      "id": 4,
-      "title": "Policy version in use",
-      "description": "Definition: distinct policy_version of the currently open ledger intervals. Two values mean intervals opened under an earlier policy are still open (an unchanged bucket keeps the policy it was opened under); overdue uses each interval's own policy.\nUnits: text. Filters: none.\nUnknown vs zero: 'no open intervals' means the engine has not written a scan yet, not that no policy applies.",
+      "id": 24,
+      "title": "Unknown GPUs",
+      "description": "Definition: GPUs in open UNKNOWN intervals. They are in no queue: the evidence is missing (stale source, identity conflict, cluster not observed, node not found). Evidence explains each reason.\nFilters: site.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "ttv-postgres"
       },
       "gridPos": {
-        "x": 11,
+        "x": 17,
         "y": 1,
         "w": 4,
         "h": 4
@@ -327,48 +526,62 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT coalesce(string_agg(DISTINCT policy_version, ', ' ORDER BY policy_version), 'no open intervals') AS policy_version\nFROM capacity_intervals\nWHERE ended_at IS NULL"
+          "rawSql": "SELECT CASE WHEN EXISTS (SELECT 1 FROM scan_runs WHERE status IN ('ok', 'partial') AND finished_at IS NOT NULL) THEN coalesce((\n  SELECT sum(i.gpus) FROM capacity_intervals i\nJOIN assets a ON a.asset_id = i.asset_id\n  WHERE i.ended_at IS NULL AND i.category = 'UNKNOWN' AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))), 0) END AS \"Unknown GPUs\""
         }
       ],
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "text"
-          }
-        },
-        "overrides": []
-      },
       "options": {
         "reduceOptions": {
-          "values": false,
+          "values": true,
           "calcs": [
             "lastNotNull"
           ],
-          "fields": "/^policy_version$/"
+          "fields": "",
+          "limit": 1
         },
-        "colorMode": "none",
+        "colorMode": "value",
         "graphMode": "none",
-        "justifyMode": "auto",
-        "textMode": "auto",
+        "justifyMode": "center",
+        "textMode": "value",
         "orientation": "auto",
         "wideLayout": true,
-        "showPercentChange": false
+        "showPercentChange": false,
+        "text": {
+          "titleSize": 14,
+          "valueSize": 40
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "purple"
+          },
+          "noValue": "no scan yet",
+          "decimals": 0,
+          "links": [
+            {
+              "title": "Evidence",
+              "url": "/d/ttv-evidence?${__url_time_range}&${site:queryparam}"
+            }
+          ]
+        },
+        "overrides": []
       }
     },
     {
       "type": "stat",
-      "id": 5,
-      "title": "Coverage: GPUs UNKNOWN vs total",
-      "description": "Definition: of all GPUs in open ledger intervals (every category), how many are UNKNOWN (stale source, identity conflict, cluster not observed, ...). Servers whose GPU count server-scan has not read are listed separately: they have no GPU total, so they are not inside 'GPUs in scope'.\nUnits: GPUs; share = UNKNOWN GPUs / GPUs in scope.\nFilters: site (stage_owner does not apply: UNKNOWN GPUs have no stage owner).\nUnknown vs zero: UNKNOWN GPUs are never counted as idle or productive; no value (purple) = no ledger data for this scope. Current state = intervals still open in the ledger (ended_at IS NULL), i.e. the result of the latest engine scan; check 'Data as of' for its age.",
+      "id": 25,
+      "title": "Data age",
+      "description": "Definition: time since the newest engine scan that finished ok or partial. Every 'now' number on this page is as of that scan. Green within 15 min (3 scans), orange within 1 h, red beyond.\nFilters: none.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "ttv-postgres"
       },
       "gridPos": {
-        "x": 15,
+        "x": 21,
         "y": 1,
-        "w": 9,
+        "w": 3,
         "h": 4
       },
       "targets": [
@@ -381,48 +594,183 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT CASE WHEN count(*) = 0 THEN NULL\n            ELSE coalesce(sum(i.gpus) FILTER (WHERE i.category = 'UNKNOWN'), 0) END AS \"UNKNOWN GPUs\",\n       sum(i.gpus) AS \"GPUs in scope\",\n       CASE WHEN count(*) = 0 THEN NULL\n            ELSE coalesce(sum(i.gpus) FILTER (WHERE i.category = 'UNKNOWN'), 0)::float / sum(i.gpus) END AS \"UNKNOWN share\",\n       (SELECT count(*)\n          FROM assets a\n         WHERE a.gpu_count IS NULL\n           AND NOT EXISTS (SELECT 1 FROM capacity_intervals j WHERE j.asset_id = a.asset_id AND j.ended_at IS NULL)\n           AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))) AS \"Servers, GPU count unread\"\nFROM capacity_intervals i\nJOIN assets a ON a.asset_id = i.asset_id\nWHERE i.ended_at IS NULL\n  AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))"
+          "rawSql": "SELECT extract(epoch FROM now() - max(finished_at)) AS \"Data age\"\nFROM scan_runs\nWHERE status IN ('ok', 'partial') AND finished_at IS NOT NULL"
         }
       ],
+      "options": {
+        "reduceOptions": {
+          "values": true,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "limit": 1
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "text": {
+          "titleSize": 14,
+          "valueSize": 40
+        }
+      },
       "fieldConfig": {
         "defaults": {
-          "unit": "none",
-          "decimals": 0,
+          "unit": "s",
           "color": {
-            "mode": "fixed",
-            "fixedColor": "purple"
+            "mode": "thresholds"
           },
-          "noValue": "No data"
+          "noValue": "no scan yet",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 900
+              },
+              {
+                "color": "red",
+                "value": 3600
+              }
+            ]
+          },
+          "links": [
+            {
+              "title": "Evidence",
+              "url": "/d/ttv-evidence?${__url_time_range}"
+            }
+          ]
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "table",
+      "id": 26,
+      "title": "Stage queues now (pipeline order)",
+      "description": "Definition: the four handoff queues in pipeline order. Per stage owner: idle GPUs now; overdue GPUs (idle past the stage objective of the interval's own policy version); servers waiting; the oldest and median wait among their current stage episodes; idle GPUs with no price at the snapshot; the objective; the idle value per hour at the selected snapshot; and the reason holding the most GPUs.\n'≥' marks waits that began before observation (minimums). Value '≥' means some GPUs are unpriced.\nFilters: site (all four owners always show; stage_owner does not apply).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 24,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH owners(owner, ord) AS (VALUES ('DC', 1), ('Redbull', 2), ('POPAI', 3), ('Serving', 4)),\niv AS (\n  SELECT i.stage_owner, i.asset_id, i.stage_entered_at, i.stage_entered_lower_bound AS lb, i.gpus, i.reason_code,\n         o.objective, r.per_gpu_hour_usd AS rate\n  FROM capacity_intervals i\nJOIN assets a ON a.asset_id = i.asset_id\n  LEFT JOIN stage_objectives o ON o.stage = i.stage AND o.policy_version = i.policy_version\n  LEFT JOIN gpu_model_aliases ga ON ga.raw_model = i.gpu_model\nLEFT JOIN pricing_rates r ON r.snapshot_id = '${snapshot}' AND r.gpu_model = ga.canonical\n  WHERE i.ended_at IS NULL AND i.category = 'IDLE' AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))\n), ep AS (\n  SELECT stage_owner, asset_id, stage_entered_at, bool_or(lb) AS lb\n  FROM iv GROUP BY stage_owner, asset_id, stage_entered_at\n), agg AS (\n  SELECT stage_owner,\n         sum(gpus) AS gpus,\n         coalesce(sum(gpus) FILTER (WHERE objective IS NOT NULL AND now() > stage_entered_at + objective), 0) AS overdue,\n         max(extract(epoch FROM objective)) / 86400 AS objective_d,\n         sum(gpus * rate) AS usd,\n         coalesce(sum(gpus) FILTER (WHERE rate IS NULL), 0) AS unpriced\n  FROM iv GROUP BY stage_owner\n), waits AS (\n  SELECT stage_owner, count(*) AS servers, bool_or(lb) AS lb,\n         max(extract(epoch FROM now() - stage_entered_at)) / 86400 AS oldest_d,\n         percentile_cont(0.5) WITHIN GROUP (ORDER BY extract(epoch FROM now() - stage_entered_at)) / 86400 AS median_d\n  FROM ep GROUP BY stage_owner\n), top_reason AS (\n  SELECT DISTINCT ON (stage_owner) stage_owner, reason_code\n  FROM (SELECT stage_owner, reason_code, sum(gpus) AS g FROM iv GROUP BY 1, 2) x\n  ORDER BY stage_owner, g DESC, reason_code\n)\nSELECT ow.owner AS \"Stage owner\",\n       CASE WHEN EXISTS (SELECT 1 FROM scan_runs WHERE status IN ('ok', 'partial') AND finished_at IS NOT NULL) THEN coalesce(g.gpus, 0) END AS \"Idle GPUs\",\n       CASE WHEN EXISTS (SELECT 1 FROM scan_runs WHERE status IN ('ok', 'partial') AND finished_at IS NOT NULL) THEN coalesce(g.overdue, 0) END AS \"Overdue GPUs\",\n       w.servers AS \"Servers\",\n       CASE WHEN w.lb THEN '≥ ' ELSE '' END || to_char(w.oldest_d, 'FM99990.0') || ' d' AS \"Oldest wait\",\n       CASE WHEN w.lb THEN '≥ ' ELSE '' END || to_char(w.median_d, 'FM99990.0') || ' d' AS \"Median wait\",\n       to_char(g.objective_d, 'FM9990.##') || ' d' AS \"Objective\",\n       CASE WHEN g.gpus IS NULL THEN NULL\n            WHEN g.usd IS NULL THEN 'unpriced'\n            ELSE CASE WHEN g.unpriced > 0 THEN '≥ ' ELSE '' END || '$' || to_char(g.usd, 'FM999,999,990') END AS \"Idle value / h\",\n       CASE WHEN g.gpus IS NOT NULL THEN g.unpriced END AS \"Unpriced GPUs\",\n       t.reason_code AS \"Main reason\"\nFROM owners ow\nLEFT JOIN agg g ON g.stage_owner = ow.owner\nLEFT JOIN waits w ON w.stage_owner = ow.owner\nLEFT JOIN top_reason t ON t.stage_owner = ow.owner\nORDER BY ow.ord"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        },
+        "sortBy": []
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false,
+            "wrapHeaderText": false
+          },
+          "noValue": "no rows"
         },
         "overrides": [
           {
             "matcher": {
               "id": "byName",
-              "options": "GPUs in scope"
+              "options": "Stage owner"
             },
             "properties": [
               {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "text"
-                }
+                "id": "custom.width",
+                "value": 120
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Queue for ${__value.raw}",
+                    "url": "/d/ttv-queues?var-stage_owner=${__value.raw}&${__url_time_range}&${site:queryparam}"
+                  }
+                ]
               }
             ]
           },
           {
             "matcher": {
               "id": "byName",
-              "options": "UNKNOWN share"
+              "options": "Idle GPUs"
             },
             "properties": [
               {
-                "id": "unit",
-                "value": "percentunit"
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic",
+                  "valueDisplayMode": "text"
+                }
               },
               {
-                "id": "decimals",
-                "value": 1
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "custom.width",
+                "value": 200
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Overdue GPUs"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
               },
               {
                 "id": "color",
@@ -436,72 +784,203 @@
                   "mode": "absolute",
                   "steps": [
                     {
-                      "color": "purple",
+                      "color": "text",
                       "value": null
                     },
                     {
-                      "color": "text",
-                      "value": 0
-                    },
-                    {
-                      "color": "orange",
-                      "value": 0.05
-                    },
-                    {
                       "color": "red",
-                      "value": 0.25
+                      "value": 1
                     }
                   ]
                 }
+              },
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "custom.width",
+                "value": 120
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Servers"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "custom.width",
+                "value": 90
+              },
+              {
+                "id": "noValue",
+                "value": "0"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Oldest wait"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "noValue",
+                "value": "—"
+              },
+              {
+                "id": "custom.width",
+                "value": 110
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Objective"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "noValue",
+                "value": "—"
+              },
+              {
+                "id": "custom.width",
+                "value": 100
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Idle value / h"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "noValue",
+                "value": "—"
+              },
+              {
+                "id": "custom.width",
+                "value": 120
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Main reason"
+            },
+            "properties": [
+              {
+                "id": "noValue",
+                "value": "—"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Median wait"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "noValue",
+                "value": "—"
+              },
+              {
+                "id": "custom.width",
+                "value": 100
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Unpriced GPUs"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "custom.width",
+                "value": 110
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "text",
+                      "value": null
+                    },
+                    {
+                      "color": "purple",
+                      "value": 1
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "noValue",
+                "value": "—"
               }
             ]
           }
         ]
-      },
-      "options": {
-        "reduceOptions": {
-          "values": false,
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": ""
-        },
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "textMode": "value_and_name",
-        "orientation": "auto",
-        "wideLayout": true,
-        "showPercentChange": false
       }
     },
     {
-      "type": "row",
-      "id": 6,
-      "title": "Now: GPUs by category",
-      "collapsed": false,
-      "panels": [],
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 5
-      }
-    },
-    {
-      "type": "bargauge",
-      "id": 7,
-      "title": "Idle GPUs now, by stage owner",
-      "description": "Definition: sum(gpus) of open IDLE intervals, grouped by stage_owner (the team accountable for the stage the GPUs wait in; a next-action annotation never changes it). Owners seen in the ledger with no idle GPUs now show 0 when the scope has open intervals.\nUnits: physical GPUs.\nFilters: site, stage_owner.\nUnknown vs zero: 0 means the latest scan classified no GPU of that owner as idle. UNKNOWN GPUs are not in these bars (see 'UNKNOWN GPUs'); 'No data' means the ledger has no open intervals at all. Current state = intervals still open in the ledger (ended_at IS NULL), i.e. the result of the latest engine scan; check 'Data as of' for its age.",
+      "type": "barchart",
+      "id": 27,
+      "title": "How long idle GPUs have waited, by stage owner",
+      "description": "Definition: idle GPUs now, by stage owner (pipeline order) and by how long their current stage episode has lasted (now − stage_entered_at). Waits that began before observation are counted at their observed length, so the true distribution is further right.\nFilters: site, stage_owner.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "ttv-postgres"
       },
       "gridPos": {
         "x": 0,
-        "y": 6,
-        "w": 12,
-        "h": 7
+        "y": 12,
+        "w": 10,
+        "h": 11
       },
       "targets": [
         {
@@ -513,35 +992,389 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "WITH owners AS (\n  SELECT DISTINCT coalesce(stage_owner, '(no owner)') AS stage_owner\n  FROM capacity_intervals\n  WHERE category = 'IDLE'\n), cur AS (\n  SELECT coalesce(i.stage_owner, '(no owner)') AS stage_owner, sum(i.gpus) AS gpus\n  FROM capacity_intervals i\n  JOIN assets a ON a.asset_id = i.asset_id\n  WHERE i.ended_at IS NULL AND i.category = 'IDLE'\n    AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))\n  GROUP BY 1\n)\nSELECT o.stage_owner, coalesce(c.gpus, 0) AS idle_gpus\nFROM owners o\nLEFT JOIN cur c ON c.stage_owner = o.stage_owner\nWHERE ('__all__' IN ($stage_owner) OR o.stage_owner IN ($stage_owner))\n  AND EXISTS (SELECT 1 FROM capacity_intervals i JOIN assets a ON a.asset_id = i.asset_id\n              WHERE i.ended_at IS NULL AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site)))\nORDER BY idle_gpus DESC, o.stage_owner"
+          "rawSql": "WITH owners(owner, ord) AS (VALUES ('DC', 1), ('Redbull', 2), ('POPAI', 3), ('Serving', 4)),\niv AS (\n  SELECT i.stage_owner, i.gpus, extract(epoch FROM now() - i.stage_entered_at) / 86400 AS d\n  FROM capacity_intervals i\nJOIN assets a ON a.asset_id = i.asset_id\n  WHERE i.ended_at IS NULL AND i.category = 'IDLE' AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site)) AND ('__all__' IN ($stage_owner) OR i.stage_owner IN ($stage_owner))\n)\nSELECT ow.owner AS \"Stage owner\",\n       coalesce(sum(iv.gpus) FILTER (WHERE iv.d < 1), 0) AS \"< 1 d\",\n       coalesce(sum(iv.gpus) FILTER (WHERE iv.d >= 1 AND iv.d < 3), 0) AS \"1–3 d\",\n       coalesce(sum(iv.gpus) FILTER (WHERE iv.d >= 3 AND iv.d < 7), 0) AS \"3–7 d\",\n       coalesce(sum(iv.gpus) FILTER (WHERE iv.d >= 7 AND iv.d < 30), 0) AS \"7–30 d\",\n       coalesce(sum(iv.gpus) FILTER (WHERE iv.d >= 30), 0) AS \"≥ 30 d\"\nFROM owners ow\nLEFT JOIN iv ON iv.stage_owner = ow.owner\nWHERE EXISTS (SELECT 1 FROM scan_runs WHERE status IN ('ok', 'partial') AND finished_at IS NOT NULL)\nGROUP BY ow.owner, ow.ord\nORDER BY ow.ord"
         }
       ],
+      "options": {
+        "orientation": "horizontal",
+        "xField": "Stage owner",
+        "stacking": "normal",
+        "showValue": "never",
+        "groupWidth": 0.7,
+        "barWidth": 0.9,
+        "barRadius": 0,
+        "fullHighlight": false,
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0,
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
       "fieldConfig": {
         "defaults": {
-          "displayName": "${__data.fields.stage_owner}",
+          "unit": "none",
+          "decimals": 0,
+          "min": 0,
+          "noValue": "no scan yet",
+          "custom": {
+            "fillOpacity": 85,
+            "lineWidth": 0,
+            "gradientMode": "none",
+            "axisLabel": "GPUs",
+            "axisPlacement": "auto"
+          },
           "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "purple",
-                "value": null
-              },
-              {
-                "color": "orange",
-                "value": 0
-              }
-            ]
-          },
-          "noValue": "No ledger data yet"
+            "mode": "fixed",
+            "fixedColor": "orange"
+          }
         },
         "overrides": [
           {
             "matcher": {
               "id": "byName",
-              "options": "idle_gpus"
+              "options": "< 1 d"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "super-light-orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "1–3 d"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "light-orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "3–7 d"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "7–30 d"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "dark-orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "≥ 30 d"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "table",
+      "id": 15,
+      "title": "Why: GPUs by category and reason now",
+      "description": "Definition: sum(gpus) and distinct assets of open intervals, grouped by category, reason_code and stage owner. Categories are mutually exclusive per GPU, so GPUs add up to 'GPUs in scope' (with the same filters).\nUnits: physical GPUs; share = GPUs / all GPUs in the table.\nFilters: site, stage_owner (selecting an owner keeps only that owner's IDLE rows; rows with no owner show only under All).\nUnknown vs zero: UNKNOWN rows are GPUs we cannot classify, kept visible and never folded into IDLE or PRODUCTIVE. A reason absent from the table has 0 GPUs in the latest scan. Current state = intervals still open in the ledger (ended_at IS NULL), i.e. the result of the latest engine scan; check 'Data as of' for its age.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 10,
+        "y": 12,
+        "w": 14,
+        "h": 11
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT i.category AS \"Category\",\n       i.reason_code AS \"Reason\",\n       coalesce(i.stage_owner, '—') AS \"Stage owner\",\n       sum(i.gpus) AS \"GPUs\",\n       count(DISTINCT i.asset_id) AS \"Assets\",\n       sum(i.gpus)::float / sum(sum(i.gpus)) OVER () AS \"Share of GPUs\"\nFROM capacity_intervals i\nJOIN assets a ON a.asset_id = i.asset_id\nWHERE i.ended_at IS NULL\n  AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))\n  AND ('__all__' IN ($stage_owner) OR i.stage_owner IN ($stage_owner))\nGROUP BY i.category, i.reason_code, i.stage_owner\nORDER BY CASE i.category WHEN 'IDLE' THEN 1 WHEN 'UNKNOWN' THEN 2 WHEN 'PRODUCTIVE' THEN 3 ELSE 4 END,\n         sum(i.gpus) DESC, i.reason_code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          },
+          "unit": "none",
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Category"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "PRODUCTIVE": {
+                        "color": "green",
+                        "index": 0
+                      },
+                      "IDLE": {
+                        "color": "orange",
+                        "index": 1
+                      },
+                      "UNKNOWN": {
+                        "color": "purple",
+                        "index": 2
+                      },
+                      "NOT_CHARGED": {
+                        "color": "blue",
+                        "index": 3
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Share of GPUs"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "GPUs"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Reason"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 190
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Stage owner"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 90
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "GPUs"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 150
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Assets"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "custom.width",
+                "value": 70
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Share of GPUs"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "custom.width",
+                "value": 95
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Category"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 105
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        },
+        "sortBy": []
+      }
+    },
+    {
+      "type": "table",
+      "id": 14,
+      "title": "Longest waits (current idle stage episodes)",
+      "description": "Definition: one row per asset and current stage episode with open IDLE intervals; 'Idle GPUs' sums the asset's idle buckets in that stage now, 'Reason' lists their reason codes. 'In stage since' is stage_entered_at; 'Idle GPU-h in stage' sums every IDLE interval of the same episode (same asset, stage and stage_entered_at) from its start to now, not limited to the time range. Sorted by days in stage, longest first; top 50.\nUnits: GPUs, days, GPU-h. Times in UTC.\nFilters: site, stage_owner.\nUnknown vs zero: '≥' marks a stage that began before observation (stage_entered_lower_bound), so since, days and GPU-h are minimums. Next-action owner/reason come from the newest unexpired next_action_annotations row and are display only: they never change the stage owner or any total; empty = no annotation, not 'no action needed'. Current state = intervals still open in the ledger (ended_at IS NULL), i.e. the result of the latest engine scan; check 'Data as of' for its age. 'Cluster' is the target cluster once the node is known; 'Held by' names the workload holding idle GPUs (namespace/Kind/name) for the GPU-level rows, empty when nothing holds them.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 23,
+        "w": 24,
+        "h": 13
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH cur AS (\n  SELECT i.asset_id, i.stage, i.stage_owner, i.stage_entered_at,\n         i.stage_entered_lower_bound AS lb,\n         sum(i.gpus) AS gpus,\n         string_agg(DISTINCT i.reason_code, ', ') AS reasons,\n         string_agg(DISTINCT i.gpu_model, ', ') AS gpu_models,\n         string_agg(DISTINCT i.cluster, ', ') AS clusters,\n         string_agg(DISTINCT i.holder_ref, ', ') AS holders\n  FROM capacity_intervals i\n  JOIN assets a ON a.asset_id = i.asset_id\n  WHERE i.ended_at IS NULL AND i.category = 'IDLE'\n    AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))\n    AND ('__all__' IN ($stage_owner) OR i.stage_owner IN ($stage_owner))\n  GROUP BY i.asset_id, i.stage, i.stage_owner, i.stage_entered_at, i.stage_entered_lower_bound\n), ep AS (\n  SELECT c.asset_id, c.stage, c.stage_entered_at,\n         sum(j.gpus * extract(epoch FROM coalesce(j.ended_at, now()) - j.started_at)) / 3600 AS gpu_h\n  FROM cur c\n  JOIN capacity_intervals j\n    ON j.asset_id = c.asset_id\n   AND j.category = 'IDLE'\n   AND j.stage IS NOT DISTINCT FROM c.stage\n   AND j.stage_entered_at IS NOT DISTINCT FROM c.stage_entered_at\n  GROUP BY c.asset_id, c.stage, c.stage_entered_at\n)\nSELECT c.asset_id AS \"Asset\",\n       a.name AS \"Name\",\n       coalesce(c.gpu_models, a.gpu_model) AS \"GPU model\",\n       c.gpus AS \"Idle GPUs\",\n       c.stage_owner AS \"Stage owner\",\n       c.reasons AS \"Reason\",\n       c.clusters AS \"Cluster\",\n       c.holders AS \"Held by\",\n       coalesce(CASE WHEN c.lb THEN '≥ ' ELSE '' END\n                || to_char(c.stage_entered_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI'), 'unknown') AS \"In stage since (UTC)\",\n       coalesce(CASE WHEN c.lb THEN '≥ ' ELSE '' END\n                || to_char(extract(epoch FROM now() - c.stage_entered_at) / 86400, 'FM999990.0'), 'unknown') AS \"Days in stage\",\n       coalesce(CASE WHEN c.lb THEN '≥ ' ELSE '' END\n                || to_char(ep.gpu_h, 'FM9999999990.0'), 'unknown') AS \"Idle GPU-h in stage\",\n       na.next_action_owner AS \"Next-action owner\"\nFROM cur c\nJOIN assets a ON a.asset_id = c.asset_id\nLEFT JOIN ep ON ep.asset_id = c.asset_id\n            AND ep.stage IS NOT DISTINCT FROM c.stage\n            AND ep.stage_entered_at IS NOT DISTINCT FROM c.stage_entered_at\nLEFT JOIN LATERAL (\n  SELECT n.next_action_owner, n.reason\n  FROM next_action_annotations n\n  WHERE n.asset_id = c.asset_id AND n.expires_at > now()\n  ORDER BY n.created_at DESC, n.id DESC\n  LIMIT 1\n) na ON true\nORDER BY now() - c.stage_entered_at DESC NULLS FIRST, c.gpus DESC, c.asset_id\nLIMIT 50"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Idle GPUs"
             },
             "properties": [
               {
@@ -553,316 +1386,300 @@
                 "value": 0
               },
               {
-                "id": "min",
-                "value": 0
+                "id": "custom.width",
+                "value": 80
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Days in stage"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "custom.width",
+                "value": 100
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Idle GPU-h in stage"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "custom.width",
+                "value": 145
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "In stage since (UTC)"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 150
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Asset"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 165
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Name"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 120
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "GPU model"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 90
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Stage owner"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 100
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Reason"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 215
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Next-action owner"
+            },
+            "properties": [
+              {
+                "id": "noValue",
+                "value": "—"
+              },
+              {
+                "id": "custom.width",
+                "value": 130
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Asset"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 170
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Open asset ${__value.raw}",
+                    "url": "/d/ttv-asset?var-asset_id=${__value.raw}&${__url_time_range}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Name"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 230
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "GPU model"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 150
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Stage owner"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 100
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Reason"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 170
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Cluster"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 90
+              },
+              {
+                "id": "noValue",
+                "value": "—"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Held by"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 150
+              },
+              {
+                "id": "noValue",
+                "value": "—"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "In stage since (UTC)"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 150
+              },
+              {
+                "id": "custom.align",
+                "value": "right"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Idle GPU-h in stage"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 130
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Next-action owner"
+            },
+            "properties": [
+              {
+                "id": "noValue",
+                "value": "—"
               }
             ]
           }
         ]
       },
       "options": {
-        "displayMode": "basic",
-        "orientation": "horizontal",
-        "valueMode": "color",
-        "namePlacement": "left",
-        "showUnfilled": true,
-        "sizing": "auto",
-        "minVizHeight": 16,
-        "minVizWidth": 8,
-        "maxVizHeight": 300,
-        "reduceOptions": {
-          "values": true,
-          "calcs": [],
-          "fields": "",
-          "limit": 50
-        },
-        "legend": {
-          "showLegend": false,
-          "displayMode": "list",
-          "placement": "bottom",
-          "calcs": []
-        }
-      }
-    },
-    {
-      "type": "stat",
-      "id": 8,
-      "title": "PRODUCTIVE GPUs",
-      "description": "Definition: sum(gpus) of open PRODUCTIVE intervals. Productive per AGENT.md §0.2 (Run:ai workload, serving with genuine requests).\nUnits: physical GPUs.\nFilters: site (stage_owner does not apply: PRODUCTIVE GPUs have no stage owner).\nUnknown vs zero: 0 = the latest scan classified no GPU as PRODUCTIVE; no value (purple) = no open intervals for this scope. Current state = intervals still open in the ledger (ended_at IS NULL), i.e. the result of the latest engine scan; check 'Data as of' for its age.",
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "ttv-postgres"
-      },
-      "gridPos": {
-        "x": 12,
-        "y": 6,
-        "w": 4,
-        "h": 7
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "ttv-postgres"
-          },
-          "editorMode": "code",
-          "format": "table",
-          "rawQuery": true,
-          "rawSql": "SELECT CASE WHEN count(*) = 0 THEN NULL\n            ELSE coalesce(sum(i.gpus) FILTER (WHERE i.category = 'PRODUCTIVE'), 0) END AS gpus\nFROM capacity_intervals i\nJOIN assets a ON a.asset_id = i.asset_id\nWHERE i.ended_at IS NULL\n  AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "decimals": 0,
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "purple",
-                "value": null
-              },
-              {
-                "color": "green",
-                "value": 0
-              }
-            ]
-          },
-          "noValue": "No data"
-        },
-        "overrides": []
-      },
-      "options": {
-        "reduceOptions": {
-          "values": false,
-          "calcs": [
-            "lastNotNull"
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
           ],
-          "fields": "/^gpus$/"
+          "countRows": false,
+          "fields": ""
         },
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "textMode": "auto",
-        "orientation": "auto",
-        "wideLayout": true,
-        "showPercentChange": false
-      }
-    },
-    {
-      "type": "stat",
-      "id": 9,
-      "title": "UNKNOWN GPUs",
-      "description": "Definition: sum(gpus) of open UNKNOWN intervals. GPUs whose state cannot be determined (stale or failed source, identity conflict, cluster not observed). They are never counted as idle or productive; reasons are on the Evidence dashboard.\nUnits: physical GPUs.\nFilters: site (stage_owner does not apply: UNKNOWN GPUs have no stage owner).\nUnknown vs zero: 0 = the latest scan classified no GPU as UNKNOWN; no value (purple) = no open intervals for this scope. Current state = intervals still open in the ledger (ended_at IS NULL), i.e. the result of the latest engine scan; check 'Data as of' for its age.",
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "ttv-postgres"
-      },
-      "gridPos": {
-        "x": 16,
-        "y": 6,
-        "w": 4,
-        "h": 7
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "ttv-postgres"
-          },
-          "editorMode": "code",
-          "format": "table",
-          "rawQuery": true,
-          "rawSql": "SELECT CASE WHEN count(*) = 0 THEN NULL\n            ELSE coalesce(sum(i.gpus) FILTER (WHERE i.category = 'UNKNOWN'), 0) END AS gpus\nFROM capacity_intervals i\nJOIN assets a ON a.asset_id = i.asset_id\nWHERE i.ended_at IS NULL\n  AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "decimals": 0,
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "purple",
-                "value": null
-              },
-              {
-                "color": "purple",
-                "value": 0
-              }
-            ]
-          },
-          "noValue": "No data"
-        },
-        "overrides": []
-      },
-      "options": {
-        "reduceOptions": {
-          "values": false,
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "/^gpus$/"
-        },
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "textMode": "auto",
-        "orientation": "auto",
-        "wideLayout": true,
-        "showPercentChange": false
-      }
-    },
-    {
-      "type": "stat",
-      "id": 10,
-      "title": "NOT_CHARGED GPUs",
-      "description": "Definition: sum(gpus) of open NOT_CHARGED intervals. Excluded or out of scope by policy (exclusion list, outside target clusters); approved, not waste.\nUnits: physical GPUs.\nFilters: site (stage_owner does not apply: NOT_CHARGED GPUs have no stage owner).\nUnknown vs zero: 0 = the latest scan classified no GPU as NOT_CHARGED; no value (purple) = no open intervals for this scope. Current state = intervals still open in the ledger (ended_at IS NULL), i.e. the result of the latest engine scan; check 'Data as of' for its age.",
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "ttv-postgres"
-      },
-      "gridPos": {
-        "x": 20,
-        "y": 6,
-        "w": 4,
-        "h": 7
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "ttv-postgres"
-          },
-          "editorMode": "code",
-          "format": "table",
-          "rawQuery": true,
-          "rawSql": "SELECT CASE WHEN count(*) = 0 THEN NULL\n            ELSE coalesce(sum(i.gpus) FILTER (WHERE i.category = 'NOT_CHARGED'), 0) END AS gpus\nFROM capacity_intervals i\nJOIN assets a ON a.asset_id = i.asset_id\nWHERE i.ended_at IS NULL\n  AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "decimals": 0,
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "purple",
-                "value": null
-              },
-              {
-                "color": "blue",
-                "value": 0
-              }
-            ]
-          },
-          "noValue": "No data"
-        },
-        "overrides": []
-      },
-      "options": {
-        "reduceOptions": {
-          "values": false,
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "/^gpus$/"
-        },
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "textMode": "auto",
-        "orientation": "auto",
-        "wideLayout": true,
-        "showPercentChange": false
+        "sortBy": []
       }
     },
     {
       "type": "row",
       "id": 16,
-      "title": "Now: AWS-equivalent value in USD (On-Demand comparison, not a bill or a loss)",
-      "collapsed": false,
-      "panels": [],
+      "title": "Now: AWS-equivalent value (On-Demand comparison, not a bill or a loss)",
       "gridPos": {
-        "h": 1,
+        "x": 0,
+        "y": 36,
         "w": 24,
-        "x": 0,
-        "y": 13
-      }
-    },
-    {
-      "type": "stat",
-      "id": 17,
-      "title": "Idle value per hour now (USD, AWS On-Demand)",
-      "description": "Definition: sum over GPUs idle now (open IDLE intervals) of the per-GPU-hour rate of each GPU's model in the selected snapshot. Snapshot in use: ${snapshot}; its publication date is shown under the value.\nUnits: USD per hour (linear capacity equivalent: 8 idle GPUs of an 8-GPU instance = one instance-hour, never eight).\nFilters: site, stage_owner, snapshot.\nUnknown vs zero: no value = no idle GPU could be priced; see 'Unpriced idle GPUs now'. Unpriced GPUs are excluded from this sum, so it is a lower bound when that panel is above 0. AWS-equivalent value is a comparison: what the same GPU-hours would cost at AWS On-Demand (Linux, shared tenancy, us-east-1). It is not a bill, not our cost and not a proven loss (AGENT.md §10). Per-GPU rate = whole instance price / physical GPUs, so it includes the host's share and is not a GPU-only tariff; similar GPU names do not prove equal performance.",
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "ttv-postgres"
+        "h": 1
       },
-      "gridPos": {
-        "x": 0,
-        "y": 14,
-        "w": 7,
-        "h": 6
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "ttv-postgres"
-          },
-          "editorMode": "code",
-          "format": "table",
-          "rawQuery": true,
-          "rawSql": "SELECT (SELECT sum(i.gpus * r.per_gpu_hour_usd)\n        FROM capacity_intervals i\n        JOIN assets a ON a.asset_id = i.asset_id\n        LEFT JOIN gpu_model_aliases ga ON ga.raw_model = i.gpu_model\n        LEFT JOIN pricing_rates r ON r.snapshot_id = '${snapshot}' AND r.gpu_model = ga.canonical\n        WHERE i.ended_at IS NULL AND i.category = 'IDLE'\n          AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))\n          AND ('__all__' IN ($stage_owner) OR i.stage_owner IN ($stage_owner))) AS usd_per_hour,\n       coalesce((SELECT region || ' snapshot, published '\n                        || to_char(publication_date AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI') || ' UTC'\n                 FROM pricing_snapshots WHERE snapshot_id = '${snapshot}'),\n                'no pricing snapshot imported') AS snapshot"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "prefix:$",
-          "decimals": 2,
-          "displayName": "${__data.fields.snapshot}",
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "orange"
-          },
-          "noValue": "nothing priced (see Unpriced idle GPUs)"
-        },
-        "overrides": []
-      },
-      "options": {
-        "reduceOptions": {
-          "values": true,
-          "calcs": [],
-          "fields": "",
-          "limit": 1
-        },
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "textMode": "value_and_name",
-        "orientation": "auto",
-        "wideLayout": true,
-        "showPercentChange": false,
-        "text": {
-          "titleSize": 14
-        }
-      }
+      "collapsed": false,
+      "panels": []
     },
     {
       "type": "stat",
@@ -874,8 +1691,8 @@
         "uid": "ttv-postgres"
       },
       "gridPos": {
-        "x": 7,
-        "y": 14,
+        "x": 0,
+        "y": 37,
         "w": 5,
         "h": 6
       },
@@ -930,7 +1747,11 @@
         "textMode": "auto",
         "orientation": "auto",
         "wideLayout": true,
-        "showPercentChange": false
+        "showPercentChange": false,
+        "text": {
+          "titleSize": 14,
+          "valueSize": 40
+        }
       }
     },
     {
@@ -943,9 +1764,9 @@
         "uid": "ttv-postgres"
       },
       "gridPos": {
-        "x": 12,
-        "y": 14,
-        "w": 12,
+        "x": 5,
+        "y": 37,
+        "w": 19,
         "h": 6
       },
       "targets": [
@@ -1063,15 +1884,15 @@
     {
       "type": "row",
       "id": 11,
-      "title": "Selected period: idle and overdue GPU-hours",
-      "collapsed": false,
-      "panels": [],
+      "title": "Selected period: idle and overdue time and value",
       "gridPos": {
-        "h": 1,
-        "w": 24,
         "x": 0,
-        "y": 20
-      }
+        "y": 43,
+        "w": 24,
+        "h": 1
+      },
+      "collapsed": false,
+      "panels": []
     },
     {
       "type": "table",
@@ -1084,7 +1905,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 21,
+        "y": 44,
         "w": 24,
         "h": 7
       },
@@ -1098,7 +1919,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "WITH w AS (\n  SELECT $__timeFrom()::timestamptz AS t0, least($__timeTo()::timestamptz, now()) AS t1\n), iv AS (\n  SELECT coalesce(i.stage_owner, '(no owner)') AS stage_owner,\n         i.gpus,\n         i.stage_entered_lower_bound AS lb,\n         greatest(i.started_at, w.t0) AS s,\n         least(coalesce(i.ended_at, now()), w.t1) AS e,\n         CASE WHEN o.objective IS NULL OR i.stage_entered_at IS NULL THEN NULL\n              ELSE greatest(i.started_at, i.stage_entered_at + o.objective, w.t0) END AS os,\n         r.per_gpu_hour_usd AS rate\n  FROM capacity_intervals i\n  JOIN assets a ON a.asset_id = i.asset_id\n  LEFT JOIN stage_objectives o ON o.stage = i.stage AND o.policy_version = i.policy_version\n  LEFT JOIN gpu_model_aliases ga ON ga.raw_model = i.gpu_model\n  LEFT JOIN pricing_rates r ON r.snapshot_id = '${snapshot}' AND r.gpu_model = ga.canonical\n  CROSS JOIN w\n  WHERE i.category = 'IDLE'\n    AND i.started_at < w.t1\n    AND coalesce(i.ended_at, now()) > w.t0\n    AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))\n    AND ('__all__' IN ($stage_owner) OR i.stage_owner IN ($stage_owner))\n), owners AS (\n  SELECT DISTINCT coalesce(i.stage_owner, '(no owner)') AS stage_owner\n  FROM capacity_intervals i\n  WHERE i.category = 'IDLE' AND ('__all__' IN ($stage_owner) OR i.stage_owner IN ($stage_owner))\n), agg AS (\n  SELECT stage_owner,\n         sum(gpus * extract(epoch FROM e - s)) / 3600 AS idle_h,\n         sum(gpus * extract(epoch FROM greatest(e - os, interval '0'))) FILTER (WHERE os IS NOT NULL) / 3600 AS overdue_h,\n         bool_or(lb) AS any_lb,\n         coalesce(sum(gpus * extract(epoch FROM e - s)) FILTER (WHERE os IS NULL), 0) / 3600 AS no_objective_h,\n         sum(gpus * extract(epoch FROM e - s) * rate) / 3600 AS idle_usd,\n         sum(gpus * extract(epoch FROM greatest(e - os, interval '0')) * rate) FILTER (WHERE os IS NOT NULL) / 3600 AS overdue_usd,\n         coalesce(sum(gpus * extract(epoch FROM e - s)) FILTER (WHERE rate IS NULL), 0) / 3600 AS unpriced_h\n  FROM iv\n  GROUP BY stage_owner\n)\nSELECT o.stage_owner AS \"Stage owner\",\n       coalesce(g.idle_h, 0) AS \"Idle GPU-h\",\n       CASE WHEN g.stage_owner IS NULL THEN 0 ELSE g.overdue_h END AS \"Overdue GPU-h\",\n       CASE WHEN g.any_lb THEN '≥ (stage began before observation)' ELSE 'observed' END AS \"Stage clock\",\n       coalesce(g.no_objective_h, 0) AS \"Idle GPU-h, no objective\",\n       CASE WHEN g.stage_owner IS NULL THEN 0 ELSE g.idle_usd END AS \"Idle value (USD)\",\n       CASE WHEN g.stage_owner IS NULL THEN 0 ELSE g.overdue_usd END AS \"Overdue value (USD)\",\n       coalesce(g.unpriced_h, 0) AS \"Unpriced idle GPU-h\"\nFROM owners o\nLEFT JOIN agg g ON g.stage_owner = o.stage_owner\nWHERE EXISTS (SELECT 1 FROM capacity_intervals i JOIN assets a ON a.asset_id = i.asset_id CROSS JOIN w\n              WHERE i.started_at < w.t1 AND coalesce(i.ended_at, now()) > w.t0 AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site)))\nORDER BY 3 DESC NULLS LAST, 2 DESC, 1"
+          "rawSql": "WITH w AS (\n  SELECT $__timeFrom()::timestamptz AS t0, least($__timeTo()::timestamptz, now()) AS t1\n), iv AS (\n  SELECT coalesce(i.stage_owner, '(no owner)') AS stage_owner,\n         i.gpus,\n         i.stage_entered_lower_bound AS lb,\n         greatest(i.started_at, w.t0) AS s,\n         least(coalesce(i.ended_at, now()), w.t1) AS e,\n         CASE WHEN o.objective IS NULL OR i.stage_entered_at IS NULL THEN NULL\n              ELSE greatest(i.started_at, i.stage_entered_at + o.objective, w.t0) END AS os,\n         r.per_gpu_hour_usd AS rate\n  FROM capacity_intervals i\n  JOIN assets a ON a.asset_id = i.asset_id\n  LEFT JOIN stage_objectives o ON o.stage = i.stage AND o.policy_version = i.policy_version\n  LEFT JOIN gpu_model_aliases ga ON ga.raw_model = i.gpu_model\n  LEFT JOIN pricing_rates r ON r.snapshot_id = '${snapshot}' AND r.gpu_model = ga.canonical\n  CROSS JOIN w\n  WHERE i.category = 'IDLE'\n    AND i.started_at < w.t1\n    AND coalesce(i.ended_at, now()) > w.t0\n    AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))\n    AND ('__all__' IN ($stage_owner) OR i.stage_owner IN ($stage_owner))\n), owners AS (\n  SELECT DISTINCT coalesce(i.stage_owner, '(no owner)') AS stage_owner\n  FROM capacity_intervals i\n  WHERE i.category = 'IDLE' AND ('__all__' IN ($stage_owner) OR i.stage_owner IN ($stage_owner))\n), agg AS (\n  SELECT stage_owner,\n         sum(gpus * extract(epoch FROM e - s)) / 3600 AS idle_h,\n         sum(gpus * extract(epoch FROM greatest(e - os, interval '0'))) FILTER (WHERE os IS NOT NULL) / 3600 AS overdue_h,\n         bool_or(lb) AS any_lb,\n         coalesce(sum(gpus * extract(epoch FROM e - s)) FILTER (WHERE os IS NULL), 0) / 3600 AS no_objective_h,\n         sum(gpus * extract(epoch FROM e - s) * rate) / 3600 AS idle_usd,\n         sum(gpus * extract(epoch FROM greatest(e - os, interval '0')) * rate) FILTER (WHERE os IS NOT NULL) / 3600 AS overdue_usd,\n         coalesce(sum(gpus * extract(epoch FROM e - s)) FILTER (WHERE rate IS NULL), 0) / 3600 AS unpriced_h\n  FROM iv\n  GROUP BY stage_owner\n)\nSELECT o.stage_owner AS \"Stage owner\",\n       coalesce(g.idle_h, 0) AS \"Idle GPU-h\",\n       CASE WHEN g.stage_owner IS NULL THEN 0 ELSE g.overdue_h END AS \"Overdue GPU-h\",\n       CASE WHEN g.any_lb THEN 'includes waits begun before observation (≥)' ELSE 'fully observed' END AS \"Clock\",\n       coalesce(g.no_objective_h, 0) AS \"Idle GPU-h, no objective\",\n       CASE WHEN g.stage_owner IS NULL THEN 0 ELSE g.idle_usd END AS \"Idle value (USD)\",\n       CASE WHEN g.stage_owner IS NULL THEN 0 ELSE g.overdue_usd END AS \"Overdue value (USD)\",\n       coalesce(g.unpriced_h, 0) AS \"Unpriced idle GPU-h\"\nFROM owners o\nLEFT JOIN agg g ON g.stage_owner = o.stage_owner\nWHERE EXISTS (SELECT 1 FROM capacity_intervals i JOIN assets a ON a.asset_id = i.asset_id CROSS JOIN w\n              WHERE i.started_at < w.t1 AND coalesce(i.ended_at, now()) > w.t0 AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site)))\nORDER BY array_position(ARRAY['DC', 'Redbull', 'POPAI', 'Serving'], o.stage_owner), 1"
         }
       ],
       "fieldConfig": {
@@ -1206,7 +2027,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Stage clock"
+              "options": "Clock"
             },
             "properties": [
               {
@@ -1338,7 +2159,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 28,
+        "y": 51,
         "w": 24,
         "h": 7
       },
@@ -1352,7 +2173,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "WITH w AS (\n  SELECT $__timeFrom()::timestamptz AS t0, least($__timeTo()::timestamptz, now()) AS t1\n), sel AS (\n  SELECT provider, region, purchase_option, currency\n  FROM pricing_snapshots WHERE snapshot_id = '${snapshot}'\n), iv AS (\n  SELECT coalesce(i.stage_owner, '(no owner)') AS stage_owner, i.gpus, i.gpu_model, i.started_at,\n         greatest(i.started_at, w.t0) AS s,\n         least(coalesce(i.ended_at, now()), w.t1) AS e,\n         CASE WHEN o.objective IS NULL OR i.stage_entered_at IS NULL THEN NULL\n              ELSE greatest(i.started_at, i.stage_entered_at + o.objective, w.t0) END AS os\n  FROM capacity_intervals i\n  JOIN assets a ON a.asset_id = i.asset_id\n  LEFT JOIN stage_objectives o ON o.stage = i.stage AND o.policy_version = i.policy_version\n  CROSS JOIN w\n  WHERE i.category = 'IDLE'\n    AND i.started_at < w.t1\n    AND coalesce(i.ended_at, now()) > w.t0\n    AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))\n    AND ('__all__' IN ($stage_owner) OR i.stage_owner IN ($stage_owner))\n), h AS (\n  SELECT iv.stage_owner,\n         iv.gpus * extract(epoch FROM iv.e - iv.s) / 3600 AS idle_h,\n         CASE WHEN iv.os IS NULL THEN NULL\n              ELSE iv.gpus * extract(epoch FROM greatest(iv.e - iv.os, interval '0')) / 3600 END AS overdue_h,\n         now_r.per_gpu_hour_usd AS now_rate,\n         hist_r.per_gpu_hour_usd AS hist_rate,\n         hs.snapshot_id AS hist_snapshot\n  FROM iv\n  LEFT JOIN gpu_model_aliases ga ON ga.raw_model = iv.gpu_model\n  LEFT JOIN pricing_rates now_r\n         ON now_r.snapshot_id = '${snapshot}' AND now_r.gpu_model = ga.canonical\n  LEFT JOIN LATERAL (\n    SELECT p.snapshot_id\n    FROM pricing_snapshots p\n    JOIN sel ON p.provider = sel.provider AND p.region = sel.region\n            AND p.purchase_option = sel.purchase_option AND p.currency = sel.currency\n    WHERE p.publication_date <= iv.started_at\n    ORDER BY p.publication_date DESC, p.captured_at DESC, p.snapshot_id DESC\n    LIMIT 1\n  ) hs ON true\n  LEFT JOIN pricing_rates hist_r\n         ON hist_r.snapshot_id = hs.snapshot_id AND hist_r.gpu_model = ga.canonical\n)\nSELECT stage_owner AS \"Stage owner\",\n       sum(idle_h) AS \"Idle GPU-h\",\n       sum(idle_h * now_rate) AS \"Idle USD, present-day\",\n       sum(idle_h * hist_rate) AS \"Idle USD, historical\",\n       sum(overdue_h * now_rate) AS \"Overdue USD, present-day\",\n       sum(overdue_h * hist_rate) AS \"Overdue USD, historical\",\n       coalesce(sum(idle_h) FILTER (WHERE now_rate IS NULL), 0) AS \"Unpriced GPU-h, present-day\",\n       coalesce(sum(idle_h) FILTER (WHERE hist_rate IS NULL), 0) AS \"Unpriced GPU-h, historical\",\n       coalesce(string_agg(DISTINCT hist_snapshot, ', '), 'none in force') AS \"Historical snapshots\"\nFROM h\nGROUP BY stage_owner\nORDER BY 3 DESC NULLS LAST, 1"
+          "rawSql": "WITH w AS (\n  SELECT $__timeFrom()::timestamptz AS t0, least($__timeTo()::timestamptz, now()) AS t1\n), sel AS (\n  SELECT provider, region, purchase_option, currency\n  FROM pricing_snapshots WHERE snapshot_id = '${snapshot}'\n), iv AS (\n  SELECT coalesce(i.stage_owner, '(no owner)') AS stage_owner, i.gpus, i.gpu_model, i.started_at,\n         greatest(i.started_at, w.t0) AS s,\n         least(coalesce(i.ended_at, now()), w.t1) AS e,\n         CASE WHEN o.objective IS NULL OR i.stage_entered_at IS NULL THEN NULL\n              ELSE greatest(i.started_at, i.stage_entered_at + o.objective, w.t0) END AS os\n  FROM capacity_intervals i\n  JOIN assets a ON a.asset_id = i.asset_id\n  LEFT JOIN stage_objectives o ON o.stage = i.stage AND o.policy_version = i.policy_version\n  CROSS JOIN w\n  WHERE i.category = 'IDLE'\n    AND i.started_at < w.t1\n    AND coalesce(i.ended_at, now()) > w.t0\n    AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))\n    AND ('__all__' IN ($stage_owner) OR i.stage_owner IN ($stage_owner))\n), h AS (\n  SELECT iv.stage_owner,\n         iv.gpus * extract(epoch FROM iv.e - iv.s) / 3600 AS idle_h,\n         CASE WHEN iv.os IS NULL THEN NULL\n              ELSE iv.gpus * extract(epoch FROM greatest(iv.e - iv.os, interval '0')) / 3600 END AS overdue_h,\n         now_r.per_gpu_hour_usd AS now_rate,\n         hist_r.per_gpu_hour_usd AS hist_rate,\n         hs.snapshot_id AS hist_snapshot\n  FROM iv\n  LEFT JOIN gpu_model_aliases ga ON ga.raw_model = iv.gpu_model\n  LEFT JOIN pricing_rates now_r\n         ON now_r.snapshot_id = '${snapshot}' AND now_r.gpu_model = ga.canonical\n  LEFT JOIN LATERAL (\n    SELECT p.snapshot_id\n    FROM pricing_snapshots p\n    JOIN sel ON p.provider = sel.provider AND p.region = sel.region\n            AND p.purchase_option = sel.purchase_option AND p.currency = sel.currency\n    WHERE p.publication_date <= iv.started_at\n    ORDER BY p.publication_date DESC, p.captured_at DESC, p.snapshot_id DESC\n    LIMIT 1\n  ) hs ON true\n  LEFT JOIN pricing_rates hist_r\n         ON hist_r.snapshot_id = hs.snapshot_id AND hist_r.gpu_model = ga.canonical\n)\nSELECT stage_owner AS \"Stage owner\",\n       sum(idle_h) AS \"Idle GPU-h\",\n       sum(idle_h * now_rate) AS \"Idle USD, present-day\",\n       sum(idle_h * hist_rate) AS \"Idle USD, historical\",\n       sum(overdue_h * now_rate) AS \"Overdue USD, present-day\",\n       sum(overdue_h * hist_rate) AS \"Overdue USD, historical\",\n       coalesce(sum(idle_h) FILTER (WHERE now_rate IS NULL), 0) AS \"Unpriced GPU-h, present-day\",\n       coalesce(sum(idle_h) FILTER (WHERE hist_rate IS NULL), 0) AS \"Unpriced GPU-h, historical\",\n       coalesce((SELECT string_agg(DISTINCT to_char(p.publication_date AT TIME ZONE 'UTC', 'YYYY-MM-DD'), ', ')\n                 FROM pricing_snapshots p WHERE p.snapshot_id = ANY (array_agg(h.hist_snapshot))), 'none in force') AS \"Historical price dates\"\nFROM h\nGROUP BY stage_owner\nORDER BY array_position(ARRAY['DC', 'Redbull', 'POPAI', 'Serving'], stage_owner), 1"
         }
       ],
       "fieldConfig": {
@@ -1478,16 +2299,12 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Historical snapshots"
+              "options": "Historical price dates"
             },
             "properties": [
               {
-                "id": "custom.inspect",
-                "value": true
-              },
-              {
                 "id": "custom.width",
-                "value": 220
+                "value": 170
               }
             ]
           },
@@ -1520,32 +2337,19 @@
       }
     },
     {
-      "type": "row",
-      "id": 13,
-      "title": "Now: longest waits and reasons",
-      "collapsed": false,
-      "panels": [],
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 35
-      }
-    },
-    {
-      "type": "table",
-      "id": 14,
-      "title": "Longest waits (current idle stage episodes)",
-      "description": "Definition: one row per asset and current stage episode with open IDLE intervals; 'Idle GPUs' sums the asset's idle buckets in that stage now, 'Reason' lists their reason codes. 'In stage since' is stage_entered_at; 'Idle GPU-h in stage' sums every IDLE interval of the same episode (same asset, stage and stage_entered_at) from its start to now, not limited to the time range. Sorted by days in stage, longest first; top 50.\nUnits: GPUs, days, GPU-h. Times in UTC.\nFilters: site, stage_owner.\nUnknown vs zero: '≥' marks a stage that began before observation (stage_entered_lower_bound), so since, days and GPU-h are minimums. Next-action owner/reason come from the newest unexpired next_action_annotations row and are display only: they never change the stage owner or any total; empty = no annotation, not 'no action needed'. Current state = intervals still open in the ledger (ended_at IS NULL), i.e. the result of the latest engine scan; check 'Data as of' for its age. 'Cluster' is the target cluster once the node is known; 'Held by' names the workload holding idle GPUs (namespace/Kind/name) for the GPU-level rows, empty when nothing holds them.",
+      "type": "timeseries",
+      "id": 28,
+      "title": "Overdue GPUs over time, by stage owner",
+      "description": "Definition: idle GPUs past their stage objective at each point in the time range, sampled from the ledger, one line per stage owner. Rising = a queue falling further behind. The chart starts at the first engine scan.\nFilters: site, stage_owner, time range.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "ttv-postgres"
       },
       "gridPos": {
         "x": 0,
-        "y": 36,
+        "y": 58,
         "w": 24,
-        "h": 9
+        "h": 8
       },
       "targets": [
         {
@@ -1555,342 +2359,111 @@
             "uid": "ttv-postgres"
           },
           "editorMode": "code",
-          "format": "table",
+          "format": "time_series",
           "rawQuery": true,
-          "rawSql": "WITH cur AS (\n  SELECT i.asset_id, i.stage, i.stage_owner, i.stage_entered_at,\n         i.stage_entered_lower_bound AS lb,\n         sum(i.gpus) AS gpus,\n         string_agg(DISTINCT i.reason_code, ', ') AS reasons,\n         string_agg(DISTINCT i.gpu_model, ', ') AS gpu_models,\n         string_agg(DISTINCT i.cluster, ', ') AS clusters,\n         string_agg(DISTINCT i.holder_ref, ', ') AS holders\n  FROM capacity_intervals i\n  JOIN assets a ON a.asset_id = i.asset_id\n  WHERE i.ended_at IS NULL AND i.category = 'IDLE'\n    AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))\n    AND ('__all__' IN ($stage_owner) OR i.stage_owner IN ($stage_owner))\n  GROUP BY i.asset_id, i.stage, i.stage_owner, i.stage_entered_at, i.stage_entered_lower_bound\n), ep AS (\n  SELECT c.asset_id, c.stage, c.stage_entered_at,\n         sum(j.gpus * extract(epoch FROM coalesce(j.ended_at, now()) - j.started_at)) / 3600 AS gpu_h\n  FROM cur c\n  JOIN capacity_intervals j\n    ON j.asset_id = c.asset_id\n   AND j.category = 'IDLE'\n   AND j.stage IS NOT DISTINCT FROM c.stage\n   AND j.stage_entered_at IS NOT DISTINCT FROM c.stage_entered_at\n  GROUP BY c.asset_id, c.stage, c.stage_entered_at\n)\nSELECT c.asset_id AS \"Asset\",\n       a.name AS \"Name\",\n       a.model AS \"Model\",\n       coalesce(c.gpu_models, a.gpu_model) AS \"GPU model\",\n       c.gpus AS \"Idle GPUs\",\n       c.stage_owner AS \"Stage owner\",\n       c.reasons AS \"Reason\",\n       c.clusters AS \"Cluster\",\n       c.holders AS \"Held by\",\n       coalesce(CASE WHEN c.lb THEN '≥ ' ELSE '' END\n                || to_char(c.stage_entered_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI'), 'unknown') AS \"In stage since (UTC)\",\n       coalesce(CASE WHEN c.lb THEN '≥ ' ELSE '' END\n                || to_char(extract(epoch FROM now() - c.stage_entered_at) / 86400, 'FM999990.0'), 'unknown') AS \"Days in stage\",\n       coalesce(CASE WHEN c.lb THEN '≥ ' ELSE '' END\n                || to_char(ep.gpu_h, 'FM9999999990.0'), 'unknown') AS \"Idle GPU-h in stage\",\n       na.next_action_owner AS \"Next-action owner\",\n       na.reason AS \"Next-action reason\"\nFROM cur c\nJOIN assets a ON a.asset_id = c.asset_id\nLEFT JOIN ep ON ep.asset_id = c.asset_id\n            AND ep.stage IS NOT DISTINCT FROM c.stage\n            AND ep.stage_entered_at IS NOT DISTINCT FROM c.stage_entered_at\nLEFT JOIN LATERAL (\n  SELECT n.next_action_owner, n.reason\n  FROM next_action_annotations n\n  WHERE n.asset_id = c.asset_id AND n.expires_at > now()\n  ORDER BY n.created_at DESC, n.id DESC\n  LIMIT 1\n) na ON true\nORDER BY now() - c.stage_entered_at DESC NULLS FIRST, c.gpus DESC, c.asset_id\nLIMIT 50"
+          "rawSql": "WITH t AS (\n  SELECT generate_series($__timeFrom()::timestamptz, least($__timeTo()::timestamptz, now()),\n                         make_interval(secs => greatest($__interval_ms, 300000) / 1000.0)) AS t\n), iv AS (\n  SELECT t.t, i.stage_owner, i.gpus,\n         (o.objective IS NOT NULL AND t.t > i.stage_entered_at + o.objective) AS overdue\n  FROM t\n  JOIN capacity_intervals i ON i.category = 'IDLE' AND i.started_at <= t.t AND (i.ended_at IS NULL OR i.ended_at > t.t)\n  JOIN assets a ON a.asset_id = i.asset_id\n  LEFT JOIN stage_objectives o ON o.stage = i.stage AND o.policy_version = i.policy_version\n  WHERE ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site)) AND ('__all__' IN ($stage_owner) OR i.stage_owner IN ($stage_owner))\n)\nSELECT t.t AS time,\n       coalesce(sum(iv.gpus) FILTER (WHERE iv.stage_owner = 'DC' AND iv.overdue), 0) AS \"DC\",\n       coalesce(sum(iv.gpus) FILTER (WHERE iv.stage_owner = 'Redbull' AND iv.overdue), 0) AS \"Redbull\",\n       coalesce(sum(iv.gpus) FILTER (WHERE iv.stage_owner = 'POPAI' AND iv.overdue), 0) AS \"POPAI\",\n       coalesce(sum(iv.gpus) FILTER (WHERE iv.stage_owner = 'Serving' AND iv.overdue), 0) AS \"Serving\"\nFROM t\nLEFT JOIN iv ON iv.t = t.t\nWHERE t.t >= (SELECT min(started_at) FROM scan_runs WHERE status IN ('ok', 'partial'))\nGROUP BY t.t\nORDER BY t.t"
         }
       ],
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "align": "auto",
-            "cellOptions": {
-              "type": "auto"
-            },
-            "inspect": false,
-            "filterable": false
-          }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Idle GPUs"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "none"
-              },
-              {
-                "id": "decimals",
-                "value": 0
-              },
-              {
-                "id": "custom.width",
-                "value": 80
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Days in stage"
-            },
-            "properties": [
-              {
-                "id": "custom.align",
-                "value": "right"
-              },
-              {
-                "id": "custom.width",
-                "value": 100
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Idle GPU-h in stage"
-            },
-            "properties": [
-              {
-                "id": "custom.align",
-                "value": "right"
-              },
-              {
-                "id": "custom.width",
-                "value": 145
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "In stage since (UTC)"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 150
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Asset"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 165
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Name"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 120
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Model"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 135
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "GPU model"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 90
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Stage owner"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 100
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Reason"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 215
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Next-action owner"
-            },
-            "properties": [
-              {
-                "id": "noValue",
-                "value": "—"
-              },
-              {
-                "id": "custom.width",
-                "value": 130
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Next-action reason"
-            },
-            "properties": [
-              {
-                "id": "noValue",
-                "value": "—"
-              },
-              {
-                "id": "custom.inspect",
-                "value": true
-              }
-            ]
-          }
-        ]
-      },
       "options": {
-        "showHeader": true,
-        "cellHeight": "sm",
-        "footer": {
-          "show": false,
-          "reducer": [
-            "sum"
-          ],
-          "countRows": false,
-          "fields": ""
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
         },
-        "sortBy": []
-      }
-    },
-    {
-      "type": "table",
-      "id": 15,
-      "title": "Reason breakdown now: GPUs by category and reason",
-      "description": "Definition: sum(gpus) and distinct assets of open intervals, grouped by category, reason_code and stage owner. Categories are mutually exclusive per GPU, so GPUs add up to 'GPUs in scope' (with the same filters).\nUnits: physical GPUs; share = GPUs / all GPUs in the table.\nFilters: site, stage_owner (selecting an owner keeps only that owner's IDLE rows; rows with no owner show only under All).\nUnknown vs zero: UNKNOWN rows are GPUs we cannot classify, kept visible and never folded into IDLE or PRODUCTIVE. A reason absent from the table has 0 GPUs in the latest scan. Current state = intervals still open in the ledger (ended_at IS NULL), i.e. the result of the latest engine scan; check 'Data as of' for its age.",
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "ttv-postgres"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 45,
-        "w": 24,
-        "h": 10
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "ttv-postgres"
-          },
-          "editorMode": "code",
-          "format": "table",
-          "rawQuery": true,
-          "rawSql": "SELECT i.category AS \"Category\",\n       i.reason_code AS \"Reason\",\n       coalesce(i.stage_owner, '—') AS \"Stage owner\",\n       sum(i.gpus) AS \"GPUs\",\n       count(DISTINCT i.asset_id) AS \"Assets\",\n       sum(i.gpus)::float / sum(sum(i.gpus)) OVER () AS \"Share of GPUs\"\nFROM capacity_intervals i\nJOIN assets a ON a.asset_id = i.asset_id\nWHERE i.ended_at IS NULL\n  AND ('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))\n  AND ('__all__' IN ($stage_owner) OR i.stage_owner IN ($stage_owner))\nGROUP BY i.category, i.reason_code, i.stage_owner\nORDER BY CASE i.category WHEN 'IDLE' THEN 1 WHEN 'UNKNOWN' THEN 2 WHEN 'PRODUCTIVE' THEN 3 ELSE 4 END,\n         sum(i.gpus) DESC, i.reason_code"
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
         }
-      ],
+      },
       "fieldConfig": {
         "defaults": {
-          "custom": {
-            "align": "auto",
-            "cellOptions": {
-              "type": "auto"
-            },
-            "inspect": false,
-            "filterable": false
-          },
           "unit": "none",
-          "decimals": 0
+          "decimals": 0,
+          "min": 0,
+          "noValue": "no scan yet",
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "stepAfter",
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "axisPlacement": "auto",
+            "axisLabel": "GPUs"
+          },
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "orange"
+          }
         },
         "overrides": [
           {
             "matcher": {
               "id": "byName",
-              "options": "Category"
+              "options": "DC"
             },
             "properties": [
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "color-text"
-                }
-              },
-              {
-                "id": "mappings",
-                "value": [
-                  {
-                    "type": "value",
-                    "options": {
-                      "PRODUCTIVE": {
-                        "color": "green",
-                        "index": 0
-                      },
-                      "IDLE": {
-                        "color": "orange",
-                        "index": 1
-                      },
-                      "UNKNOWN": {
-                        "color": "purple",
-                        "index": 2
-                      },
-                      "NOT_CHARGED": {
-                        "color": "blue",
-                        "index": 3
-                      }
-                    }
-                  }
-                ]
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Share of GPUs"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "percentunit"
-              },
-              {
-                "id": "decimals",
-                "value": 1
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "GPUs"
-            },
-            "properties": [
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "gauge",
-                  "mode": "basic",
-                  "valueDisplayMode": "text"
-                }
-              },
               {
                 "id": "color",
                 "value": {
                   "mode": "fixed",
-                  "fixedColor": "text"
+                  "fixedColor": "dark-red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Redbull"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "POPAI"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "semi-dark-orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Serving"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "light-red"
                 }
               }
             ]
           }
         ]
-      },
-      "options": {
-        "showHeader": true,
-        "cellHeight": "sm",
-        "footer": {
-          "show": false,
-          "reducer": [
-            "sum"
-          ],
-          "countRows": false,
-          "fields": ""
-        },
-        "sortBy": []
       }
     }
   ]

@@ -1,16 +1,18 @@
 # Grafana: dashboards and data sources as code
 
-Slice 1 (ADR-0001): the Queues view of E03 and the Evidence view of E18, read from the TTV ledger (`migrations/`). Slice 4 adds AWS-equivalent value in USD to Queues (ADR-0003).
+The R1 pages of AGENT.md §20.11, read from the TTV ledger (`migrations/`): Home, Queues (E03), Delivery (E02), GPU use (E12), the asset drill-down and Evidence (E18), plus the later questions' pages in their missing-input state. Values are AWS On-Demand equivalents in USD (ADR-0003).
 
 ```
 grafana/
   provisioning/datasources/ttv.yaml   Postgres uid ttv-postgres, Prometheus uid ttv-prometheus
   provisioning/dashboards/ttv.yaml    file provider -> folder "GPU Time-to-Value" (uid gpu-ttv)
-  dashboards/ttv-queues.json          uid ttv-queues   "Queues — where GPUs are stuck"
+  dashboards/ttv-home.json            uid ttv-home     "Home"
+  dashboards/ttv-queues.json          uid ttv-queues   "Queues: where GPUs are stuck"
   dashboards/ttv-evidence.json        uid ttv-evidence "Evidence & monitoring health"
+  dashboards/ttv-*.json               the other pages (table in "Design conventions")
 ```
 
-Only built-in panels are used (stat, bar gauge, table, time series, row). There are no plugins, external fonts, CDNs or remote images, so the files work offline as they are.
+Only built-in panels are used (stat, bar gauge, bar chart, table, time series, state timeline, text, row). There are no plugins, external fonts, CDNs or remote images, so the files work offline as they are.
 
 ## Install
 
@@ -80,6 +82,9 @@ The links bar titles are the short names (Home, Queues, Delivery, GPU use, Asset
 **Panel contracts.** Every non-row panel has a contract in `config/panel-contracts/<dashboard-uid>.yaml`; `tests/test_panel_contracts.py` checks the files against the dashboards (schema in `config/panel-contracts/README.md`).
 
 ## Reading the dashboards
+
+- **Home** answers the main story in a minute: six cards (idle GPUs, their AWS-equivalent value per hour, productive share of eligible GPUs, unknown and not-measured GPUs, data age), the four stage queues in pipeline order with their oldest wait, every GPU by category, the ten longest waits, installed GPUs by model (E01, purchase dates "input missing"), and idle/overdue time and value in the selected period with a trend. Set `GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/gpu-ttv/ttv-home.json` to open it first.
+- **Value cards** show a number with a line above it: the snapshot's region and price date, and "at least (N GPUs unpriced)" when some GPUs have no rate, so the number is a lower bound.
 
 - **Now vs period.** "Now" panels read open intervals (`ended_at IS NULL`), i.e. the latest engine scan; "Data as of" and "Data age" show how old that is. Period panels clip every interval to the time range and end open intervals at `now()`.
 - **Overdue** = the part of an IDLE interval after `stage_entered_at + objective`, joined on the interval's own `(stage, policy_version)` in `stage_objectives` (AGENT.md §20.5, §20.11). If an interval has no objective, its idle hours appear in "Idle GPU-h, no objective" and are never counted as 0 overdue.
