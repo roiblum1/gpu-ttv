@@ -517,6 +517,54 @@ def _pod_gpus(spec: Mapping[str, Any], resource: str) -> int:
     return max(main, init_peak)
 
 
+def _tcp_ports(container: Mapping[str, Any]) -> list[tuple[str | None, int]]:
+    """
+    List a container's TCP ports (protocol absent means TCP), skipping malformed numbers.
+
+    Args:
+        container (Mapping[str, Any]): The container spec.
+
+    Returns:
+        list[tuple[str | None, int]]: `(name, containerPort)` in declared order.
+
+    Raises:
+        _PayloadError: `ports` is not a list of objects.
+    """
+    ports = []
+    for port in _objs(container, "ports"):
+        number = port.get("containerPort")
+        if (port.get("protocol") or "TCP") != "TCP" or isinstance(number, bool):
+            continue
+        if isinstance(number, int) and 1 <= number <= 65535:
+            ports.append((_str(port, "name"), number))
+    return ports
+
+
+def _metrics_port(spec: Mapping[str, Any]) -> int | None:
+    """
+    Pick the port serving vLLM's `/metrics` (ADR-0009, `ClusterPod.metrics_port`).
+
+    Args:
+        spec (Mapping[str, Any]): The pod's `spec`.
+
+    Returns:
+        int | None: The TCP port named `metrics`, else the first TCP port of the first container
+            whose image names vLLM, else the first container's first TCP port, else None.
+
+    Raises:
+        _PayloadError: The containers or their ports are malformed.
+    """
+    containers = _objs(spec, "containers")
+    ports = [_tcp_ports(c) for c in containers]
+    named = [number for declared in ports for name, number in declared if name == "metrics"]
+    if named:
+        return named[0]
+    for container, declared in zip(containers, ports, strict=True):
+        if declared and "vllm" in (_str(container, "image") or "").lower():
+            return declared[0][1]
+    return ports[0][0][1] if ports and ports[0] else None
+
+
 def _gpu_group(labels: Mapping[str, str]) -> str | None:
     """
     Read the Run:ai GPU group from `runai-gpu-group=<id>` or a `runai-gpu-group/<id>` key.
@@ -582,6 +630,7 @@ def _parse_pod(item: Mapping[str, Any], resource: str) -> _PodDraft | None:
         images=tuple(_str(c, "image") or "" for c in _objs(spec, "containers")),
         waiting_reasons=tuple(reason for reason in waiting if reason),
         restarts=sum(restarts),
+        metrics_port=_metrics_port(spec),
     )
     return _PodDraft(pod=pod, owner=_controller_ref(meta))
 

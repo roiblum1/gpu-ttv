@@ -94,6 +94,21 @@ app.kubernetes.io/component: {{ .component }}
 {{- fail (printf "policy.%s: the DC stage (PRE_PROVISIONING) was removed (ADR-0008); delete it" $k) -}}
 {{- end -}}
 {{- end -}}
+{{- range $s := list "EMPTY" "MACHINE_LEARNING" -}}
+{{- if not (get ($policy.teams | default dict) $s) -}}
+{{- fail (printf "policy.teams: chart 0.3.0 has five stages (ADR-0009); add %s to teams and stage_objectives" $s) -}}
+{{- end -}}
+{{- end -}}
+{{- range ($policy.serving | default dict).kinds | default list -}}
+{{- if hasKey . "counters" -}}
+{{- fail "policy.serving.kinds: counters were removed in chart 0.3.0 (ADR-0009); requests are read from each vLLM pod. Delete them" -}}
+{{- end -}}
+{{- end -}}
+{{- range $k := list "productive_kinds" "interactive_priority_classes" "priority_label" -}}
+{{- if hasKey ($policy.runai | default dict) $k -}}
+{{- fail (printf "policy.runai.%s was removed in chart 0.3.0 (ADR-0009): every Run:ai workload is Machine Learning" $k) -}}
+{{- end -}}
+{{- end -}}
 {{- if hasKey .Values "collector" -}}
 {{- fail "collector: the collector was removed in chart 0.2.0 (ADR-0008); delete this section from your values" -}}
 {{- end -}}

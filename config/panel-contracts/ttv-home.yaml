@@ -1,722 +1,568 @@
 # Panel contracts for grafana/dashboards/ttv-home.json (schema: README.md in this folder).
 dashboard: ttv-home
 panels:
-- id: 2
-  title: Idle GPUs
+- id: 1
+  title: GPUs wasted now
   question: E03
   status: built
-  audience: CEO, stage owners
-  decision: How much GPU capacity is waiting in a stage queue right now.
-  definition: GPUs in open IDLE intervals (the latest engine scan), all stage owners together; the queue
-    table splits them by owner.
+  audience: Senior managers, team leads
+  decision: How much GPU capacity is wasted right now.
+  definition: 'GPUs in open IDLE intervals (every stage), in the cluster scope. Label: all GPUs in open
+    intervals and the UNKNOWN ones.'
   unit: GPUs
   numerator: sum(gpus) of open IDLE intervals
   denominator: null
-  population: Every GPU asset in the ledger (server-scan is the only inventory source).
+  population: Every GPU server server-scan lists (the only inventory source, ADR-0008).
   window: now
   filters:
-  - stage_owner
-  - site
-  exclusions: PRODUCTIVE, NOT_CHARGED and UNKNOWN GPUs.
-  query: grafana/dashboards/ttv-home.json#2
+  - cluster
+  exclusions: PRODUCTIVE, NOT_CHARGED and UNKNOWN GPUs (UNKNOWN shown in the label).
+  query: grafana/dashboards/ttv-home.json#1
   lineage:
-  - capacity_intervals
-  - assets
-  freshness: Latest engine scan (every 5 min); the Data age card shows its age.
+  - capacity_intervals.category
+  - capacity_intervals.stage
+  - capacity_intervals.gpus
+  - capacity_intervals.cluster
+  - capacity_intervals.evidence
+  freshness: Latest engine scan (every 5 min); 'Data as of' on the summary page.
   baseline: null
   direction: lower_is_better
   thresholds: null
   uncertainty: null
-  missing_data: Shows 'no scan yet' before the first engine scan; afterwards an empty result is a real
-    0. UNKNOWN GPUs are never counted as idle or productive.
+  missing_data: Before the first scan, or for a cluster filter that matches no GPU, the value is empty
+    ('no data yet'), never 0. After that an empty team is a real 0. GPUs with no data (UNKNOWN) are never
+    counted as wasted; their count is in the label.
   value_kind: observed
   gate: core
-  privileges: SELECT on capacity_intervals, assets
+  privileges: SELECT on capacity_intervals
   cardinality: 1 value
-  drilldown: ttv-queues
-  action: Open Queues to see which owner holds them.
+  drilldown: ttv-home#3
+  action: null
   fixture: tests/test_dashboards_sql.py
-  expected: Sum of the idle GPUs in the fixture.
-- id: 3
-  title: Idle value / hour (AWS)
+  expected: 48 GPUs; label 'of 114 GPUs · 20 have no data'.
+- id: 2
+  title: GPU-hours wasted
   question: E03
   status: built
-  audience: CEO, stage owners
-  decision: What the idle capacity would cost at AWS On-Demand, to size the urgency.
-  definition: what the idle GPUs now would cost per hour at AWS On-Demand rates (Linux, shared tenancy)
-    from the selected price snapshot, shown under the value. A comparison, not a bill, not our cost and
-    not a loss (ADR-0003).
-  unit: USD per hour
-  numerator: sum(gpus × per_gpu_hour_usd) of open IDLE intervals at the selected snapshot
+  audience: Senior managers, team leads
+  decision: How much waste accumulated in the period.
+  definition: 'Σ gpus × overlap of IDLE intervals with the time range (open intervals end at now). Label:
+    lower-bound note and UNKNOWN GPU-hours.'
+  unit: GPU-hours
+  numerator: Σ gpus × hours of IDLE intervals clipped to the range
   denominator: null
-  population: Every GPU asset in the ledger (server-scan is the only inventory source).
-  window: now
+  population: Every GPU server server-scan lists (the only inventory source, ADR-0008).
+  window: selected range
   filters:
-  - stage_owner
-  - site
-  - snapshot
-  exclusions: Unpriced GPUs (named in the label).
-  query: grafana/dashboards/ttv-home.json#3
-  lineage:
-  - capacity_intervals
-  - assets
-  - pricing_rates
-  - pricing_snapshots
-  - gpu_model_aliases
-  freshness: Latest engine scan (every 5 min); the Data age card shows its age.
-  baseline: null
-  direction: lower_is_better
-  thresholds: null
-  uncertainty: AWS-equivalent comparison, not a bill, our cost or a loss (ADR-0003); a per-GPU rate allocates
-    the whole instance price. GPUs whose model has no rate are left out and the label says 'at least'.
-  missing_data: '''unpriced or no snapshot'' when nothing is priced or no snapshot is imported; $0 when
-    no GPU is idle.'
-  value_kind: derived
-  gate: core
-  privileges: SELECT on capacity_intervals, assets, pricing_rates, pricing_snapshots, gpu_model_aliases
-  cardinality: 1 value
-  drilldown: ttv-queues#19
-  action: null
-  fixture: null
-  expected: null
-- id: 4
-  title: Productive share
-  question: E12
-  status: built
-  audience: CEO, stage owners
-  decision: Whether eligible capacity is doing useful work.
-  definition: PRODUCTIVE GPUs ÷ (PRODUCTIVE + IDLE GPUs) now. NOT_CHARGED (approved exclusions, clusters
-    outside the target list) and UNKNOWN GPUs are outside the denominator, so check 'Unknown GPUs' before
-    reading this.
-  unit: percent
-  numerator: PRODUCTIVE GPUs now
-  denominator: PRODUCTIVE + IDLE GPUs now
-  population: Every GPU asset in the ledger (server-scan is the only inventory source).
-  window: now
-  filters:
-  - site
-  exclusions: NOT_CHARGED and UNKNOWN GPUs (outside the denominator).
-  query: grafana/dashboards/ttv-home.json#4
-  lineage:
-  - capacity_intervals
-  - assets
-  freshness: Latest engine scan (every 5 min); the Data age card shows its age.
-  baseline: null
-  direction: higher_is_better
-  thresholds: null
-  uncertainty: With many UNKNOWN GPUs the share describes only the measured part of the fleet.
-  missing_data: '''no eligible GPUs'' when the denominator is 0; the label still gives the counts.'
-  value_kind: derived
-  gate: core
-  privileges: SELECT on capacity_intervals, assets
-  cardinality: 1 value
-  drilldown: ttv-gpu-use
-  action: null
-  fixture: null
-  expected: null
-- id: 5
-  title: Unknown GPUs
-  question: E18
-  status: built
-  audience: CEO, stage owners
-  decision: How much of the fleet the numbers cannot describe.
-  definition: 'GPUs in open UNKNOWN intervals: a stale or failing source, an identity conflict, a cluster
-    not observed, a node not found, missing telemetry. Never counted as idle or productive; Evidence explains
-    each reason.'
-  unit: GPUs
-  numerator: sum(gpus) of open UNKNOWN intervals
-  denominator: null
-  population: Every GPU asset in the ledger (server-scan is the only inventory source).
-  window: now
-  filters:
-  - site
+  - cluster
   exclusions: null
-  query: grafana/dashboards/ttv-home.json#5
+  query: grafana/dashboards/ttv-home.json#2
   lineage:
-  - capacity_intervals
-  - assets
-  freshness: Latest engine scan (every 5 min); the Data age card shows its age.
+  - capacity_intervals.category
+  - capacity_intervals.stage
+  - capacity_intervals.gpus
+  - capacity_intervals.cluster
+  - capacity_intervals.evidence
+  freshness: Latest engine scan (every 5 min); 'Data as of' on the summary page.
   baseline: null
   direction: lower_is_better
   thresholds: null
-  uncertainty: null
-  missing_data: Shows 'no scan yet' before the first engine scan; afterwards an empty result is a real
-    0. UNKNOWN GPUs are never counted as idle or productive.
+  uncertainty: '''at least'' when the range starts before the first scan.'
+  missing_data: 'Empty (''no data yet'') when no interval in the cluster scope overlaps the range. When
+    the range starts before the first ok or partial engine scan, the label says ''at least'' (a lower
+    bound: time before observation is unknown, never zero).'
   value_kind: observed
   gate: core
-  privileges: SELECT on capacity_intervals, assets
+  privileges: SELECT on capacity_intervals
   cardinality: 1 value
-  drilldown: ttv-evidence#25
-  action: Open Evidence to see why.
-  fixture: null
-  expected: null
-- id: 7
-  title: Data age
+  drilldown: null
+  action: null
+  fixture: tests/test_dashboards_sql.py
+  expected: '1,808 GPU-hours over the default 7 days, ''in the selected period · 56 GPU-hours have no
+    data''; ''at least'' over 30 days; §17: 24 for 8 GPUs idle 3 h, 16 clipped to 2 h, 12 for 6 GPUs idle
+    2 h.'
+- id: 3
+  title: Where every GPU is now
+  question: E12
+  status: built
+  audience: Senior managers, team leads
+  decision: Whether the fleet is in use, wasted, in repair or unseen.
+  definition: 'Open intervals by category: In use = PRODUCTIVE, Wasted = IDLE, In repair = NOT_CHARGED/MAINTENANCE,
+    No data = UNKNOWN, Not measured = NOT_CHARGED/OUTSIDE_TARGET_CLUSTERS, Excluded = other NOT_CHARGED.'
+  unit: GPUs
+  numerator: sum(gpus) per group
+  denominator: null
+  population: Every GPU server server-scan lists (the only inventory source, ADR-0008).
+  window: now
+  filters:
+  - cluster
+  exclusions: null
+  query: grafana/dashboards/ttv-home.json#3
+  lineage:
+  - capacity_intervals.category
+  - capacity_intervals.stage
+  - capacity_intervals.gpus
+  - capacity_intervals.cluster
+  - capacity_intervals.evidence
+  - capacity_intervals.reason_code
+  freshness: Latest engine scan (every 5 min); 'Data as of' on the summary page.
+  baseline: null
+  direction: neutral
+  thresholds: null
+  uncertainty: null
+  missing_data: No row (no data yet) before the first scan or for a cluster filter with no GPUs; afterwards
+    an empty group is a real 0.
+  value_kind: observed
+  gate: core
+  privileges: SELECT on capacity_intervals
+  cardinality: 6 values
+  drilldown: null
+  action: null
+  fixture: tests/test_dashboards_sql.py
+  expected: In use 28, Wasted 48, In repair 8, No data 20, Not measured 8, Excluded 2.
+- id: 4
+  title: Data as of
   question: E18
   status: built
-  audience: CEO, stage owners
-  decision: Whether the 'now' numbers are current.
-  definition: time since the newest engine scan that finished ok or partial. Every 'now' number on this
-    page is as of that scan. Green within 15 min (3 scans), orange within 1 h, red beyond.
-  unit: seconds
-  numerator: now() − max(scan_runs.finished_at) of ok/partial scans
+  audience: Senior managers, team leads
+  decision: Whether the numbers are current.
+  definition: finished_at of the newest ok or partial engine scan.
+  unit: time since
+  numerator: null
   denominator: null
-  population: Every GPU asset in the ledger (server-scan is the only inventory source).
+  population: scan_runs
   window: now
   filters: []
   exclusions: null
-  query: grafana/dashboards/ttv-home.json#7
+  query: grafana/dashboards/ttv-home.json#4
   lineage:
-  - scan_runs
+  - scan_runs.finished_at
+  - scan_runs.status
+  - scan_runs.kind
   freshness: Itself.
   baseline: null
-  direction: lower_is_better
-  thresholds: green < 15 min, orange < 1 h, red ≥ 1 h
+  direction: neutral
+  thresholds: null
   uncertainty: null
-  missing_data: '''no scan yet'' before the first scan.'
+  missing_data: '''no scan yet'' before the first ok or partial scan; dry-run scans do not count.'
   value_kind: observed
   gate: core
   privileges: SELECT on scan_runs
   cardinality: 1 value
-  drilldown: ttv-evidence
+  drilldown: null
   action: null
-  fixture: null
-  expected: null
-- id: 8
-  title: Stage queues now (pipeline order)
+  fixture: tests/test_dashboards_sql.py
+  expected: The fixture's ok scan, finished 9 minutes ago.
+- id: 5
+  title: Samurai
   question: E03
   status: built
-  audience: CEO, stage owners
-  decision: Which handoff queue is the bottleneck and how long its oldest server has waited.
-  definition: 'the three handoff queues in pipeline order (PROVISIONING also holds servers in maintenance,
-    with critical hardware or an unreachable BMC: ADR-0008). Per stage owner: idle GPUs now; overdue GPUs
-    (idle past the stage objective of the interval''s own policy version); servers waiting; the oldest
-    wait among their current stage episodes; the objective; the idle value per hour at the selected snapshot;
-    and the reason holding the most GPUs.'
-  unit: GPUs, days, USD/h
-  numerator: null
+  audience: Senior managers, team leads
+  decision: Whether Samurai holds wasted GPUs right now.
+  definition: 'GPUs in open IDLE intervals of stage EMPTY (owner Samurai by default; the policy names
+    the team). Label: the cost of the stage''s wasted GPU-hours in the range at AWS prices (as the team
+    page''s #6), ''≥'' when part is unpriced or the range starts before the first scan.'
+  unit: GPUs
+  numerator: sum(gpus) of open IDLE intervals with stage = EMPTY
   denominator: null
-  population: Every GPU asset in the ledger (server-scan is the only inventory source).
+  population: Every GPU server server-scan lists (the only inventory source, ADR-0008).
   window: now
   filters:
-  - site
-  - snapshot
+  - cluster
+  exclusions: null
+  query: grafana/dashboards/ttv-home.json#5
+  lineage:
+  - capacity_intervals.category
+  - capacity_intervals.stage
+  - capacity_intervals.gpus
+  - capacity_intervals.cluster
+  - capacity_intervals.evidence
+  - gpu_model_aliases.canonical
+  - pricing_rates.per_gpu_hour_usd
+  - pricing_selection.snapshot_id
+  - pricing_snapshots.publication_date
+  freshness: Latest engine scan (every 5 min); 'Data as of' on the summary page.
+  baseline: null
+  direction: lower_is_better
+  thresholds: null
+  uncertainty: 'AWS On-Demand equivalent (us-east-1), a comparison, not our bill (ADR-0003): present-day
+    valuation, every GPU-hour at one snapshot (pricing_selection, else the latest by publication date
+    then capture time). GPU-hours whose model has no rate make it ''at least''.'
+  missing_data: 'Before the first scan, or for a cluster filter that matches no GPU, the value is empty
+    (''no data yet''), never 0. After that an empty team is a real 0. GPUs with no data (UNKNOWN) are
+    never counted as wasted; their count is in the label. Money: ''no AWS price list'' or ''no AWS price'',
+    never $0.'
+  value_kind: observed
+  gate: core
+  privileges: SELECT on capacity_intervals, gpu_model_aliases, pricing_rates, pricing_selection, pricing_snapshots
+  cardinality: 1 value
+  drilldown: ttv-samurai
+  action: Open the Samurai page.
+  fixture: tests/test_dashboards_sql.py
+  expected: 12 GPUs; label 'nothing on them · $4,200 in the period'.
+- id: 6
+  title: Redbull
+  question: E03
+  status: built
+  audience: Senior managers, team leads
+  decision: Whether Redbull holds wasted GPUs right now.
+  definition: 'GPUs in open IDLE intervals of stage PROVISIONING (owner Redbull by default; the policy
+    names the team). Label: the cost of the stage''s wasted GPU-hours in the range at AWS prices (as the
+    team page''s #6), ''≥'' when part is unpriced or the range starts before the first scan.'
+  unit: GPUs
+  numerator: sum(gpus) of open IDLE intervals with stage = PROVISIONING
+  denominator: null
+  population: Every GPU server server-scan lists (the only inventory source, ADR-0008).
+  window: now
+  filters:
+  - cluster
+  exclusions: null
+  query: grafana/dashboards/ttv-home.json#6
+  lineage:
+  - capacity_intervals.category
+  - capacity_intervals.stage
+  - capacity_intervals.gpus
+  - capacity_intervals.cluster
+  - capacity_intervals.evidence
+  - gpu_model_aliases.canonical
+  - pricing_rates.per_gpu_hour_usd
+  - pricing_selection.snapshot_id
+  - pricing_snapshots.publication_date
+  freshness: Latest engine scan (every 5 min); 'Data as of' on the summary page.
+  baseline: null
+  direction: lower_is_better
+  thresholds: null
+  uncertainty: 'AWS On-Demand equivalent (us-east-1), a comparison, not our bill (ADR-0003): present-day
+    valuation, every GPU-hour at one snapshot (pricing_selection, else the latest by publication date
+    then capture time). GPU-hours whose model has no rate make it ''at least''.'
+  missing_data: 'Before the first scan, or for a cluster filter that matches no GPU, the value is empty
+    (''no data yet''), never 0. After that an empty team is a real 0. GPUs with no data (UNKNOWN) are
+    never counted as wasted; their count is in the label. Money: ''no AWS price list'' or ''no AWS price'',
+    never $0.'
+  value_kind: observed
+  gate: core
+  privileges: SELECT on capacity_intervals, gpu_model_aliases, pricing_rates, pricing_selection, pricing_snapshots
+  cardinality: 1 value
+  drilldown: ttv-redbull
+  action: Open the Redbull page.
+  fixture: tests/test_dashboards_sql.py
+  expected: 16 GPUs; label 'servers not ready · $9,624 in the period'.
+- id: 7
+  title: POPAI
+  question: E03
+  status: built
+  audience: Senior managers, team leads
+  decision: Whether POPAI holds wasted GPUs right now.
+  definition: 'GPUs in open IDLE intervals of stage GPU_PLATFORM (owner POPAI by default; the policy names
+    the team). Label: the cost of the stage''s wasted GPU-hours in the range at AWS prices (as the team
+    page''s #6), ''≥'' when part is unpriced or the range starts before the first scan.'
+  unit: GPUs
+  numerator: sum(gpus) of open IDLE intervals with stage = GPU_PLATFORM
+  denominator: null
+  population: Every GPU server server-scan lists (the only inventory source, ADR-0008).
+  window: now
+  filters:
+  - cluster
+  exclusions: null
+  query: grafana/dashboards/ttv-home.json#7
+  lineage:
+  - capacity_intervals.category
+  - capacity_intervals.stage
+  - capacity_intervals.gpus
+  - capacity_intervals.cluster
+  - capacity_intervals.evidence
+  - gpu_model_aliases.canonical
+  - pricing_rates.per_gpu_hour_usd
+  - pricing_selection.snapshot_id
+  - pricing_snapshots.publication_date
+  freshness: Latest engine scan (every 5 min); 'Data as of' on the summary page.
+  baseline: null
+  direction: lower_is_better
+  thresholds: null
+  uncertainty: 'AWS On-Demand equivalent (us-east-1), a comparison, not our bill (ADR-0003): present-day
+    valuation, every GPU-hour at one snapshot (pricing_selection, else the latest by publication date
+    then capture time). GPU-hours whose model has no rate make it ''at least''.'
+  missing_data: 'Before the first scan, or for a cluster filter that matches no GPU, the value is empty
+    (''no data yet''), never 0. After that an empty team is a real 0. GPUs with no data (UNKNOWN) are
+    never counted as wasted; their count is in the label. Money: ''no AWS price list'' or ''no AWS price'',
+    never $0.'
+  value_kind: observed
+  gate: core
+  privileges: SELECT on capacity_intervals, gpu_model_aliases, pricing_rates, pricing_selection, pricing_snapshots
+  cardinality: 1 value
+  drilldown: ttv-popai
+  action: Open the POPAI page.
+  fixture: tests/test_dashboards_sql.py
+  expected: 8 GPUs; label 'GPU software not ready · no AWS price'.
+- id: 8
+  title: Apply
+  question: E03
+  status: built
+  audience: Senior managers, team leads
+  decision: Whether Apply holds wasted GPUs right now.
+  definition: 'GPUs in open IDLE intervals of stage SERVING (owner Apply by default; the policy names
+    the team). Label: the cost of the stage''s wasted GPU-hours in the range at AWS prices (as the team
+    page''s #6), ''≥'' when part is unpriced or the range starts before the first scan.'
+  unit: GPUs
+  numerator: sum(gpus) of open IDLE intervals with stage = SERVING
+  denominator: null
+  population: Every GPU server server-scan lists (the only inventory source, ADR-0008).
+  window: now
+  filters:
+  - cluster
   exclusions: null
   query: grafana/dashboards/ttv-home.json#8
   lineage:
-  - capacity_intervals
-  - assets
-  - stage_objectives
-  - pricing_rates
-  - gpu_model_aliases
-  freshness: Latest engine scan (every 5 min); the Data age card shows its age.
+  - capacity_intervals.category
+  - capacity_intervals.stage
+  - capacity_intervals.gpus
+  - capacity_intervals.cluster
+  - capacity_intervals.evidence
+  - gpu_model_aliases.canonical
+  - pricing_rates.per_gpu_hour_usd
+  - pricing_selection.snapshot_id
+  - pricing_snapshots.publication_date
+  freshness: Latest engine scan (every 5 min); 'Data as of' on the summary page.
   baseline: null
   direction: lower_is_better
   thresholds: null
-  uncertainty: Stage clocks that began before observation are lower bounds (≥); waits and GPU-hours derived
-    from them are minimums. AWS-equivalent comparison, not a bill, our cost or a loss (ADR-0003); a per-GPU
-    rate allocates the whole instance price. GPUs whose model has no rate are left out and the label says
-    'at least'.
-  missing_data: Every pipeline stage always shows, under the owner its latest interval names (the stage
-    code until one does); an owner with no idle GPUs shows 0 and '—'.
+  uncertainty: 'AWS On-Demand equivalent (us-east-1), a comparison, not our bill (ADR-0003): present-day
+    valuation, every GPU-hour at one snapshot (pricing_selection, else the latest by publication date
+    then capture time). GPU-hours whose model has no rate make it ''at least''.'
+  missing_data: 'Before the first scan, or for a cluster filter that matches no GPU, the value is empty
+    (''no data yet''), never 0. After that an empty team is a real 0. GPUs with no data (UNKNOWN) are
+    never counted as wasted; their count is in the label. Money: ''no AWS price list'' or ''no AWS price'',
+    never $0.'
   value_kind: observed
   gate: core
-  privileges: SELECT on capacity_intervals, assets, stage_objectives, pricing_rates, gpu_model_aliases
-  cardinality: 3 rows (one per pipeline stage)
-  drilldown: ttv-queues
-  action: Ask the owner with the most overdue GPUs to clear its longest waits.
-  fixture: null
-  expected: null
+  privileges: SELECT on capacity_intervals, gpu_model_aliases, pricing_rates, pricing_selection, pricing_snapshots
+  cardinality: 1 value
+  drilldown: ttv-apply
+  action: Open the Apply page.
+  fixture: tests/test_dashboards_sql.py
+  expected: 8 GPUs; label 'models barely used · $2,120 in the period'.
 - id: 9
-  title: GPUs by category now
-  question: E01
+  title: Machine Learning
+  question: E03
   status: built
-  audience: CEO, stage owners
-  decision: Where every GPU is now, as a mutually exclusive partition.
-  definition: all GPUs in the ledger now, split into the four mutually exclusive categories (each GPU
-    counts once). Productive = doing useful work; Idle = waiting in a stage queue; Not charged = approved
-    exclusion or outside the target clusters; Unknown = not enough evidence.
+  audience: Senior managers, team leads
+  decision: Whether Machine Learning holds wasted GPUs right now.
+  definition: 'GPUs in open IDLE intervals of stage MACHINE_LEARNING (owner Machine Learning by default;
+    the policy names the team). Label: the cost of the stage''s wasted GPU-hours in the range at AWS prices
+    (as the team page''s #6), ''≥'' when part is unpriced or the range starts before the first scan.'
   unit: GPUs
-  numerator: sum(gpus) of open intervals per category
+  numerator: sum(gpus) of open IDLE intervals with stage = MACHINE_LEARNING
   denominator: null
-  population: Every GPU asset in the ledger (server-scan is the only inventory source).
+  population: Every GPU server server-scan lists (the only inventory source, ADR-0008).
   window: now
   filters:
-  - site
+  - cluster
   exclusions: null
   query: grafana/dashboards/ttv-home.json#9
   lineage:
-  - capacity_intervals
-  - assets
-  freshness: Latest engine scan (every 5 min); the Data age card shows its age.
+  - capacity_intervals.category
+  - capacity_intervals.stage
+  - capacity_intervals.gpus
+  - capacity_intervals.cluster
+  - capacity_intervals.evidence
+  - gpu_model_aliases.canonical
+  - pricing_rates.per_gpu_hour_usd
+  - pricing_selection.snapshot_id
+  - pricing_snapshots.publication_date
+  freshness: Latest engine scan (every 5 min); 'Data as of' on the summary page.
   baseline: null
-  direction: neutral
+  direction: lower_is_better
   thresholds: null
-  uncertainty: null
-  missing_data: Shows 'no scan yet' before the first engine scan; afterwards an empty result is a real
-    0. UNKNOWN GPUs are never counted as idle or productive.
+  uncertainty: 'AWS On-Demand equivalent (us-east-1), a comparison, not our bill (ADR-0003): present-day
+    valuation, every GPU-hour at one snapshot (pricing_selection, else the latest by publication date
+    then capture time). GPU-hours whose model has no rate make it ''at least''.'
+  missing_data: 'Before the first scan, or for a cluster filter that matches no GPU, the value is empty
+    (''no data yet''), never 0. After that an empty team is a real 0. GPUs with no data (UNKNOWN) are
+    never counted as wasted; their count is in the label. Money: ''no AWS price list'' or ''no AWS price'',
+    never $0.'
   value_kind: observed
   gate: core
-  privileges: SELECT on capacity_intervals, assets
-  cardinality: 4 bars
-  drilldown: null
-  action: null
-  fixture: null
-  expected: null
+  privileges: SELECT on capacity_intervals, gpu_model_aliases, pricing_rates, pricing_selection, pricing_snapshots
+  cardinality: 1 value
+  drilldown: ttv-ml
+  action: Open the Machine Learning page.
+  fixture: tests/test_dashboards_sql.py
+  expected: 4 GPUs; label 'jobs barely busy · $960 in the period'.
 - id: 10
-  title: Longest waits now
+  title: GPUs wasted over time, by team
   question: E03
   status: built
-  audience: CEO, stage owners
-  decision: Which servers to unblock first.
-  definition: the 10 current idle stage episodes that have waited longest (one row per asset and stage
-    episode). 'Idle GPU-h' sums the episode's idle intervals from their start to now; 'Value' prices them
-    at the selected snapshot (present-day rates).
-  unit: GPUs, days, GPU-h, USD
+  audience: Senior managers, team leads
+  decision: Whether waste is growing or shrinking, and where.
+  definition: Open IDLE GPUs sampled on a grid (an interval counts while open), one series per stage named
+    after its latest stage_owner, in the order Samurai, Redbull, POPAI, Apply, Machine Learning; plus
+    UNKNOWN GPUs as an unstacked 'No data' line.
+  unit: GPUs
   numerator: null
   denominator: null
-  population: Every GPU asset in the ledger (server-scan is the only inventory source).
-  window: now
+  population: Every GPU server server-scan lists (the only inventory source, ADR-0008).
+  window: selected range
   filters:
-  - stage_owner
-  - site
-  - snapshot
+  - cluster
   exclusions: null
   query: grafana/dashboards/ttv-home.json#10
   lineage:
-  - capacity_intervals
-  - assets
-  - pricing_rates
-  - gpu_model_aliases
-  - next_action_annotations
-  freshness: Latest engine scan (every 5 min); the Data age card shows its age.
+  - capacity_intervals.category
+  - capacity_intervals.stage
+  - capacity_intervals.gpus
+  - capacity_intervals.cluster
+  - capacity_intervals.evidence
+  freshness: Latest engine scan (every 5 min); 'Data as of' on the summary page.
   baseline: null
   direction: lower_is_better
   thresholds: null
-  uncertainty: Stage clocks that began before observation are lower bounds (≥); waits and GPU-hours derived
-    from them are minimums. AWS-equivalent comparison, not a bill, our cost or a loss (ADR-0003); a per-GPU
-    rate allocates the whole instance price. GPUs whose model has no rate are left out and the label says
-    'at least'.
-  missing_data: '''no idle GPUs'' when no stage episode is open. Next-action owner is display only.'
+  uncertainty: null
+  missing_data: Nothing before the first ok or partial engine scan (no evidence then).
   value_kind: observed
   gate: core
-  privileges: SELECT on capacity_intervals, assets, pricing_rates, gpu_model_aliases, next_action_annotations
-  cardinality: ≤ 10 rows
-  drilldown: ttv-asset
-  action: Open the asset and follow its reason.
-  fixture: null
-  expected: null
+  privileges: SELECT on capacity_intervals
+  cardinality: 6 series
+  drilldown: null
+  action: null
+  fixture: tests/test_dashboards_sql.py
+  expected: 'Last sample: Samurai 12, Redbull 16, POPAI 8, Apply 8, Machine Learning 4, No data 20.'
 - id: 11
-  title: 'Installed GPUs by model: in service or waiting (E01, partial)'
-  question: E01
+  title: Cost of waste at AWS prices
+  question: E03
   status: built
-  audience: CEO, stage owners
-  decision: Which installed GPU classes are delivering and which wait.
-  definition: every GPU in the ledger now, by GPU model (canonical name when the pricing catalogue recognises
-    it, else as reported), split by category. Answers the inventory half of E01; purchase and receipt
-    dates need procurement records, which R1 does not have ('input missing').
-  unit: GPUs
-  numerator: null
+  audience: Senior managers, team leads
+  decision: How big the period's waste is, in money a manager can compare.
+  definition: 'Σ wasted GPU-hours in the range (as #2) × the AWS On-Demand per-GPU-hour rate of each interval''s
+    GPU model, at the present-day snapshot. Label: ''at least'', unpriced GPU-hours, the lower-bound note
+    and the price list''s date and region.'
+  unit: USD
+  numerator: Σ gpus × clipped hours × pricing_rates.per_gpu_hour_usd of IDLE intervals
   denominator: null
-  population: Every GPU asset in the ledger (server-scan is the only inventory source).
-  window: now
+  population: Every GPU server server-scan lists (the only inventory source, ADR-0008).
+  window: selected range
   filters:
-  - site
+  - cluster
   exclusions: null
   query: grafana/dashboards/ttv-home.json#11
   lineage:
-  - capacity_intervals
-  - assets
-  - gpu_model_aliases
-  freshness: Latest engine scan (every 5 min); the Data age card shows its age.
-  baseline: null
-  direction: neutral
-  thresholds: null
-  uncertainty: null
-  missing_data: Procurement fields show 'input missing' until purchase records are supplied (R3).
-  value_kind: observed
-  gate: core
-  privileges: SELECT on capacity_intervals, assets, gpu_model_aliases
-  cardinality: one row per GPU model
-  drilldown: null
-  action: null
-  fixture: null
-  expected: null
-- id: 21
-  title: Idle GPU-hours in period
-  question: E03
-  status: built
-  audience: CEO, stage owners
-  decision: How much idle capacity accumulated in the period.
-  definition: 'Σ GPUs × hours of IDLE intervals clipped to the selected time range (open intervals end
-    at now). AGENT.md §17: 6 idle GPUs for 2 h = 12 GPU-h.'
-  unit: GPU-hours
-  numerator: Σ gpus × hours of IDLE intervals clipped to the range
-  denominator: null
-  population: Every GPU asset in the ledger (server-scan is the only inventory source).
-  window: selected range
-  filters:
-  - stage_owner
-  - site
-  - snapshot
-  exclusions: null
-  query: grafana/dashboards/ttv-home.json#21
-  lineage:
-  - capacity_intervals
-  - assets
-  - stage_objectives
-  - pricing_rates
-  - gpu_model_aliases
-  freshness: Latest engine scan (every 5 min); the Data age card shows its age.
-  baseline: null
-  direction: lower_is_better
-  thresholds: null
-  uncertainty: null
-  missing_data: Shows 'no scan yet' before the first engine scan; afterwards an empty result is a real
-    0. UNKNOWN GPUs are never counted as idle or productive.
-  value_kind: observed
-  gate: core
-  privileges: SELECT on capacity_intervals, assets, stage_objectives, pricing_rates, gpu_model_aliases
-  cardinality: 1 value
-  drilldown: null
-  action: null
-  fixture: tests/test_dashboards_sql.py
-  expected: 'AGENT.md §17: 6 idle GPUs for 2 h = 12 GPU-h.'
-- id: 22
-  title: Overdue GPU-hours in period
-  question: E03
-  status: built
-  audience: CEO, stage owners
-  decision: How much idle time broke the stage objectives in the period.
-  definition: 'the part of each IDLE interval after stage_entered_at + the stage objective (of the interval''s
-    own policy version), clipped to the time range. AGENT.md §17: 8 GPUs idle 3 h with a 1 h objective
-    = 24 idle, 16 overdue GPU-h. Intervals with no objective are excluded here (Queues shows them).'
-  unit: GPU-hours
-  numerator: Σ gpus × hours after stage_entered_at + objective, clipped to the range
-  denominator: null
-  population: Every GPU asset in the ledger (server-scan is the only inventory source).
-  window: selected range
-  filters:
-  - stage_owner
-  - site
-  - snapshot
-  exclusions: Intervals with no objective (shown on Queues).
-  query: grafana/dashboards/ttv-home.json#22
-  lineage:
-  - capacity_intervals
-  - assets
-  - stage_objectives
-  - pricing_rates
-  - gpu_model_aliases
-  freshness: Latest engine scan (every 5 min); the Data age card shows its age.
-  baseline: null
-  direction: lower_is_better
-  thresholds: null
-  uncertainty: null
-  missing_data: Shows 'no scan yet' before the first engine scan; afterwards an empty result is a real
-    0. UNKNOWN GPUs are never counted as idle or productive.
-  value_kind: observed
-  gate: core
-  privileges: SELECT on capacity_intervals, assets, stage_objectives, pricing_rates, gpu_model_aliases
-  cardinality: 1 value
-  drilldown: null
-  action: null
-  fixture: tests/test_dashboards_sql.py
-  expected: 'AGENT.md §17: 8 GPUs idle 3 h with a 1 h objective = 16 overdue GPU-h.'
-- id: 23
-  title: Idle value in period (AWS)
-  question: E03
-  status: built
-  audience: CEO, stage owners
-  decision: The AWS-equivalent value of the period's idle time.
-  definition: idle GPU-hours in the time range × the per-GPU hourly rate of each GPU's model at the selected
-    snapshot (present-day prices). 'at least' = some idle GPU-hours are unpriced and left out. A comparison,
-    not a bill or a loss (ADR-0003). Queues also shows historical prices.
-  unit: USD
-  numerator: null
-  denominator: null
-  population: Every GPU asset in the ledger (server-scan is the only inventory source).
-  window: selected range
-  filters:
-  - stage_owner
-  - site
-  - snapshot
-  exclusions: null
-  query: grafana/dashboards/ttv-home.json#23
-  lineage:
-  - capacity_intervals
-  - assets
-  - stage_objectives
-  - pricing_rates
-  - pricing_snapshots
-  - gpu_model_aliases
-  freshness: Latest engine scan (every 5 min); the Data age card shows its age.
-  baseline: null
-  direction: lower_is_better
-  thresholds: null
-  uncertainty: AWS-equivalent comparison, not a bill, our cost or a loss (ADR-0003); a per-GPU rate allocates
-    the whole instance price. GPUs whose model has no rate are left out and the label says 'at least'.
-  missing_data: '''unpriced or no snapshot'' when nothing is priced; $0 with no idle time.'
-  value_kind: derived
-  gate: core
-  privileges: SELECT on capacity_intervals, assets, stage_objectives, pricing_rates, pricing_snapshots,
-    gpu_model_aliases
-  cardinality: 1 value
-  drilldown: ttv-queues#20
-  action: null
-  fixture: null
-  expected: null
-- id: 25
-  title: Idle GPUs over time, by stage owner
-  question: E03
-  status: built
-  audience: CEO, stage owners
-  decision: Whether the queues are growing or shrinking.
-  definition: 'idle GPUs at each point in the time range, sampled from the ledger (an interval counts
-    while it is open), stacked by stage owner in pipeline order (every owner that ever had idle GPUs;
-    names from the ledger); the red line is the overdue part (idle past the stage objective). Rising =
-    queues growing. The chart starts at the first engine scan: there is no evidence before it.'
-  unit: GPUs
-  numerator: null
-  denominator: null
-  population: Every GPU asset in the ledger (server-scan is the only inventory source).
-  window: selected range
-  filters:
-  - stage_owner
-  - site
-  exclusions: null
-  query: grafana/dashboards/ttv-home.json#25
-  lineage:
-  - capacity_intervals
-  - assets
-  - stage_objectives
-  - scan_runs
-  freshness: Latest engine scan (every 5 min); the Data age card shows its age.
-  baseline: null
-  direction: lower_is_better
-  thresholds: null
-  uncertainty: null
-  missing_data: The chart starts at the first engine scan; no evidence exists before it.
-  value_kind: observed
-  gate: core
-  privileges: SELECT on capacity_intervals, assets, stage_objectives, scan_runs
-  cardinality: one series per stage owner the ledger names, plus the overdue line, × time points
-  drilldown: null
-  action: null
-  fixture: tests/test_dashboards_sql.py
-  expected: Redbull 16, POPAI 2, Serving 6 idle and 16 overdue GPUs at the fixture's last sample.
-- id: 26
-  title: GPU-ready · p50
-  question: E02
-  status: built
-  audience: CEO
-  decision: Is typical time from first record to usable GPUs falling?
-  definition: Median of first record → GPU-ready over servers whose clock completed in the last period.
-  unit: days
-  numerator: percentile_cont(0.5) of exact samples (else exact + lower bounds, shown "≥")
-  denominator: null
-  population: Servers with a first record and a gpu_ready milestone completing in the window.
-  window: last $period complete UTC days before the end of the time range
-  filters:
-  - site
-  - period
-  exclusions: Samples whose GPU-ready was already true at first sight; stage_owner does not apply.
-  query: grafana/dashboards/ttv-home.json#26
-  lineage:
-  - milestones.in_serverscan
-  - milestones.first_seen
-  - milestones.gpu_ready
-  - capacity_intervals.ended_at
-  - scan_runs.status
-  freshness: Periods end at the last complete UTC day.
-  baseline: Prior period (Clocks table, panel 14).
-  direction: lower_is_better
-  thresholds: null
-  uncertainty: Caption gives n; "lower bound" (purple, "≥") when exact samples are fewer than 5.
-  missing_data: Fewer than 5 usable samples shows "no estimate" with "insufficient history · n = k of
-    5".
-  value_kind: derived
-  gate: history
-  privileges: SELECT on milestones, capacity_intervals, scan_runs, assets
-  cardinality: one value
-  drilldown: ttv-delivery#14
-  action: null
-  fixture: tests/test_delivery_sql.py
-  expected: Exact samples of 2, 3, 4, 5, 6 days give 4.0 d with "n = 5 · last 28 d".
-- id: 27
-  title: GPU-ready · p90
-  question: E02
-  status: built
-  audience: CEO
-  decision: Are the slow deliveries to GPU-ready getting faster too?
-  definition: 90th percentile of first record → GPU-ready over servers whose clock completed in the last
-    period.
-  unit: days
-  numerator: percentile_cont(0.9) of exact samples (else exact + lower bounds, shown "≥")
-  denominator: null
-  population: Servers with a first record and a gpu_ready milestone completing in the window.
-  window: last $period complete UTC days before the end of the time range
-  filters:
-  - site
-  - period
-  exclusions: Samples whose GPU-ready was already true at first sight; stage_owner does not apply.
-  query: grafana/dashboards/ttv-home.json#27
-  lineage:
-  - milestones.in_serverscan
-  - milestones.first_seen
-  - milestones.gpu_ready
-  - capacity_intervals.ended_at
-  - scan_runs.status
-  freshness: Periods end at the last complete UTC day.
-  baseline: Prior period (panel 14).
-  direction: lower_is_better
-  thresholds: null
-  uncertainty: Caption gives n; with few samples p90 is close to the maximum.
-  missing_data: Fewer than 5 usable samples shows "no estimate".
-  value_kind: derived
-  gate: history
-  privileges: SELECT on milestones, capacity_intervals, scan_runs, assets
-  cardinality: one value
-  drilldown: ttv-delivery#14
-  action: null
-  fixture: tests/test_delivery_sql.py
-  expected: Exact samples of 2..6 days give 5.6 d.
-- id: 28
-  title: First request · p50
-  question: E02
-  status: built
-  audience: CEO
-  decision: Is typical time from first record to real use falling?
-  definition: Median of first record → first genuine request, computed per server from its own milestones
-    (never a sum of stage percentiles).
-  unit: days
-  numerator: percentile_cont(0.5) of exact samples (else exact + lower bounds, shown "≥")
-  denominator: null
-  population: Servers whose first genuine request was recorded in the window.
-  window: last $period complete UTC days before the end of the time range
-  filters:
-  - site
-  - period
-  exclusions: Requests already flowing at first sight or after an UNKNOWN traffic state; Run:ai-only servers
-    (never record a genuine request); stage_owner does not apply.
-  query: grafana/dashboards/ttv-home.json#28
-  lineage:
-  - milestones.in_serverscan
-  - milestones.first_seen
-  - milestones.first_genuine_request
   - capacity_intervals.category
-  - scan_runs.status
-  freshness: Periods end at the last complete UTC day.
-  baseline: Prior period (panel 14).
-  direction: lower_is_better
-  thresholds: null
-  uncertainty: Caption gives n; "≥" when lower bounds were needed.
-  missing_data: Fewer than 5 usable samples shows "no estimate".
-  value_kind: derived
-  gate: history
-  privileges: SELECT on milestones, capacity_intervals, scan_runs, assets
-  cardinality: one value
-  drilldown: ttv-delivery#14
-  action: null
-  fixture: tests/test_delivery_sql.py
-  expected: Lab ledger 2026-10-31 showed "insufficient history · n = 0 of 5" (its only request followed
-    TRAFFIC_UNOBSERVED).
-- id: 29
-  title: First request · p90
-  question: E02
-  status: built
-  audience: CEO
-  decision: Are the slowest paths to real use getting faster?
-  definition: 90th percentile of first record → first genuine request per server.
-  unit: days
-  numerator: percentile_cont(0.9) of exact samples (else exact + lower bounds, shown "≥")
-  denominator: null
-  population: Servers whose first genuine request was recorded in the window.
-  window: last $period complete UTC days before the end of the time range
-  filters:
-  - site
-  - period
-  exclusions: As panel 12.
-  query: grafana/dashboards/ttv-home.json#29
-  lineage:
-  - milestones.in_serverscan
-  - milestones.first_seen
-  - milestones.first_genuine_request
-  - capacity_intervals.category
-  - scan_runs.status
-  freshness: Periods end at the last complete UTC day.
-  baseline: Prior period (panel 14).
-  direction: lower_is_better
-  thresholds: null
-  uncertainty: Caption gives n; with few samples p90 is close to the maximum.
-  missing_data: Fewer than 5 usable samples shows "no estimate".
-  value_kind: derived
-  gate: history
-  privileges: SELECT on milestones, capacity_intervals, scan_runs, assets
-  cardinality: one value
-  drilldown: ttv-delivery#14
-  action: null
-  fixture: tests/test_delivery_sql.py
-  expected: As panel 12.
-- id: 31
-  title: E04 · What changed since our last review?
-  question: E04
-  status: missing_input
-  audience: CEO
-  decision: Focus the review on what changed.
-  definition: 'Movement since the previous review: newly received, useful, recovered, regressed, decommissioned,
-    newly unobserved.'
-  unit: none
-  numerator: null
-  denominator: null
-  population: Every GPU asset in the ledger (server-scan is the only inventory source).
-  window: now
-  filters: []
-  exclusions: null
-  query: grafana/dashboards/ttv-home.json#31
-  lineage: []
-  freshness: Latest engine scan (every 5 min); the Data age card shows its age.
+  - capacity_intervals.stage
+  - capacity_intervals.gpus
+  - capacity_intervals.cluster
+  - capacity_intervals.evidence
+  - gpu_model_aliases.canonical
+  - pricing_rates.per_gpu_hour_usd
+  - pricing_selection.snapshot_id
+  - pricing_snapshots.publication_date
+  freshness: Latest engine scan (every 5 min); 'Data as of' on the summary page.
   baseline: null
-  direction: neutral
+  direction: lower_is_better
   thresholds: null
-  uncertainty: null
-  missing_data: Needs frozen review snapshots (R2); the panel names the input and points to Queues and
-    Delivery.
-  value_kind: observed
-  gate: history
-  privileges: null
-  cardinality: null
+  uncertainty: 'AWS On-Demand equivalent (us-east-1), a comparison, not our bill (ADR-0003): present-day
+    valuation, every GPU-hour at one snapshot (pricing_selection, else the latest by publication date
+    then capture time). GPU-hours whose model has no rate make it ''at least''.'
+  missing_data: 'No snapshot: no value, label ''no AWS price list loaded''. Wasted GPU-hours but none
+    priced: no value (''No price''), never $0; the label gives the unpriced GPU-hours. Nothing wasted:
+    a real 0.'
+  value_kind: benchmark
+  gate: core
+  privileges: SELECT on capacity_intervals, gpu_model_aliases, pricing_rates, pricing_selection, pricing_snapshots
+  cardinality: 1 value
   drilldown: null
   action: null
-  fixture: null
-  expected: null
-- id: 32
-  title: Where the other questions live
-  question: support
+  fixture: tests/test_dashboards_sql.py
+  expected: $16,904 over the default 7 days, 'at least · 96 GPU-hours have no AWS price · AWS price list
+    of <date> (us-east-1)'.
+- id: 12
+  title: Costing now
+  question: E03
   status: built
-  audience: CEO
-  decision: Find the page for a question R1 does not answer yet.
-  definition: Where the R2/R3 questions live.
-  unit: none
-  numerator: null
+  audience: Senior managers, team leads
+  decision: How fast waste is costing right now.
+  definition: 'Σ open IDLE GPUs × their model''s AWS rate at the present-day snapshot. Label: about that
+    × 24 a day, wasted GPUs with no AWS price, the price list.'
+  unit: USD per hour
+  numerator: Σ gpus × per_gpu_hour_usd of open IDLE intervals
   denominator: null
-  population: Every GPU asset in the ledger (server-scan is the only inventory source).
+  population: Every GPU server server-scan lists (the only inventory source, ADR-0008).
   window: now
-  filters: []
+  filters:
+  - cluster
   exclusions: null
-  query: grafana/dashboards/ttv-home.json#32
-  lineage: []
-  freshness: Latest engine scan (every 5 min); the Data age card shows its age.
+  query: grafana/dashboards/ttv-home.json#12
+  lineage:
+  - capacity_intervals.category
+  - capacity_intervals.stage
+  - capacity_intervals.gpus
+  - capacity_intervals.cluster
+  - capacity_intervals.evidence
+  - gpu_model_aliases.canonical
+  - pricing_rates.per_gpu_hour_usd
+  - pricing_selection.snapshot_id
+  - pricing_snapshots.publication_date
+  freshness: Latest engine scan (every 5 min); 'Data as of' on the summary page.
+  baseline: null
+  direction: lower_is_better
+  thresholds: null
+  uncertainty: 'AWS On-Demand equivalent (us-east-1), a comparison, not our bill (ADR-0003): present-day
+    valuation, every GPU-hour at one snapshot (pricing_selection, else the latest by publication date
+    then capture time). GPU-hours whose model has no rate make it ''at least''.'
+  missing_data: 'No snapshot: no value, label ''no AWS price list loaded''. Wasted GPU-hours but none
+    priced: no value (''No price''), never $0; the label gives the unpriced GPU-hours. Nothing wasted:
+    a real 0.'
+  value_kind: benchmark
+  gate: core
+  privileges: SELECT on capacity_intervals, gpu_model_aliases, pricing_rates, pricing_selection, pricing_snapshots
+  cardinality: 1 value
+  drilldown: null
+  action: null
+  fixture: tests/test_dashboards_sql.py
+  expected: $400.00 per hour; 'at least $9,600 a day · 8 wasted GPUs have no AWS price'.
+- id: 13
+  title: GPUs by model now
+  question: E01
+  status: built
+  audience: Senior managers, team leads
+  decision: Which GPU models we own, and where the waste of each model sits.
+  definition: 'Open intervals by GPU model (canonical name via gpu_model_aliases, else the raw model,
+    else ''Unknown model''; ''NVIDIA '' dropped): all GPUs, in use, wasted, in repair, no data, wasted
+    share of all, the AWS rate per GPU-hour and wasted GPUs × rate; a last ''All models'' row. The groups
+    add up to ''Where every GPU is now''.'
+  unit: GPUs, percent, USD per hour
+  numerator: sum(gpus) per model and group
+  denominator: null
+  population: Every GPU server server-scan lists (the only inventory source, ADR-0008).
+  window: now
+  filters:
+  - cluster
+  exclusions: null
+  query: grafana/dashboards/ttv-home.json#13
+  lineage:
+  - capacity_intervals.category
+  - capacity_intervals.stage
+  - capacity_intervals.gpus
+  - capacity_intervals.cluster
+  - capacity_intervals.evidence
+  - capacity_intervals.gpu_model
+  - gpu_model_aliases.canonical
+  - pricing_rates.per_gpu_hour_usd
+  - pricing_selection.snapshot_id
+  - pricing_snapshots.publication_date
+  freshness: Latest engine scan (every 5 min); 'Data as of' on the summary page.
   baseline: null
   direction: neutral
   thresholds: null
-  uncertainty: null
-  missing_data: Static navigation text.
+  uncertainty: 'AWS On-Demand equivalent (us-east-1), a comparison, not our bill (ADR-0003): present-day
+    valuation, every GPU-hour at one snapshot (pricing_selection, else the latest by publication date
+    then capture time). GPU-hours whose model has no rate make it ''at least''.'
+  missing_data: No rows before the first scan or for a cluster filter with no GPUs. A model with no rate
+    reads 'no AWS price', never $0; the total reads '≥' when any wasted GPU is unpriced.
   value_kind: observed
   gate: core
-  privileges: null
-  cardinality: null
+  privileges: SELECT on capacity_intervals, gpu_model_aliases, pricing_rates, pricing_selection, pricing_snapshots
+  cardinality: one row per GPU model, plus the total
   drilldown: null
   action: null
-  fixture: null
-  expected: null
+  fixture: tests/test_dashboards_sql.py
+  expected: H100 80GB 52 (16/20/0/8), B300 288GB 16, H200 141GB 16, A16 16GB 8 (no AWS price), B200 180GB
+    8, L4 24GB 8, RTX X9 4, Unknown model 2; All models 114 (28/48/8/20), wasted costing ≥ $400 per hour.

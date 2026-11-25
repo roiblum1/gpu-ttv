@@ -175,19 +175,19 @@ class _Rules:
 
     def _maintenance(self) -> Decision | None:
         """
-        Row 6a: maintenance in server-scan is Redbull's time (I8).
+        Row 6a: a server in maintenance is in repair, not waste, and charged to nobody (ADR-0009).
 
         Returns:
             Decision | None: A match, or None.
         """
         if self._note("6a MAINTENANCE", self.s.maintenance_enabled):
-            clock = self._redbull_clock()
-            if self.s.lifecycle_state == "INSTALLED":
-                clock = _clock(self.s.maintenance_since, "maintenance.created_at")
-            evidence = {"maintenance_reason": self.s.maintenance_reason}
-            return self._server_level(
-                Category.IDLE, Reason.MAINTENANCE, Stage.PROVISIONING, clock, evidence
-            )
+            evidence = {
+                "maintenance_reason": self.s.maintenance_reason,
+                "maintenance_since": self.s.maintenance_since.isoformat()
+                if self.s.maintenance_since
+                else None,
+            }
+            return self._server_level(Category.NOT_CHARGED, Reason.MAINTENANCE, evidence=evidence)
         return None
 
     def _hardware(self) -> Decision | None:

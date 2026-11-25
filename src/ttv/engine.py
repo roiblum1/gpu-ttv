@@ -14,15 +14,21 @@ from typing import Any, Protocol
 import structlog
 
 from ttv.classify import SERVERSCAN_SOURCE, ClassifyContext, classify, gpu_count
-from ttv.cluster_view import ClusterView, build_cluster_view, clean_hostname
+from ttv.cluster_view import ClusterView, build_cluster_view, clean_hostname, holder_ref
 from ttv.config import ClusterConnection, Policy
+from ttv.demand import CounterHistory, PodKey, holder_demand
+from ttv.gpu_rows import is_serving_pod
 from ttv.identity import IdentityConflict, build_assets
 from ttv.ledger import LedgerPlan, plan
 from ttv.metrics import EngineMetrics
 from ttv.models import (
     AssetInput,
+    ClusterPod,
+    CounterSample,
     Decision,
+    Demand,
     KubeSnapshot,
+    Reason,
     ServerScanServer,
     SourceStatus,
     ThanosSnapshot,
@@ -30,8 +36,9 @@ from ttv.models import (
 from ttv.pricing.catalog import canonical_gpu_model
 from ttv.pricing.importer import PresentPricing
 from ttv.sources.http import SourceError
+from ttv.sources.pod_metrics import MetricsTarget, PodMetricsRead
 from ttv.sources.serverscan import ServerScanError, ServerScanFetch
-from ttv.store import AssetRow, LedgerState, Milestone, PostgresStore
+from ttv.store import AssetRow, LedgerState, Milestone, PostgresStore, WorkloadRow
 
 log = structlog.get_logger(__name__)
 
@@ -92,15 +99,36 @@ class ThanosFetcher(Protocol):
         ...
 
 
+class PodMetricsFetcher(Protocol):
+    """What the engine needs from a cluster's vLLM pod-metrics source (ADR-0009)."""
+
+    async def fetch(self, targets: Sequence[MetricsTarget]) -> PodMetricsRead:
+        """
+        Read each target pod's request counter through the kube API pod proxy.
+
+        Args:
+            targets (Sequence[MetricsTarget]): Pods and ports to read.
+
+        Returns:
+            PodMetricsRead: Values, per-pod failures, and whether access was denied.
+        """
+        ...
+
+    async def aclose(self) -> None:
+        """Release connections."""
+        ...
+
+
 @dataclass
 class ClusterSources:
     """
-    The two read-only sources of one observed target cluster.
+    The read-only sources of one observed target cluster.
 
     Attributes:
         conn (ClusterConnection): Its configuration.
         kube (KubeFetcher): Kube API source.
         thanos (ThanosFetcher): Thanos source.
+        pod_metrics (PodMetricsFetcher | None): vLLM pod-metrics source; None reads no counter.
         last_kube (KubeSnapshot | None): Last good kube read (kept through short outages).
         last_thanos (ThanosSnapshot | None): Last good Thanos read.
     """
@@ -108,6 +136,7 @@ class ClusterSources:
     conn: ClusterConnection
     kube: KubeFetcher
     thanos: ThanosFetcher
+    pod_metrics: PodMetricsFetcher | None = None
     last_kube: KubeSnapshot | None = None
     last_thanos: ThanosSnapshot | None = None
 
@@ -188,6 +217,8 @@ class Engine:
         self.last_fetch: ServerScanFetch | None = None
         self.last_report: ScanReport | None = None
         self._failed: dict[str, int] = defaultdict(int)
+        self.history = CounterHistory(policy.serving.demand_window + timedelta(hours=1))
+        self._history_loaded = False
 
     async def run_once(self) -> ScanReport:
         """
@@ -201,6 +232,9 @@ class Engine:
         errors: list[str] = []
         store = self.store
         scan_id = await store.begin_scan("engine", now, dry_run=self.dry_run) if store else 0
+        if store and not self._history_loaded:
+            self.history.add(await store.load_counter_samples(now - self.history.keep))
+            self._history_loaded = True
 
         (fetch, complete), views = await asyncio.gather(
             self._fetch(now, errors), self._read_clusters(now, errors)
@@ -282,6 +316,7 @@ class Engine:
                 resolve_missing_conflicts=fresh_complete,
                 now=now,
                 gpu_aliases=_aliases(decisions),
+                workloads=_workload_rows(decisions),
             )
 
         coverage["cluster_sources_failed"] = sum(
@@ -380,7 +415,8 @@ class Engine:
         results = await asyncio.gather(*jobs)
         kube_results, thanos_results = results[: len(self.clusters)], results[len(self.clusters) :]
 
-        views: dict[str, ClusterView] = {}
+        failed_by: dict[str, int] = {}
+        fresh: dict[str, bool] = {}
         for c, (kube, kube_err), (thanos, thanos_err) in zip(
             self.clusters, kube_results, thanos_results, strict=True
         ):
@@ -397,14 +433,151 @@ class Engine:
                     errors.append(err)
                 health = await self._record_source(name, err is None, now, err)
                 failed = max(failed, health.failed_scans)
+            failed_by[c.conn.name] = failed
+            fresh[c.conn.name] = isinstance(kube, KubeSnapshot)
+
+        pods = {c.conn.name: self._serving_pods(c) for c in self.clusters}
+        reads = await asyncio.gather(
+            *(
+                self._read_pod_metrics(c, pods[c.conn.name][1] if fresh[c.conn.name] else [])
+                for c in self.clusters
+            )
+        )
+        views: dict[str, ClusterView] = {}
+        for c, (values, error, attempted) in zip(self.clusters, reads, strict=True):
+            if attempted:
+                await self._record_source(f"vllm:{c.conn.name}", error is None, now, error)
+            serving, counted = pods[c.conn.name]
+            demand = await self._serving_demand(c, serving, counted, values, now)
             views[c.conn.name] = build_cluster_view(
                 c.conn.name,
                 c.last_kube,
                 c.last_thanos,
-                unreachable=failed >= self.grace,
+                unreachable=failed_by[c.conn.name] >= self.grace,
                 reservation_namespaces=c.conn.reservation_namespaces,
+                demand=demand,
             )
         return views
+
+    def _serving_pods(self, c: ClusterSources) -> tuple[list[ClusterPod], list[ClusterPod]]:
+        """
+        A cluster's GPU-holding pods of served models, and those whose counters are read.
+
+        Args:
+            c (ClusterSources): The cluster.
+
+        Returns:
+            tuple[list[ClusterPod], list[ClusterPod]]: All serving pods, and the Running ones
+            outside `skip_roles` (prefill pods count each request again).
+        """
+        if c.last_kube is None:
+            return [], []
+        rules = self.policy.serving
+        serving = [
+            p
+            for p in c.last_kube.pods
+            if p.gpus > 0
+            and p.namespace not in c.conn.reservation_namespaces
+            and is_serving_pod(p, self.policy)
+        ]
+        counted = [
+            p
+            for p in serving
+            if p.phase == "Running" and p.labels.get(rules.role_label) not in rules.skip_roles
+        ]
+        return serving, counted
+
+    async def _read_pod_metrics(
+        self, c: ClusterSources, pods: Sequence[ClusterPod]
+    ) -> tuple[dict[PodKey, float], str | None, bool]:
+        """
+        Read the pods' counters within the cluster deadline; network only, no database.
+
+        Args:
+            c (ClusterSources): The cluster.
+            pods (Sequence[ClusterPod]): Running serving pods to read.
+
+        Returns:
+            tuple[dict[PodKey, float], str | None, bool]: Counter values by `(namespace, pod)`
+            (failed pods absent), an error for the `vllm:<cluster>` source, and whether a read
+            was attempted.
+        """
+        if c.pod_metrics is None or not pods:
+            return {}, None, False
+        port = self.policy.serving.metrics_port
+        targets = [MetricsTarget(p.namespace, p.name, port or p.metrics_port or 8000) for p in pods]
+        name = f"vllm:{c.conn.name}"
+        read, error = await self._read(name, c.pod_metrics.fetch(targets))
+        values: dict[PodKey, float] = {}
+        if isinstance(read, PodMetricsRead):
+            values = dict(read.values)
+            if read.permission_denied:
+                error = f"{name}: permission denied; grant get on pods/proxy (gpu-cluster-rbac)"
+            elif not values:
+                error = f"{name}: no pod's counter could be read ({len(read.failed)} failed)"
+        return values, error, True
+
+    async def _serving_demand(
+        self,
+        c: ClusterSources,
+        serving: Sequence[ClusterPod],
+        counted: Sequence[ClusterPod],
+        values: dict[PodKey, float],
+        now: datetime,
+    ) -> dict[str, Demand]:
+        """
+        Keep this scan's counter readings and work out each served model's demand (ADR-0009).
+
+        Readings go to the in-memory history and, also in dry run, to Postgres. A counted pod
+        with no reading this scan makes its deployment's windows incomplete.
+
+        Args:
+            c (ClusterSources): The cluster.
+            serving (Sequence[ClusterPod]): Its serving pods.
+            counted (Sequence[ClusterPod]): The ones whose counters were to be read.
+            values (dict[PodKey, float]): Counter values read this scan.
+            now (datetime): Scan time.
+
+        Returns:
+            dict[str, Demand]: Demand by `holder_ref`; a deployment with no reading is absent.
+        """
+        rules = self.policy.serving
+        samples = [
+            CounterSample(
+                cluster=c.conn.name,
+                namespace=p.namespace,
+                pod=p.name,
+                holder_ref=holder_ref(p),
+                observed_at=now,
+                value=values[(p.namespace, p.name)],
+                pod_started_at=p.started_at,
+                restarts=p.restarts,
+            )
+            for p in counted
+            if (p.namespace, p.name) in values
+        ]
+        self.history.add(samples)
+        self.history.prune(now)
+        if self.store:
+            await self.store.record_counter_samples(samples, prune_before=now - self.history.keep)
+
+        pods_of: dict[str, list[PodKey]] = defaultdict(list)
+        for p in counted:
+            pods_of[holder_ref(p)].append((p.namespace, p.name))
+        out: dict[str, Demand] = {}
+        for ref in sorted({holder_ref(p) for p in serving}):
+            keys = pods_of.get(ref, [])
+            demand = holder_demand(
+                self.history.for_holder(c.conn.name, ref),
+                now=now,
+                window=rules.demand_window,
+                recent=rules.recent_window,
+                read=[k for k in keys if k in values],
+                unreadable=[k for k in keys if k not in values],
+            )
+            if demand is not None:
+                out[ref] = demand
+        return out
 
     async def _read(self, name: str, job: Any) -> tuple[Any, str | None]:
         """
@@ -641,3 +814,80 @@ def _counts(ledger_plan: LedgerPlan) -> dict[str, int]:
         "closes": len(ledger_plan.closes),
         "refreshes": len(ledger_plan.refreshes),
     }
+
+
+def _workload_rows(decisions: dict[str, Decision]) -> list[WorkloadRow]:
+    """
+    Every GPU-holding workload in this scan's buckets, for `workloads_now` (ADR-0009).
+
+    Args:
+        decisions (dict[str, Decision]): Decisions by asset id.
+
+    Returns:
+        list[WorkloadRow]: One row per (cluster, workload, reason), GPUs summed over nodes.
+    """
+    rows: dict[tuple[str, str, str], WorkloadRow] = {}
+    for d in decisions.values():
+        for b in d.buckets:
+            if b.holder_ref is None or b.cluster is None or b.reason is Reason.NO_WORKLOAD:
+                continue
+            e = b.evidence
+            key = (b.cluster, b.holder_ref, str(b.reason))
+            since = _parse_time(e.get("started_at"))
+            busy = e.get("gpu_busy_peak")
+            row = rows.get(key)
+            if row is None:
+                kind = "unresolved" if b.reason is Reason.HOLDER_UNRESOLVED else e.get("kind")
+                rows[key] = WorkloadRow(
+                    cluster=b.cluster,
+                    holder_ref=b.holder_ref,
+                    reason=str(b.reason),
+                    category=str(b.category),
+                    kind=kind if kind in ("serving", "ml") else "unresolved",
+                    runai=bool(e.get("runai")),
+                    stage=str(b.stage) if b.stage else None,
+                    stage_owner=b.stage_owner,
+                    gpus=b.gpus,
+                    gpu_models=(b.gpu_model,) if b.gpu_model else (),
+                    requests_window=e.get("requests"),
+                    window_hours=e.get("covered_hours", e.get("window_hours")),
+                    window_complete=e.get("complete"),
+                    requests_recent=e.get("recent_requests"),
+                    recent_hours=e.get("recent_hours"),
+                    recent_complete=e.get("recent_complete"),
+                    requests_per_gpu_hour=e.get("requests_per_gpu_hour"),
+                    gpu_busy_peak=busy,
+                    busy_window_hours=e.get("busy_window_hours"),
+                    gpu_power_peak=e.get("gpu_power_peak"),
+                    gpu_power_avg=e.get("gpu_power_avg"),
+                    since=since,
+                )
+                continue
+            models = row.gpu_models
+            if b.gpu_model and b.gpu_model not in models:
+                models = (*models, b.gpu_model)
+            peaks = [x for x in (row.gpu_busy_peak, busy) if x is not None]
+            powers = [x for x in (row.gpu_power_peak, e.get("gpu_power_peak")) if x is not None]
+            starts = [x for x in (row.since, since) if x is not None]
+            rows[key] = dataclasses.replace(
+                row,
+                gpus=row.gpus + b.gpus,
+                gpu_models=models,
+                gpu_busy_peak=max(peaks) if peaks else None,
+                gpu_power_peak=max(powers) if powers else None,
+                since=min(starts) if starts else None,
+            )
+    return [rows[k] for k in sorted(rows)]
+
+
+def _parse_time(value: Any) -> datetime | None:
+    """
+    An ISO timestamp from evidence, or None.
+
+    Args:
+        value (Any): The evidence value.
+
+    Returns:
+        datetime | None: The time.
+    """
+    return datetime.fromisoformat(value) if isinstance(value, str) else None

@@ -47,7 +47,7 @@ def only(decision: Decision) -> tuple[Category, Reason, str | None]:
             (Category.UNKNOWN, Reason.CLUSTER_NOT_OBSERVED, None),
         ),
         ({"lifecycle_state": None}, (Category.UNKNOWN, Reason.MEMBERSHIP_UNKNOWN, None)),
-        ({"maintenance_enabled": True}, (Category.IDLE, Reason.MAINTENANCE, "Redbull")),
+        ({"maintenance_enabled": True}, (Category.NOT_CHARGED, Reason.MAINTENANCE, None)),
         ({"health_overall": "CRITICAL"}, (Category.IDLE, Reason.HARDWARE_CRITICAL, "Redbull")),
         ({"reachable": False}, (Category.IDLE, Reason.BMC_UNREACHABLE, "Redbull")),
         ({"contested_with": "ocp4-prod-gpu-site2"}, (Category.UNKNOWN, Reason.CONTESTED, None)),
@@ -145,31 +145,47 @@ def test_redbull_stage_clock_prefers_claim_change_then_lower_bound_creation(poli
     assert (clock.since, clock.lower_bound) == (T0 - timedelta(days=10), True)
 
 
-def test_maintenance_outside_a_cluster_keeps_redbulls_clock(policy: Policy) -> None:
-    """Redbull held the server before maintenance began, so maintenance does not restart it."""
-    since = T0 - timedelta(hours=2)
-    clock = run(policy, maintenance_enabled=True, maintenance_since=since).stage_clocks
-    assert (clock["PROVISIONING"].since, clock["PROVISIONING"].source) == (
-        T0 - timedelta(days=10),
-        "created_at",
-    )
-
-
-def test_maintenance_of_a_cluster_node_starts_redbulls_clock_at_maintenance(
-    policy: Policy,
+@pytest.mark.parametrize(
+    "fields",
+    [
+        {},
+        {"lifecycle_state": "INSTALLED", "cluster_name": "ocp4-prod-gpu-site1"},
+        {"lifecycle_state": "INSTALLED", "cluster_name": "other-cluster"},
+        {"health_overall": "CRITICAL"},
+    ],
+)
+def test_maintenance_is_in_repair_and_charged_to_nobody(
+    policy: Policy, fields: dict[str, Any]
 ) -> None:
-    """An INSTALLED node came back to Redbull when maintenance began."""
+    """ADR-0009: maintenance means a hardware problem being fixed, not waste, wherever it is."""
     since = T0 - timedelta(hours=2)
-    decision = run(
-        policy,
-        maintenance_enabled=True,
-        maintenance_since=since,
-        lifecycle_state="INSTALLED",
-        cluster_name="ocp4-prod-gpu-site1",
+    decision = run(policy, maintenance_enabled=True, maintenance_since=since, **fields)
+    assert only(decision) == (Category.NOT_CHARGED, Reason.MAINTENANCE, None)
+    assert decision.stage_clocks == {}
+    (bucket,) = decision.buckets
+    assert bucket.stage is None
+    assert bucket.evidence["maintenance_since"] == since.isoformat()
+
+
+def test_critical_hardware_without_maintenance_stays_redbulls_waste(policy: Policy) -> None:
+    """ADR-0009: only maintenance is in repair; a broken server nobody put in maintenance is."""
+    assert only(run(policy, health_overall="CRITICAL")) == (
+        Category.IDLE,
+        Reason.HARDWARE_CRITICAL,
+        "Redbull",
     )
-    assert only(decision) == (Category.IDLE, Reason.MAINTENANCE, "Redbull")
-    clock = decision.stage_clocks["PROVISIONING"]
-    assert (clock.since, clock.lower_bound) == (since, False)
+
+
+def test_policy_without_the_adr_0009_stages_is_refused() -> None:
+    """A three-team policy fails with a message naming the two new stages."""
+    with pytest.raises(ValueError, match=r"EMPTY.*MACHINE_LEARNING"):
+        Policy.model_validate(
+            {
+                "policy_version": "old",
+                "teams": {"PROVISIONING": "Redbull", "GPU_PLATFORM": "POPAI", "SERVING": "Serving"},
+                "stage_objectives": {"PROVISIONING": "2d", "GPU_PLATFORM": "1d", "SERVING": "7d"},
+            }
+        )
 
 
 def test_policy_naming_the_removed_dc_stage_is_refused() -> None:

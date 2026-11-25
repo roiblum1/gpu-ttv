@@ -122,7 +122,7 @@ class PanelQuery:
     @property
     def label(self) -> str:
         """
-        Return a short id for test names, e.g. `ttv-queues#7A` or `ttv-queues$site`.
+        Return a short id for test names, e.g. `ttv-apply#5A` or `ttv-apply$cluster`.
 
         Returns:
             str: The label.

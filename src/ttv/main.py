@@ -19,6 +19,7 @@ from ttv.metrics import EngineMetrics
 from ttv.pricing.catalog import canonical_gpu_model
 from ttv.pricing.importer import prepare_pricing
 from ttv.sources.kube import KubeSource
+from ttv.sources.pod_metrics import PodMetricsSource
 from ttv.sources.serverscan import DetailCache, InMemoryDetailCache, ServerScanSource
 from ttv.sources.thanos import ThanosSource
 from ttv.store import MIGRATIONS, PostgresStore
@@ -163,6 +164,8 @@ async def _run(args: argparse.Namespace) -> int:
         for c in cluster_sources:
             await c.kube.aclose()
             await c.thanos.aclose()
+            if c.pod_metrics:
+                await c.pod_metrics.aclose()
         if store:
             await store.close()
 
@@ -171,11 +174,11 @@ def _cluster_sources(
     settings: Settings, policy: Policy, clusters: list[ClusterConnection]
 ) -> list[ClusterSources]:
     """
-    Build the kube and Thanos sources of every configured target cluster.
+    Build the kube, Thanos and vLLM pod-metrics sources of every configured target cluster.
 
     Args:
         settings (Settings): Runtime settings (deadlines, concurrency).
-        policy (Policy): Policy (serving counters and windows to query).
+        policy (Policy): Policy (the request counter to read and the activity window).
         clusters (list[ClusterConnection]): Configured clusters.
 
     Returns:
@@ -191,10 +194,17 @@ def _cluster_sources(
             ),
             thanos=ThanosSource(
                 c,
-                counters=policy.counters(),
-                demand_window=policy.serving.demand_window,
                 activity_window=policy.allocated_idle.window,
                 timeout_seconds=settings.cluster_timeout_seconds,
+                power_window=policy.serving.demand_window,
+                rated_watts=policy.power.rated_watts,
+            ),
+            pod_metrics=PodMetricsSource(
+                c,
+                metric=policy.serving.metric,
+                # inside the engine's own deadline, so a slow pod fails alone (ADR-0009)
+                timeout_seconds=0.8 * settings.cluster_timeout_seconds,
+                concurrency=settings.owner_lookup_concurrency,
             ),
         )
         for c in clusters

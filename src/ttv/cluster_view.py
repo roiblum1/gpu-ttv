@@ -6,7 +6,7 @@ from collections import defaultdict
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
-from ttv.models import ClusterNode, ClusterPod, KubeSnapshot, ThanosSnapshot
+from ttv.models import ClusterNode, ClusterPod, Demand, KubeSnapshot, ThanosSnapshot
 
 
 def clean_hostname(raw: object) -> str | None:
@@ -59,6 +59,12 @@ class ClusterView:
         uuids_by_clean (Mapping[str, frozenset[str]]): DCGM GPU UUIDs by cleaned node label.
         xid_by_clean (Mapping[str, Mapping[str, float]]): Non-zero last XID per UUID, by node.
         gpus_by_holder (Mapping[str, int]): Whole GPUs each logical workload holds cluster-wide.
+        demand (Mapping[str, Demand]): Requests of each serving workload, by `holder_ref`, from
+            its pods' own counters (ADR-0009); a workload without an entry was not read.
+        free_power_by_clean (Mapping[str, tuple[float, ...]]): Peak power shares of the GPUs
+            whose DCGM series has no pod, by cleaned node label.
+        power_avg_by_holder (Mapping[str, float]): Mean power share over the demand window of
+            each workload's GPUs that report power, by `holder_ref`.
     """
 
     name: str
@@ -71,6 +77,9 @@ class ClusterView:
     uuids_by_clean: Mapping[str, frozenset[str]] = field(default_factory=dict)
     xid_by_clean: Mapping[str, Mapping[str, float]] = field(default_factory=dict)
     gpus_by_holder: Mapping[str, int] = field(default_factory=dict)
+    demand: Mapping[str, Demand] = field(default_factory=dict)
+    free_power_by_clean: Mapping[str, tuple[float, ...]] = field(default_factory=dict)
+    power_avg_by_holder: Mapping[str, float] = field(default_factory=dict)
 
     def gpu_uuids(self, node: ClusterNode) -> frozenset[str]:
         """
@@ -92,6 +101,7 @@ def build_cluster_view(
     *,
     unreachable: bool = False,
     reservation_namespaces: frozenset[str] = frozenset(),
+    demand: Mapping[str, Demand] | None = None,
 ) -> ClusterView:
     """
     Index one cluster's snapshots for the classifier.
@@ -102,6 +112,7 @@ def build_cluster_view(
         thanos (ThanosSnapshot | None): Latest good Thanos read.
         unreachable (bool): A source failed beyond grace.
         reservation_namespaces (frozenset[str]): Run:ai reservation namespaces.
+        demand (Mapping[str, Demand] | None): Serving requests by `holder_ref`.
 
     Returns:
         ClusterView: The indexed view.
@@ -122,6 +133,15 @@ def build_cluster_view(
         uuids[clean_hostname(label) or label].update(values)
     for label, values in (thanos.last_xid_by_node if thanos else {}).items():
         xids[clean_hostname(label) or label].update(values)
+    free: dict[str, list[float]] = defaultdict(list)
+    for label, shares in (thanos.free_gpu_power_by_node if thanos else {}).items():
+        free[clean_hostname(label) or label].extend(shares)
+    power = thanos.power_by_pod if thanos else {}
+    weighted: dict[str, list[tuple[float, int]]] = defaultdict(list)
+    for pod in kube.pods if kube else ():
+        reading = power.get((pod.namespace, pod.name))
+        if reading is not None and reading.average is not None and reading.gpus:
+            weighted[holder_ref(pod)].append((reading.average, reading.gpus))
 
     return ClusterView(
         name=name,
@@ -134,4 +154,10 @@ def build_cluster_view(
         uuids_by_clean={k: frozenset(v) for k, v in uuids.items()},
         xid_by_clean={k: dict(v) for k, v in xids.items()},
         gpus_by_holder=dict(held),
+        demand=dict(demand or {}),
+        free_power_by_clean={k: tuple(sorted(v, reverse=True)) for k, v in free.items()},
+        power_avg_by_holder={
+            ref: sum(a * n for a, n in parts) / sum(n for _, n in parts)
+            for ref, parts in weighted.items()
+        },
     )

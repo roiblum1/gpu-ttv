@@ -65,53 +65,14 @@ def _duration_field(value: Any) -> Any:
     return parse_duration(value) if isinstance(value, str) else value
 
 
-class CounterOfRecord(BaseModel):
-    """
-    One candidate request counter for a serving kind (§20.3, D8); the first with series wins.
-
-    Attributes:
-        metric (str): Metric name, e.g. `llm_d_epp_request_total`.
-        pod_regex (str): Pods whose series count, with `{name}` replaced by the escaped name of
-            the logical deployment, e.g. `^{name}-kserve-router-scheduler-[a-z0-9]+-[a-z0-9]+$`.
-        matchers (str): Extra PromQL label matchers, e.g. `fairness_id!="synthetic"` (D9).
-    """
-
-    model_config = ConfigDict(extra="forbid")
-
-    metric: str = Field(pattern=r"^[a-zA-Z_:][a-zA-Z0-9_:]*$")
-    pod_regex: str = Field(min_length=1)
-    matchers: str = ""
-
-    @property
-    def selector(self) -> str:
-        """
-        The PromQL series selector, also the key of `ThanosSnapshot.counters`.
-
-        Returns:
-            str: `metric` or `metric{matchers}`.
-        """
-        return f"{self.metric}{{{self.matchers}}}" if self.matchers else self.metric
-
-    @property
-    def excludes_synthetic(self) -> bool:
-        """
-        Whether this counter filters out synthetic traffic (else attribution is unverified).
-
-        Returns:
-            bool: True when `matchers` is set.
-        """
-        return bool(self.matchers)
-
-
 class ServingKind(BaseModel):
     """
-    How to recognise a logical serving deployment and which counter measures its demand.
+    How to recognise a logical serving deployment by its pods' top owner.
 
     Attributes:
         group (str): API group of the pod's top owner ("" for core).
         kind (str): Kind of the top owner.
         image_pattern (str | None): When set, a container image must match this regex.
-        counters (list[CounterOfRecord]): Counter candidates in order; never summed together.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -119,98 +80,84 @@ class ServingKind(BaseModel):
     group: str
     kind: str
     image_pattern: str | None = None
-    counters: list[CounterOfRecord] = Field(min_length=1)
 
 
-_POD_HASH = "[a-z0-9]+-[a-z0-9]+$"
-_EPP_PODS = "^{name}-kserve-router-scheduler-" + _POD_HASH
 DEFAULT_SERVING_KINDS: tuple[ServingKind, ...] = (
-    ServingKind(
-        group="serving.kserve.io",
-        kind="LLMInferenceService",
-        counters=[
-            CounterOfRecord(metric="llm_d_epp_request_total", pod_regex=_EPP_PODS),
-            CounterOfRecord(metric="inference_objective_request_total", pod_regex=_EPP_PODS),
-            CounterOfRecord(metric="inference_model_request_total", pod_regex=_EPP_PODS),
-            CounterOfRecord(
-                metric="vllm:request_success_total", pod_regex="^{name}-kserve-" + _POD_HASH
-            ),
-        ],
-    ),
-    ServingKind(
-        group="serving.kserve.io",
-        kind="InferenceService",
-        counters=[
-            CounterOfRecord(
-                metric="vllm:request_success_total",
-                pod_regex="^{name}-predictor-(?:[0-9]+-deployment-)?" + _POD_HASH,
-            )
-        ],
-    ),
-    ServingKind(
-        group="apps",
-        kind="Deployment",
-        image_pattern="vllm",
-        counters=[
-            CounterOfRecord(metric="vllm:request_success_total", pod_regex="^{name}-" + _POD_HASH)
-        ],
-    ),
+    ServingKind(group="serving.kserve.io", kind="LLMInferenceService"),
+    ServingKind(group="serving.kserve.io", kind="InferenceService"),
+    ServingKind(group="apps", kind="Deployment", image_pattern="vllm"),
 )
 
 
 class ServingPolicy(BaseModel):
     """
-    Serving demand rules (§20.2 rows 17-20, I2).
+    Serving demand rules (ADR-0002 rows 16b-20, ADR-0009): requests read from each vLLM pod.
 
     Attributes:
-        demand_window (timedelta): Window for genuine requests (row 19).
-        warmup_grace (timedelta): A not-Ready serving pod younger than this is still loading.
-        useful_requests_per_gpu_hour (float | None): Approved I2 threshold; None until approved
-            (then `LOW_USE` is inactive and any genuine request is flagged `low_use_unverified`).
+        demand_window (timedelta): Window whose requests decide in use or waste (row 19).
+        recent_window (timedelta): Shorter window shown next to it ("quiet" models).
+        warmup_grace (timedelta): A not-Ready pod younger than this is still starting.
+        useful_requests_per_gpu_hour (float | None): Below this many requests per GPU per hour
+            over the demand window a model is `LOW_USE` (I2; chosen 2026-11-25, provisional).
+            None turns `LOW_USE` off and flags genuine use `low_use_unverified`.
         kinds (list[ServingKind]): Recognised serving kinds, in order.
+        metric (str): Request counter read from each pod's `/metrics`, summed over its labels.
+        metrics_port (int | None): Port to read; None uses `ClusterPod.metrics_port`, else 8000.
+        role_label (str): Pod label naming an llm-d role.
+        skip_roles (frozenset[str]): Roles whose counters are not added (prefill pods count
+            each request again; discovery fact 48).
     """
 
     model_config = ConfigDict(extra="forbid")
 
     demand_window: timedelta = timedelta(hours=24)
+    recent_window: timedelta = timedelta(hours=1)
     warmup_grace: timedelta = timedelta(minutes=30)
-    useful_requests_per_gpu_hour: float | None = Field(default=None, ge=0)
+    useful_requests_per_gpu_hour: float | None = Field(default=1.0, ge=0)
     kinds: list[ServingKind] = Field(default_factory=lambda: list(DEFAULT_SERVING_KINDS))
+    metric: str = Field(default="vllm:request_success_total", pattern=r"^[a-zA-Z_:][a-zA-Z0-9_:]*$")
+    metrics_port: int | None = Field(default=None, ge=1, le=65535)
+    role_label: str = "llm-d.ai/role"
+    skip_roles: frozenset[str] = frozenset({"prefill"})
 
-    _durations = field_validator("demand_window", "warmup_grace", mode="before")(_duration_field)
+    _durations = field_validator("demand_window", "recent_window", "warmup_grace", mode="before")(
+        _duration_field
+    )
+
+    @model_validator(mode="after")
+    def _recent_inside_window(self) -> ServingPolicy:
+        """
+        Require the recent window to be positive and no longer than the demand window.
+
+        Returns:
+            ServingPolicy: This policy.
+
+        Raises:
+            ValueError: If `recent_window` is not positive or exceeds `demand_window`.
+        """
+        if not timedelta(0) < self.recent_window <= self.demand_window:
+            raise ValueError("serving.recent_window must be positive and at most demand_window")
+        return self
 
 
 class RunaiPolicy(BaseModel):
     """
-    Which Run:ai owners are productive by presence (§0.2, C6); verified per cluster by probe R5.
+    Run:ai workloads: any pod whose top owner is in this API group (ADR-0009: all are ML).
 
     Attributes:
         group (str): API group of native Run:ai kinds.
-        productive_kinds (frozenset[str]): Top-owner kinds that are productive.
-        interactive_priority_classes (frozenset[str]): A `RunaiJob` pod with one of these
-            priority classes is interactive, so idle (C6).
-        priority_label (str): Pod label holding the priority class.
     """
 
     model_config = ConfigDict(extra="forbid")
 
     group: str = "run.ai"
-    productive_kinds: frozenset[str] = frozenset(
-        {
-            "TrainingWorkload",
-            "DistributedWorkload",
-            "InferenceWorkload",
-            "DistributedInferenceWorkload",
-            "RunaiJob",
-        }
-    )
-    interactive_priority_classes: frozenset[str] = frozenset({"build"})
-    priority_label: str = "priorityClassName"
 
 
 class AllocatedIdlePolicy(BaseModel):
     """
-    The `allocated_idle` flag: a productive holder below `threshold` activity for `window`.
+    GPU utilization rule: Machine Learning waste (row 21) and the serving `allocated_idle` flag.
+
+    A pod older than `window` whose highest GPU activity over `window` stayed below `threshold`.
 
     Attributes:
         window (timedelta): How long activity must stay low.
@@ -223,6 +170,87 @@ class AllocatedIdlePolicy(BaseModel):
     threshold: float = Field(default=0.05, ge=0, le=1)
 
     _durations = field_validator("window", mode="before")(_duration_field)
+
+
+class PowerRating(BaseModel):
+    """
+    Rated power of the GPUs whose DCGM `modelName` matches `pattern` (first match wins).
+
+    Attributes:
+        pattern (str): Case-insensitive regex searched in the model name, e.g. `H100.*PCIe`.
+        watts (float): Rated board power in watts.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    pattern: str = Field(min_length=1)
+    watts: float = Field(gt=0)
+
+
+# Board power from NVIDIA's data sheets (documented, 2026-11-26). Where one name covers
+# several boards the lower rating is used, which can only make a GPU look busier (ADR-0009).
+DEFAULT_POWER_RATINGS: tuple[PowerRating, ...] = tuple(
+    PowerRating(pattern=p, watts=w)
+    for p, w in (
+        ("B300", 1100),
+        ("B200", 1000),
+        ("H200 NVL", 600),
+        ("H200", 700),
+        ("H100 NVL", 350),
+        ("H100 PCIe", 350),
+        ("H100", 700),
+        ("H800", 350),
+        ("A100.*PCIe", 250),
+        ("A100", 400),
+        ("A800", 250),
+        ("L40S", 350),
+        ("L40", 300),
+        (r"L4\b", 72),
+        ("RTX PRO 6000", 400),
+        (r"A10\b", 150),
+        ("A16", 250),
+        ("A30", 165),
+        ("A40", 300),
+        ("T4", 70),
+        ("V100", 250),
+    )
+)
+
+
+class PowerPolicy(BaseModel):
+    """
+    GPU power as a second sign of work (ADR-0009), as a share of each GPU's rated power.
+
+    A GPU's rating is its DCGM power-management limit when exported, else the first matching
+    `ratings` entry for its model name, else unknown (then power is not used for it).
+
+    Attributes:
+        threshold (float | None): Share of rated power that counts as working: a Machine
+            Learning pod is busy when its peak reaches it, a served model is barely used when
+            its 24 h average stays below it, and an empty GPU whose peak reaches it is in use
+            by something unseen. None turns power off.
+        ratings (list[PowerRating]): Rated power by model name, first match wins.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    threshold: float | None = Field(default=0.25, gt=0, le=1)
+    ratings: list[PowerRating] = Field(default_factory=lambda: list(DEFAULT_POWER_RATINGS))
+
+    def rated_watts(self, model: str) -> float | None:
+        """
+        Rated power of a GPU model from the table.
+
+        Args:
+            model (str): DCGM `modelName`, e.g. `NVIDIA H100 80GB HBM3`.
+
+        Returns:
+            float | None: Watts, or None when no entry matches.
+        """
+        for rating in self.ratings:
+            if re.search(rating.pattern, model, re.IGNORECASE):
+                return rating.watts
+        return None
 
 
 class Pool(BaseModel):
@@ -267,8 +295,9 @@ class Policy(BaseModel):
         critical_health_values (frozenset[str]): `health.overall` values meaning critical.
         exclusions (Exclusions): Intentional exclusions.
         serving (ServingPolicy): Serving recognition and demand rules.
-        runai (RunaiPolicy): Run:ai productive kinds.
-        allocated_idle (AllocatedIdlePolicy): The `allocated_idle` flag.
+        runai (RunaiPolicy): Run:ai recognition.
+        allocated_idle (AllocatedIdlePolicy): GPU utilization rule.
+        power (PowerPolicy): GPU power as a second sign of work.
         pools (list[Pool]): Node pools, first match wins.
         team_map (TeamMap): Consuming teams.
     """
@@ -284,21 +313,9 @@ class Policy(BaseModel):
     serving: ServingPolicy = ServingPolicy()
     runai: RunaiPolicy = RunaiPolicy()
     allocated_idle: AllocatedIdlePolicy = AllocatedIdlePolicy()
+    power: PowerPolicy = PowerPolicy()
     pools: list[Pool] = []
     team_map: TeamMap = TeamMap()
-
-    def counters(self) -> list[CounterOfRecord]:
-        """
-        Every distinct serving counter candidate, for the Thanos source to query.
-
-        Returns:
-            list[CounterOfRecord]: One per distinct selector, in policy order.
-        """
-        seen: dict[str, CounterOfRecord] = {}
-        for kind in self.serving.kinds:
-            for counter in kind.counters:
-                seen.setdefault(counter.selector, counter)
-        return list(seen.values())
 
     @model_validator(mode="before")
     @classmethod
@@ -354,7 +371,10 @@ class Policy(BaseModel):
         """
         missing = [s for s in Stage if s not in self.teams or s not in self.stage_objectives]
         if missing:
-            raise ValueError(f"teams and stage_objectives need every stage; missing {missing}")
+            raise ValueError(
+                f"teams and stage_objectives need every stage; missing {[str(m) for m in missing]}"
+                " (ADR-0009 added EMPTY and MACHINE_LEARNING)"
+            )
         return self
 
 
@@ -392,8 +412,7 @@ class ClusterConnection(BaseModel):
         dcgm_uuid_label (str): DCGM label holding the GPU UUID (D2).
         dcgm_pod_label (str): DCGM label holding the workload pod (D3).
         dcgm_namespace_label (str): DCGM label holding the workload namespace (D3).
-        serving_pod_label (str): Pod label on serving counter series.
-        serving_namespace_label (str): Namespace label on serving counter series.
+        dcgm_model_label (str): DCGM label holding the GPU model name (power ratings).
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -412,8 +431,7 @@ class ClusterConnection(BaseModel):
     dcgm_uuid_label: str = "UUID"
     dcgm_pod_label: str = "exported_pod"
     dcgm_namespace_label: str = "exported_namespace"
-    serving_pod_label: str = "pod"
-    serving_namespace_label: str = "namespace"
+    dcgm_model_label: str = "modelName"
 
     @model_validator(mode="after")
     def _one_thanos_trust(self) -> ClusterConnection:

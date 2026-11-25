@@ -2,19 +2,34 @@
 
 One release per target cluster gives gpu-ttv what AGENT.md §20.8 allows and nothing more:
 - a ServiceAccount;
-- a ClusterRole with **get, list and watch only**, on the kinds the engine reads;
+- a ClusterRole with **get, list and watch only**, on the kinds the engine reads, plus **get** on `pods/proxy` to read vLLM's `/metrics` (`podMetrics.enabled`, below);
 - a binding to `cluster-monitoring-view`, for the Thanos querier;
 - a long-lived token Secret.
 
-The verbs are fixed in the template, so values cannot add a write verb. The chart refuses secrets, service accounts, token kinds, subresources such as `pods/exec`, and wildcards.
+The verbs are fixed in the template, so values cannot add a write verb. The chart refuses secrets, service accounts, token kinds, subresources such as `pods/exec`, and wildcards in values. `pods/proxy` is the only subresource, and the template fixes it to `get`.
 
 **What the ClusterRole covers:**
 - **Always:** nodes, pods and namespaces; replicasets, deployments and statefulsets; jobs; and clusterversions, for the `cluster_id` check. This is the list approved on 2026-10-28 (`docs/discovery.md`).
 - **When the cluster has them:** the Run:ai, KServe, LeaderWorkerSet, Kubeflow and Knative kinds that can own GPU pods, so the engine can walk `ownerReferences` to the workload.
+- **Unless `podMetrics.enabled` is false:** `get` on `pods/proxy`, for serving requests (next section).
 
 CRD names differ by version and by cluster, and Run:ai is installed on some target clusters only. So they are discovered on each cluster, never typed by hand.
 
-Evidence: `fixture-tested` (`tests/test_helm_charts.py`, `tests/test_deploy_packaging.py`) and `lab-tested` on an OpenShift 4.22 workshop cluster (2026-10-31). There gpu-ttv read nodes, pods, owner chains up to KServe's LLMInferenceService, and Thanos, with this chart's token, and the checks below gave the expected output (ADR-0007).
+Evidence: `fixture-tested` (`tests/test_helm_charts.py`, `tests/test_deploy_packaging.py`) and `lab-tested` on an OpenShift 4.22 workshop cluster (2026-10-31). There gpu-ttv read nodes, pods, owner chains up to KServe's LLMInferenceService, and Thanos, with this chart's token, and the checks below gave the expected output (ADR-0007). That lab run used chart 0.1.0; the `pods/proxy` rule added in 0.2.0 is `fixture-tested` only.
+
+## Reading vLLM's `/metrics` (`podMetrics.enabled`)
+
+The engine decides whether a served model is used from vLLM's request counter, `vllm:request_success_total`. It reads that counter from each vLLM pod's own `/metrics` page, through the API server's pod proxy, with this chart's token (ADR-0009):
+
+```
+GET /api/v1/namespaces/<namespace>/pods/http:<pod>:<port>/proxy/metrics
+```
+
+This works even when nobody created a ServiceMonitor for the model. The engine sends only `GET`, only to `/proxy/metrics`, with no query string: `http` first, then `https` once if the pod serves `/metrics` over TLS. Its request guard refuses anything else before it is sent (`src/ttv/sources/pod_metrics.py`).
+
+**The trade-off.** Kubernetes cannot narrow this permission to one path or port. `get` on `pods/proxy` lets the token send a GET to any port and path of any pod in the cluster, through the API server. Some security teams review that before they approve it. OpenShift's `Default` audit profile records each request's metadata under this ServiceAccount.
+
+**Without it** (`--set podMetrics.enabled=false`), the API server answers 403. The engine logs `pod_metrics.permission_denied`, and serving models show "No data" (UNKNOWN) on the dashboards, never zero requests. GPU counts, Run:ai and DCGM utilisation are unaffected.
 
 ## Install (the cluster's platform owners)
 
@@ -68,6 +83,7 @@ diff <(oc auth can-i --list -n gpu-ttv-reader --as=$BASE | sort -u) \
      <(oc auth can-i --list -n gpu-ttv-reader --as=$SA | sort -u) | grep '^[<>]'
 for verb in create update patch delete; do oc auth can-i $verb pods --as=$SA; done   # "no" four times
 oc auth can-i get secrets --as=$SA                                                     # "no"
+oc auth can-i get pods/proxy --as=$SA                                                  # "yes" unless podMetrics.enabled=false
 ```
 
-The diff shows only `>` lines: the kinds above with `[get list watch]`, and `prometheuses.monitoring.coreos.com/api [k8s] [get create update]`. That line is OpenShift's `cluster-monitoring-view`, which authorizes Thanos queries and cannot change the Prometheus object (`docs/dry-run-review.md`, step 2). Paste the output into the dry-run record.
+The diff shows only `>` lines: the kinds above with `[get list watch]`, `pods/proxy` with `[get]` (unless `podMetrics.enabled` is false), and `prometheuses.monitoring.coreos.com/api [k8s] [get create update]`. The `prometheuses` line is OpenShift's `cluster-monitoring-view`, which authorizes Thanos queries and cannot change the Prometheus object (`docs/dry-run-review.md`, step 2). Paste the output into the dry-run record.

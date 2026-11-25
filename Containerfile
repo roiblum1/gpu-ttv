@@ -39,7 +39,7 @@ paths = {n: pathlib.Path("/app/.venv/bin") / n for n in targets}; \
  && /app/.venv/bin/python -m compileall -q --invalidation-mode unchecked-hash /app/src
 
 FROM ${PYTHON_IMAGE}
-ARG VERSION=0.2.3
+ARG VERSION=0.3.0
 ARG REVISION=unknown
 LABEL org.opencontainers.image.title="gpu-ttv" \
       org.opencontainers.image.description="GPU Time-to-Value: ttv-engine, ttv-pricing" \

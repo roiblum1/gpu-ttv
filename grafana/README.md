@@ -1,18 +1,21 @@
 # Grafana: dashboards and data sources as code
 
-The R1 pages of AGENT.md §20.11, read from the TTV ledger (`migrations/`): Home, Queues (E03), Delivery (E02), GPU use (E12), the asset drill-down and Evidence (E18), plus the later questions' pages in their missing-input state. Values are AWS On-Demand equivalents in USD (ADR-0003).
+Six pages for senior managers, read from the TTV ledger (`migrations/`): a summary and one waste page per team ([ADR-0009](../docs/adr/0009-five-teams-and-manager-dashboards.md)). They answer two questions: how many GPUs are wasted right now, and how many GPU-hours were wasted in the selected period, with what that waste would cost at AWS prices and which GPU models it sits on. They use plain words; the only money is the AWS On-Demand price (ADR-0003), a comparison and not our bill. On 2026-11-25 they replaced the ten earlier pages (Home, Queues, Delivery, GPU use, Asset, Evidence and four missing-input pages).
 
 ```
 grafana/
   provisioning/datasources/ttv.yaml   Postgres uid ttv-postgres, Prometheus uid ttv-prometheus
   provisioning/dashboards/ttv.yaml    file provider -> folder "GPU Time-to-Value" (uid gpu-ttv)
-  dashboards/ttv-home.json            uid ttv-home     "Home"
-  dashboards/ttv-queues.json          uid ttv-queues   "Queues: where GPUs are stuck"
-  dashboards/ttv-evidence.json        uid ttv-evidence "Evidence & monitoring health"
-  dashboards/ttv-*.json               the other pages (table in "Design conventions")
+  provisioning/alerting/              alert rules and inert notification routing ("Alerts" below)
+  dashboards/ttv-home.json            uid ttv-home     "GPU waste: summary"
+  dashboards/ttv-samurai.json         uid ttv-samurai  "GPU waste: Samurai"
+  dashboards/ttv-redbull.json         uid ttv-redbull  "GPU waste: Redbull"
+  dashboards/ttv-popai.json           uid ttv-popai    "GPU waste: POPAI"
+  dashboards/ttv-apply.json           uid ttv-apply    "GPU waste: Apply"
+  dashboards/ttv-ml.json              uid ttv-ml       "GPU waste: Machine Learning"
 ```
 
-Only built-in panels are used (stat, bar gauge, bar chart, table, time series, state timeline, text, row). There are no plugins, external fonts, CDNs or remote images, so the files work offline as they are.
+Only built-in panels are used (stat, bar gauge, bar chart, table, time series). There are no plugins, external fonts, CDNs or remote images, so the files work offline as they are. The Helm chart globs `dashboards/*.json` through `deploy/helm/gpu-ttv/files/grafana` (a link to this folder), so it renders one ConfigMap per page with no chart change.
 
 ## Install
 
@@ -24,119 +27,81 @@ Mount `provisioning/datasources/` and `provisioning/dashboards/` under Grafana's
 | `TTV_PG_DB`, `TTV_PG_USER`, `TTV_PG_PASSWORD` | database, user and password (the password goes to `secureJsonData`) |
 | `TTV_PG_SSLMODE` | `disable`, `require`, `verify-ca` or `verify-full`. **Set it explicitly** (`verify-full` in production). When it is unset, the driver default connected without TLS in testing. |
 | `TTV_PG_SSLROOTCERT` | path to the CA bundle inside the Grafana container for `verify-ca`/`verify-full`; may be empty otherwise |
-| `TTV_PROM_URL` | Prometheus/Thanos URL for the engine's `/metrics` (no slice-1 panel uses it yet) |
+| `TTV_PROM_URL` | Prometheus/Thanos URL for the engine's `/metrics` (no page uses it yet) |
 
-The Grafana database user needs only `SELECT` on the ledger tables, including `gpu_model_aliases`, `pricing_snapshots`, `pricing_rates` and `pricing_selection` from `migrations/0002_pricing.sql` (validated with a SELECT-only role for slice 1). Dashboards are read-only in the UI (`allowUiUpdates: false`). To change one, edit the JSON and keep its `uid` and panel `id`s stable. For air-gapped Grafana, also set `GF_ANALYTICS_REPORTING_ENABLED=false`, `GF_ANALYTICS_CHECK_FOR_UPDATES=false`, `GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES=false`, `GF_NEWS_NEWS_FEED_ENABLED=false` and `GF_SECURITY_DISABLE_GRAVATAR=true`.
+The Grafana database user needs only `SELECT`. The pages read `capacity_intervals`, `assets`, `scan_runs` and `workloads_now` (`migrations/0007_pod_requests_and_workloads_now.sql`), and for the AWS price and the GPU model names `gpu_model_aliases`, `pricing_rates`, `pricing_selection` and `pricing_snapshots` (`migrations/0002_pricing.sql`). Dashboards are read-only in the UI (`allowUiUpdates: false`). To change one, edit the JSON and keep its `uid` and panel `id`s stable. To open the summary first, set `GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/gpu-ttv/ttv-home.json`. For air-gapped Grafana, also set `GF_ANALYTICS_REPORTING_ENABLED=false`, `GF_ANALYTICS_CHECK_FOR_UPDATES=false`, `GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES=false`, `GF_NEWS_NEWS_FEED_ENABLED=false` and `GF_SECURITY_DISABLE_GRAVATAR=true`.
+
+## The pages
+
+| Order | UID | Title | Panels |
+| --- | --- | --- | --- |
+| 1 | `ttv-home` | GPU waste: summary | GPUs wasted now; GPU-hours wasted; cost of waste at AWS prices (period); costing now ($ per hour, about $ a day); five team tiles (Samurai, Redbull, POPAI, Apply, Machine Learning) with each team's cost for the period, each opening its page; where every GPU is now; data as of; GPUs wasted over time, by team; GPUs by model now |
+| 2 | `ttv-samurai` | GPU waste: Samurai | the team panels below, plus "Drawing power" (#8: GPUs no pod holds that draw power); table: servers with empty GPUs |
+| 3 | `ttv-redbull` | GPU waste: Redbull | the team panels; table: servers not ready yet |
+| 4 | `ttv-popai` | GPU waste: POPAI | the team panels; table: servers whose GPU software is not ready |
+| 5 | `ttv-apply` | GPU waste: Apply | the team panels; table: every served model, wasted or not |
+| 6 | `ttv-ml` | GPU waste: Machine Learning | the team panels; table: every machine learning job, wasted or not |
+
+Every team page has the same seven panels, with the same ids: #1 GPUs wasted now, #2 GPU-hours wasted, #6 cost of waste at AWS prices, #3 why GPUs are wasted now (reasons in plain words), #7 wasted GPUs by model, #4 wasted GPUs over time by reason, #5 the table (with a GPU model column and a money column). Samurai's page also has #8 "Drawing power". Home's panel ids: #1, #2, #11 cost, #12 costing now, #5–#9 tiles, #3 where every GPU is, #4 data as of, #10 trend, #13 GPUs by model. Samurai comes first on the summary and in the links bar because the user cares most about healthy GPUs with nothing on them.
 
 ## Design conventions (every page)
 
-These rules keep the pages consistent (AGENT.md §13 "Page hierarchy and visual design", §20.11). A page that breaks one needs a reason in its panel contract.
+These rules keep the pages readable for people who are not technical. A page that breaks one needs a reason in its panel contract. `tests/test_dashboards_static.py` checks the ones a test can check.
 
-**Pages and stable UIDs.** Every dashboard has the tag `gpu-ttv` and the same `links` bar: explicit `link` entries, in this order, each with `includeVars: true` and `keepTime: true`.
+- **Six pages, stable UIDs.** Every page has the tags `gpu-ttv` and `gpu-waste` and the same `links` bar in the order of the table above (titles Summary, Samurai, Redbull, POPAI, Apply, Machine Learning), each link with `includeVars: true` and `keepTime: true`.
+- **Waste is IDLE, and pages select by stage.** Each team page reads `capacity_intervals` rows with its `stage` (`EMPTY` Samurai, `PROVISIONING` Redbull, `GPU_PLATFORM` POPAI, `SERVING` Apply, `MACHINE_LEARNING` Machine Learning), never by team name. Team names shown in labels and series come from the latest `stage_owner` the ledger records for that stage (the policy's `teams`), so renaming a team never empties a page; the tile titles and page titles are fixed text. Order is always Samurai, Redbull, POPAI, Apply, Machine Learning.
+- **Money is the AWS price, and nothing else** (the user, 2026-11-26). Every dollar figure is what the same GPUs would cost to rent on AWS On-Demand, us-east-1, at **one** snapshot: the engine's choice in `pricing_selection`, else the latest by publication date then capture time (ADR-0003's present-day valuation; no historical valuation, no `snapshot` variable). The join is `capacity_intervals.gpu_model → gpu_model_aliases.raw_model → canonical → pricing_rates (snapshot_id, gpu_model).per_gpu_hour_usd`, in a shared `snap` CTE. Money panels say "at AWS prices", and their description says it is a comparison, not our bill; labels name the price list's date and region. No other currency, energy or internal cost appears. `tests/test_dashboards_static.py` checks all of this.
+- **Unpriced is never $0.** Wasted GPU-hours whose model has no rate make a figure "at least" (stats) or `≥` (tiles and tables), with the unpriced GPU-hours or GPUs in the label. When nothing is priced the value is empty ("No price", "no AWS price"); with no snapshot imported it reads "no AWS price list loaded" ("no price list" in tables). Nothing wasted is a real $0.
+- **Rounding.** Labels and tables: whole dollars from $100 (`$9,624`), cents below (`$48.00`). Stats use the `prefix:$` unit, which has no thousands separator: whole dollars for the period costs, cents for "Costing now" ($ per hour).
+- **GPU models** are shown by their canonical name (`gpu_model_aliases`), else as reported, else "Unknown model", always without "NVIDIA ". A GPU with an unknown model is never dropped.
+- **Plain words.** No raw reason or category code reaches a viewer: the SQL maps each one to a label (table below). Every panel has a description of one to a few sentences, shown by the panel's info icon.
+- **Few panels, big numbers.** The headline stats use value size 56; tiles 40; one number per stat, with a short label under it (`displayName: ${__data.fields.label}`).
+- **Variables.** Only the time range (default the last 7 days) and an optional `cluster` filter (multi, All = `'__all__'`). The cluster of a row is `coalesce(cluster, evidence->>'cluster', evidence->>'cluster_name', '(no cluster)')`; `workloads_now` rows use their own `cluster`.
+- **Unknown is never zero.** UNKNOWN GPUs are "No data": a purple bar on the summary, a dashed purple line on its trend, and a count in the headline labels. They are never counted as wasted and never shown as 0. Before the first scan, or for a cluster filter that matches no GPU, values are empty ("no data yet", "no scan yet"), not 0. After that, a team with nothing wasted shows a real 0.
+- **Lower bounds** display as `≥ X` in tables (a stage that began before observation, an incomplete request count), and as "at least" in a stat's label (a range that starts before the first scan).
+- **Colours.** Orange is waste, green is in use, blue is in repair, purple is no data, and the text colour is neutral (not measured, excluded). On the Apply and Machine Learning tables, wasted rows have a light orange background and no-data rows a light purple one; the status is always written too.
+- **Over-time series** sample open intervals on a grid of at least 5 minutes, never by summing interval rows, and start at the first ok or partial engine scan (no evidence before it).
+- **Size.** Validate at 1440×900 with Grafana's side menu docked (the grid is then about 1,108 px, 46 px per unit). A panel title gets about `46 × w − 106` px. Tables do not scroll sideways: every table wraps its header text, each column has a `custom.width` and exactly one text column a `custom.minWidth`. `tests/test_dashboard_layout.py` checks titles, overrides and table widths.
+- **Panel contracts.** Every panel has a contract in `config/panel-contracts/<uid>.yaml`, checked by `tests/test_panel_contracts.py` (schema in `config/panel-contracts/README.md`). `docs/executive-question-map.md` maps E01–E18 to the pages.
 
-| Order | UID | Title | Questions | Release |
-| --- | --- | --- | --- | --- |
-| 1 | `ttv-home` | Home | E01 (partial), summary of E02, E03, E12, E18; E04 shown as missing input | R1 |
-| 2 | `ttv-queues` | Queues: where GPUs are stuck | E03 | R1 |
-| 3 | `ttv-delivery` | Delivery: are we getting faster? | E02; E07 as missing input | R1 |
-| 4 | `ttv-gpu-use` | GPU use: are GPUs doing useful work? | E12 | R1 |
-| 5 | `ttv-asset` | Asset: one server's GPUs and evidence | drill-down (`$asset_id`), links to `/explain/{asset}` | R1 |
-| 6 | `ttv-evidence` | Evidence & monitoring health | E18 | R1 |
-| 7 | `ttv-actions` | Team actions | E05, E16 (missing input) | R2/R3 |
-| 8 | `ttv-capacity` | Capacity & commitments | E06, E08, E09, E14, E17 (missing input) | R3 |
-| 9 | `ttv-service` | Service & adoption | E10, E11 (missing input) | R2 |
-| 10 | `ttv-economics` | Economics & energy | E13, E15 (missing input) | R2/R3 |
+### Plain words
 
-The links bar titles are the short names (Home, Queues, Delivery, GPU use, Asset, Evidence, Actions, Capacity, Service, Economics).
+| Stage (team) | Reason code | Shown as |
+| --- | --- | --- |
+| PROVISIONING (Redbull) | NOT_IN_CLUSTER, IN_MCE_INVENTORY, NODE_NOT_READY, NODE_UNSCHEDULABLE, HARDWARE_CRITICAL, BMC_UNREACHABLE | Not in a cluster yet; Waiting in cluster inventory; Node not ready; Node switched off for scheduling; Hardware problem; Management controller unreachable |
+| GPU_PLATFORM (POPAI) | GPU_PLATFORM_NOT_READY, GPU_MISSING | GPU software not ready; GPUs missing |
+| EMPTY (Samurai) | NO_WORKLOAD | Empty: nothing running on it |
+| SERVING (Apply) | LOW_USE, NO_REAL_DEMAND, MODEL_NOT_READY | Barely used; No requests; Model not starting |
+| MACHINE_LEARNING (Machine Learning) | LOW_GPU_UTILIZATION, WORKLOAD_NOT_READY | GPUs barely busy; Job not starting |
+| history (policies before ADR-0009) | MAINTENANCE, OTHER_WORKLOAD as IDLE | In repair (before 25 Nov 2026); Other workload (before 25 Nov 2026) |
+| no data (UNKNOWN, no stage) | POWER_WITHOUT_POD | Drawing power, no pod |
+| any other idle reason | | Other reason |
 
-**Semantic colours** (Grafana named colours, so both themes work). Use them only for these meanings, and never rely on colour alone (the category or reason is always written too):
+Where every GPU is now: PRODUCTIVE is "In use", IDLE "Wasted", NOT_CHARGED/MAINTENANCE "In repair", UNKNOWN "No data", NOT_CHARGED/OUTSIDE_TARGET_CLUSTERS "Not measured", any other NOT_CHARGED "Excluded".
 
-| Meaning | Colour |
-| --- | --- |
-| Productive / healthy / within policy | `green` |
-| Idle / needs attention | `orange` |
-| Overdue / problem / failing | `red` |
-| NOT_CHARGED / approved exclusion | `blue` |
-| UNKNOWN / not measured / unpriced | `purple` |
-| Neutral counts (inventory, totals) | `text` |
+Statuses on the Apply table: "Busy" (in use, requests in the last hour), "Quiet this hour" (in use, none in the last hour), "In use" (in use, last hour not read), "Barely used", "No requests", "Not starting", "No data". On the Machine Learning table: "Busy", "Barely busy", "Not starting", "No data".
 
-**Ordering.** Stage owners always appear in pipeline order, sorted by stage, never by a list of team names: `ORDER BY array_position(ARRAY['PROVISIONING','GPU_PLATFORM','SERVING'], stage)` (today Redbull, POPAI, Serving). Owner names come from `capacity_intervals.stage_owner` (the policy's `teams`), so renaming a team never empties a panel. Over-time panels return one series per owner as `time`, `metric`, `value`. Categories: PRODUCTIVE, IDLE, NOT_CHARGED, UNKNOWN.
+## Reading the pages
 
-**Variables.** Reuse Queues' definitions verbatim where a page needs them: `stage_owner` and `site` (multi, All = `'__all__'`, filter as `('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))`) and `snapshot`. Each panel's description lists the filters it honours.
-
-**Panel rules.**
-- **Stat panels show one number each**, `graphMode: none` unless the panel is a trend, `textMode: value_and_name` only for deliberate groups. Set `text.titleSize` and `text.valueSize` explicitly so cards in one row match (KPI cards: value 40, title 14). Never let a string field become the stat value by accident: select the numeric field with `reduceOptions.fields`, or use a table.
-- **Words are not stats.** Identifiers, timestamps, versions and policy names go in a table, a small "as-of" table, or the panel description, never in a stat that shrinks them to unreadable size.
-- **Tables fit their rows.** Size the panel so the expected rows show without an inner scrollbar (about 1 grid unit per row plus 2), give identifier columns a width, right-align numbers, and use `color-text` (never full `color-background`) for status cells. No raw JSON columns: pick the fields that matter and name them in plain words.
-- **Asset cells link to the drill-down:** `/d/ttv-asset?var-asset_id=${__value.raw}&${__url_time_range}`.
-- **Trends are line charts** (`timeseries`, lines, fill ≤ 10, no points), comparisons are bars, aging is a distribution or a sorted table, actions are tables. Gauges only with a meaningful target.
-- **Over-time series from the ledger** sample open intervals on a grid, never by summing interval rows:
-  `FROM generate_series($__timeFrom()::timestamptz, $__timeTo()::timestamptz, make_interval(secs => greatest($__interval_ms, 60000) / 1000.0)) AS t JOIN capacity_intervals i ON i.started_at <= t AND (i.ended_at IS NULL OR i.ended_at > t)`.
-- **Lower bounds** display as `≥ X` (text in tables; a `≥` prefix override on stats when the query says the value is a lower bound).
-- **Unknown is never zero or green.** Panels with no evidence say so in `noValue` ("no evidence yet", "insufficient history: n < 5"), never `0`.
-- **Missing-input panels** (unbuilt questions) are `text` panels titled `E0X · <question>` with: what is missing, where it would come from, the onboarding step, and the release. They never show a number.
-- **Rows.** Group a page into at most 4 collapsible rows: "Now" (current state) first, then "Selected period" panels. Current-state and period panels are never mixed in one row.
-- **Times.** Store and query UTC; tables use Grafana time fields (`unit: dateTimeAsIso` or `dateTimeFromNow`) so the dashboard timezone setting applies; never `to_char` a timestamp unless it needs a `≥` prefix.
-- **Size.** Validate at 1440×900 with Grafana's side menu docked (the grid is then about 1,108 px, 46 px per unit) and at 2560×1440. No panel narrower than 4 grid units.
-  - **Card titles fit.** A panel title gets about `46 × w − 106` px (80 at w 4, 127 at w 5, 173 at w 6), because the header also holds the description icon and the panel menu. That allows **at most 5 KPI cards per row**. When a sixth number qualifies another, put it in that card's label (`displayName: ${__data.fields.label}`), as Home's "Productive share" and Evidence's "Known state" do.
-  - **Tables do not scroll sideways.** Every table wraps its header text. Give each column a `custom.width` and exactly one text column a `custom.minWidth` instead, so it takes the rest. A column with neither defaults to 150 px. Keep one override per column, because Grafana applies the last one. Hide a redundant column (`custom.hidden`, still in Inspect and CSV) rather than scroll, and let long text wrap (`custom.wrapText`) on one-asset tables.
-  - `tests/test_dashboard_layout.py` checks the card widths, single overrides and table widths.
-
-**Panel contracts.** Every non-row panel has a contract in `config/panel-contracts/<dashboard-uid>.yaml`; `tests/test_panel_contracts.py` checks the files against the dashboards (schema in `config/panel-contracts/README.md`).
-
-**Missing-input pages, question map and query tests.** `dashboards/ttv-actions.json`, `ttv-capacity.json`, `ttv-service.json` and `ttv-economics.json` hold one text card per R2/R3 question: the missing inputs, where they would come from, the onboarding step, the release and the R1 page that answers the nearest question today. They have no variables and run no queries. `docs/executive-question-map.md` maps E01–E18 to pages and panels. `tests/test_dashboards_sql.py` runs every panel and variable query of every page against a migrated, seeded Postgres (`TTV_TEST_DSN`); `tests/grafana_sql.py` substitutes macros and variables the way Grafana's Postgres datasource does.
-
-## Reading the dashboards
-
-- **Home** answers the main story in a minute: five cards (idle GPUs, their AWS-equivalent value per hour, productive share of eligible GPUs with a label naming the eligible GPUs and those outside the target clusters, unknown GPUs, data age), the three stage queues in pipeline order with their oldest wait, every GPU by category, the ten longest waits, installed GPUs by model (E01, purchase dates "input missing"), idle/overdue time and value in the selected period with a trend, and Delivery's p50/p90 time to GPU-ready and to first genuine request (same queries, last 28 complete days). Set `GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/gpu-ttv/ttv-home.json` to open it first.
-- **Value cards** show a number with a line above it: the snapshot's region and price date, and "at least (N GPUs unpriced)" when some GPUs have no rate, so the number is a lower bound.
-
-- **Now vs period.** "Now" panels read open intervals (`ended_at IS NULL`), i.e. the latest engine scan; "Data as of" and "Data age" show how old that is. Period panels clip every interval to the time range and end open intervals at `now()`.
-- **Stages and owners (ADR-0008).** Inventory comes from server-scan only. A GPU server waits in PROVISIONING (Redbull) from its first appearance in server-scan until it is a Ready node in a target cluster. MAINTENANCE, HARDWARE_CRITICAL and BMC_UNREACHABLE are Redbull's too: a server in maintenance, or one with critical hardware health or an unreachable BMC that is not a Ready node. Then GPU_PLATFORM (POPAI) and SERVING (Serving). Redbull's clock starts at server-scan's `claim_changed_at`, else at `created_at` as a lower bound (`≥`): time before a server appears in server-scan is unknown, never zero.
-- **Overdue** = the part of an IDLE interval after `stage_entered_at + objective`, joined on the interval's own `(stage, policy_version)` in `stage_objectives` (AGENT.md §20.5, §20.11). If an interval has no objective, its idle hours appear in "Idle GPU-h, no objective" and are never counted as 0 overdue.
-- **Lower bounds.** When `stage_entered_lower_bound` is true, times, days and GPU-hours display as `≥ X`.
-- **Unknown is never zero or green.** UNKNOWN GPUs are purple and kept separate. Panels with no evidence show "No data" or "never", not 0. Colours: green = productive/healthy, orange = idle/needs attention, red = overdue/problem, blue = NOT_CHARGED (approved exclusion), purple = unknown.
-- **Filters.** `stage_owner` and `site` are multi-select. "All" sends `'__all__'`, which means no filter, so rows with no owner or no site are kept. Each panel's description lists the filters it honours. UNKNOWN, PRODUCTIVE and NOT_CHARGED stats ignore `stage_owner`, because those GPUs have no stage owner.
-- Next-action annotations are display only (latest unexpired row per asset). They never change an owner or a total.
-- **Value (USD).** Panels 16-20 and the USD columns of panel 12 show the AWS On-Demand equivalent (Linux, shared tenancy, us-east-1): GPU-hours × the per-GPU rate of each GPU's model, joined `gpu_model` → `gpu_model_aliases` → `pricing_rates`. It is a comparison, **not a bill, not our cost and not a loss**, and is never added to other money views (AGENT.md §10, ADR-0003).
-  - `Price snapshot (USD)` (`$snapshot`) picks the present-day snapshot. It defaults to the engine's selection (`pricing_selection`: `TTV_PRICING_SNAPSHOT`, else the latest published). The stat shows the snapshot's region and publication date.
-  - "Historical" columns value each interval at the snapshot in force when it started, so importing a newer snapshot never changes them. Intervals older than every snapshot are unpriced historically.
-  - **Unpriced is never $0.** GPUs whose model has no rate are counted in "Unpriced idle GPUs now" (purple), listed with the reason in "Unpriced idle GPUs now, by model", and shown as unpriced GPU-h beside every USD column. A USD cell reading "unpriced" means nothing in that row could be priced. The value-per-hour stat excludes unpriced GPUs, so it is a lower bound whenever that count is above 0.
-  - Dollars use the unit `prefix:$` so they are exact, not abbreviated to K/M.
-- **Delivery (E02).** Clocks stay separate: first record → GPU-ready → workload running → first genuine request, end-to-end per server from its own milestones, and one clock per stage episode (Redbull, POPAI, Serving). The comparison is the last `$period` complete UTC days (default 28) against the period before. Percentiles use exact samples, whose ends the engine saw happen. With fewer than 5, they use exact plus lower-bound samples and show `≥`; with fewer still, "insufficient history (n = …)". Samples whose end was already true at first sight, rework and episodes that ended UNKNOWN are left out and counted as "excl.". "Quicker" is green only when nothing in the backlog is overdue. Cohort cells read "not matured" or `≥` rather than guess. Rules: `docs/adr/0005-delivery-clocks.md`. E07 (backlog flow) is Release 2.
-- **GPU use (E12, `ttv-gpu-use`).** Each GPU falls in one use class, taken from its open interval:
-  - *Useful work*: PRODUCTIVE, i.e. a Run:ai workload, or serving with genuine requests.
-  - *Allocated, inactive*: PRODUCTIVE but flagged `allocated_idle`. The ledger still counts these GPUs as productive.
-  - *Waste candidate*: `NO_REAL_DEMAND`, `LOW_USE`, `OTHER_WORKLOAD`, `NO_WORKLOAD`.
-  - *Constrained or failed*: any other IDLE GPU on a matched node (`WORKLOAD_NOT_READY`, `GPU_MISSING`, platform or node not ready).
-  - *Use unknown*: in a measured cluster, but the evidence is missing (`TRAFFIC_UNOBSERVED`, `HOLDER_UNRESOLVED`, `NODE_NOT_FOUND`, `CLUSTER_UNREACHABLE`, a `NODE_CLAIM` conflict).
-  - *Not measured* (purple): the GPU is not in a target cluster the engine reads. "Why GPUs are not measured" gives the reasons.
-
-  The useful-work share is taken of measured GPUs. The not-measured share is taken of all GPUs, so the two are never added. "Allocation → useful work" shows that a held GPU or a loaded model is not delivered value. The `cluster` filter uses the interval's cluster, else the cluster named in its evidence or its `NODE_CLAIM` conflict. R1 has no source for per-GPU activity, memory pressure or SLO compliance, so those panels name the missing input instead of a number.
-- **Asset (`ttv-asset`).** Open it as `/d/ttv-asset?var-asset_id=<asset>`. Without that, it shows the asset with the most idle GPUs. The page shows identity, current buckets with their evidence in plain words, milestones (`≥` = lower bound), open identity conflicts, next-action annotations (display only) and a category timeline.
-  - "Engine explanation" opens `${ttv_api}/explain/<asset>`. `ttv_api` is a hidden textbox, default `http://ttv-engine:8080`, and must be a URL the viewer's browser can reach, e.g. the engine's Route. To change it, edit its default in `ttv-asset.json` or add `&var-ttv_api=<url>` to the page URL.
-  - The panels on `milestones`, `identity_conflicts` and `next_action_annotations` run their query (through `query_to_xml`) only when the Grafana role can read the table. Otherwise they show a "Not available" row, not an error.
+- **Now vs period.** "Now" panels read open intervals (`ended_at IS NULL`), i.e. the latest engine scan; "Data as of" on the summary says how old it is. "GPU-hours wasted" sums `gpus ×` the overlap of each IDLE interval with the time range, with open intervals ending at `now()`. AGENT.md §17: 8 GPUs idle for 3 h are 24 GPU-hours, 16 when the range clips them to 2 h, and 6 of 8 GPUs idle for 2 h are 12.
+- **The summary's headline labels** say how many GPUs are tracked and how many have no data, and how many GPU-hours in the range have no data.
+- **Team tables (Samurai, Redbull, POPAI)** list one row per server and stage episode: server name, GPU model (`assets.gpu_model`), cluster, GPUs, reasons, "Waiting since" (`≥` when the stage began before observation, e.g. Redbull's clock from server-scan's `created_at`), "GPU-hours so far" (GPUs now × time waiting) and "Cost so far at AWS prices" (the same × the rate, with the same `≥`, plus `≥` when part of the server is unpriced), biggest first.
+- **Money on the summary.** "Cost of waste at AWS prices" values the period's wasted GPU-hours; "Costing now" is the wasted GPUs × their rates, per hour, with about that × 24 a day in its label; each tile's label gives its team's cost for the period. "GPUs by model now" has one row per model, biggest fleet first, and an "All models" row last: GPUs (all tracked), in use, wasted, in repair, no data (these four add up to "Where every GPU is now"), the wasted share, the AWS price per GPU-hour, and what the wasted ones cost per hour.
+- **Apply** lists every `workloads_now` row of kind `serving`: model and namespace (from `holder_ref` `namespace/Kind/name`), cluster, GPUs, requests in the last hour and in the last 24 h, requests per GPU per hour, and the status. A model is barely used below 1 request per GPU per hour over 24 h, or since it started if it is younger ("24 in 6 h" names the hours covered); a model with enough requests is still barely used when its GPUs averaged under 25% of their rated power over 24 h. "GPU power (24 h average)" shows that share (`gpu_power_avg`), blank when unread. `≥` means the history does not cover the window yet (`*_complete` false). Waste rows first, then no data, then models in use. It agrees with the ledger: the GPUs of its wasted rows add up to the page's "GPUs wasted now". "GPU model" joins the workload's `gpu_models`; "Waste per day at AWS prices" is the GPUs × rate × 24 of the workload's open ledger intervals (same cluster, holder and reason), on wasted rows only.
+- **Machine Learning** lists every `workloads_now` row of kind `ml`: job, namespace, cluster, Run:ai or other, GPUs, the peak GPU activity in the last 6 h, the status, the GPU models and, on wasted rows, the waste per day at AWS prices. A job's GPUs are barely busy when, in the last 6 h, they were never above 5% busy and never drew more than 25% of rated power (power alone when busy is not measured). "GPU power (peak, 6 h)" shows the peak share (`gpu_power_peak`), blank when unread. Unresolved workloads (kind `unresolved`) are on neither table; they are "No data" on the summary.
+- **GPU power** is a share of each GPU's rated power: the DCGM power limit when exported, else the engine's table by model (H100/H200 700 W, B200 1000 W, B300 1100 W, H100 PCIe 350 W, …). Below 25% a GPU is idle. A GPU no pod holds that drew at least 25% in the last 6 h is UNKNOWN (`POWER_WITHOUT_POD`), not Samurai's waste: Samurai's "Drawing power" counts these GPUs, and the summary counts them in "No data". Something we cannot see is using them; the platform team should look.
+- **History** keeps the reasons it was recorded with: before ADR-0009, maintenance counted as Redbull's waste and empty GPUs as Serving's, so a range that spans 2026-11-25 mixes both.
 
 Assumptions the SQL makes about the engine:
 1. All intervals of one stage episode carry the same `stage_entered_at`.
-2. Scan kinds are whatever `scan_runs.kind` contains.
-3. The source-health State column assumes the default `unknown_grace_scans = 2`.
-4. Milestones, `scan_runs.started_at` and interval boundaries written by one scan carry the same timestamp (Delivery dates a transition exactly only when an interval ended at that scan).
+2. `scan_runs.kind = 'engine'` with status `ok` or `partial` is a scan that wrote the ledger; `dry_run` scans are not.
+3. A writing scan replaces all of `workloads_now`, so it never holds stale rows.
 
-## Validation record (fixture-tested, not production evidence)
+## Validation record (not production evidence)
 
-2026-10-30, against Postgres 17 with `migrations/0001_init.sql` and a synthetic fixture:
-- Every panel query ran through `/api/ds/query` with no errors on **Grafana 12.4.14** (`docker.io/grafana/grafana@sha256:ae509d9ae8c1021ca32ec370a9ca975d40165eda9fccd1e1102d317ff8787cd7`) and **Grafana 13.2.5** (`@sha256:9f7aa1e1e3246aade5792d35a738049f7f32f89cd51d1956cf426a4e86268a84`).
-- `/api/search` lists both dashboards in the folder.
-- Both dashboards were rendered in a browser with All and with specific filter values.
-- AGENT.md §17, through Grafana's own macros: 8 GPUs idle for 3 h with a 1 h objective gave 24 idle and 16 overdue GPU-h. The same interval clipped to 00:30–02:30 gave 16 idle and 12 overdue. 6 idle GPUs for 2 h beside 2 productive ones gave 12 idle GPU-h.
-
-To re-check, start Postgres 17 and apply the migration and a fixture. Run Grafana with the mounts above. Then query `/api/dashboards/uid/ttv-queues` and post each panel's target to `/api/ds/query`, substituting `$site`/`$stage_owner` with `'__all__'` as the browser would.
-
-2026-10-31, slice 4 (pricing), `lab-tested` (not production evidence): `ttv_lab_pricing` (lab ledger from the sandbox, migration 0002, the us-east-1 snapshot published 2026-10-29):
-- Every panel and variable query of both dashboards ran with macros substituted (`$__timeFrom()`/`$__timeTo()`, `$site`/`$stage_owner` = All, `$snapshot` = the snapshot id) with no errors.
-- A throwaway Grafana **12.4.14** (same digest as above) provisioned from these files against that database: all 15 Queues queries passed through `/api/ds/query` with All, with `stage_owner=Redbull` and with an empty snapshot; the Evidence dashboard's queries had no errors either. The page was rendered in a browser: idle value $1865.30 per hour (snapshot us-east-1, published 2026-10-29 17:56 UTC) and 178 unpriced idle GPUs (MI300X, RTX A6000, A16) with reasons.
-- The browser check found and fixed three problems: a stat's field regex matches the display name (so it went blank), `currencyUSD` abbreviated $1,261 to "$1K", and long headers were truncated.
+- **2026-11-25, `fixture-tested`:** every panel and variable query of the six pages ran against Postgres 17 with all migrations and a synthetic fixture, through `tests/grafana_sql.py` (Grafana's macro and variable substitution, itself checked against Grafana 12.4.14 on 2026-10-31), with All and with one cluster. `tests/test_dashboards_sql.py` asserts the numbers. The pages have not yet been provisioned in a Grafana or viewed in a browser; the row highlight on the Apply and Machine Learning tables (`color-background` with `applyToRow`) is the part to check first.
+- **2026-11-26, `fixture-tested`:** the AWS price and GPU model panels, against two synthetic snapshots (the selected one at $10 and $1 per GPU-hour with one unpriced model, and a newer unselected one at $20), §17's linear pricing ($24 for 24 GPU-hours at $1, $16 clipped), "no price" and "no price list", and per-model rows that add up to "Where every GPU is now".
+- **Lessons kept from validating the earlier pages** (Grafana 12.4.14 and 13.2.5, 2026-10-30/31; those pages are gone): a stat's field regex matches the display name, so select the number with the query, not a regex; long headers truncate unless they wrap; every query must run with a SELECT-only role.
 
 ## Alerts
 
@@ -153,19 +118,19 @@ grafana/provisioning/alerting/
 | Rule | kind | owner | Fires when |
 | --- | --- | --- | --- |
 | TTV engine scans stale | data_quality | platform | No ok/partial engine scan for > 15 min (for 5m) |
-| TTV source failing past grace | data_quality | platform | A server-scan, kube or Thanos source failed ≥ 2 consecutive scans (for 5m) |
+| TTV source failing past grace | data_quality | platform | A server-scan, kube, Thanos or vLLM source failed ≥ 2 consecutive scans (for 5m) |
 | TTV UNKNOWN share high | data_quality | platform | > 10% of ledger GPUs UNKNOWN (for 30m) |
 | TTV UNKNOWN share growing | data_quality | platform | UNKNOWN share up > 5 points in 1 h (for 10m) |
 | TTV node not found | data_quality | platform | `NODE_NOT_FOUND` GPUs in an observed cluster (for 30m) |
-| TTV stage objective breached | stage_breach | the stage owner | Idle GPUs past their stage objective, one instance per owner (for 1h, keep firing 1h) |
+| TTV stage objective breached | stage_breach | the stage owner | Idle GPUs past their stage objective, one instance per owner: Samurai, Redbull, POPAI, Apply, Machine Learning (for 1h, keep firing 1h) |
 
 ### Install
 
 - **Mount** `provisioning/alerting/` at `/etc/grafana/provisioning/alerting/`, next to the datasource and dashboard mounts above.
   - A malformed alerting file stops Grafana from starting. `uv run pytest tests/test_alert_rules.py` checks both files.
   - Alerting provisions before dashboards, which is why the rules have their own folder: a shared title would create a second "GPU Time-to-Value" folder.
-- **Grants.** The rules read `scan_runs`, `schema_migrations`, `source_state`, `capacity_intervals`, `stage_objectives`, `assets` and `next_action_annotations`, which the dashboard grants above already cover. A missing grant shows as a `DatasourceError` or `DatasourceNoData` alert for the platform, never as a healthy rule.
-- **Links.** `dashboard_url` and `asset_url` are built from Grafana's `root_url` (`GF_SERVER_ROOT_URL`); set it so links are absolute. `asset_url` opens the Asset page (`ttv-asset`) for the longest-waiting server.
+- **Grants.** The rules read `scan_runs`, `schema_migrations`, `source_state`, `capacity_intervals`, `stage_objectives`, `assets` and `next_action_annotations`: grant `SELECT` on those as well as on the pages' tables. A missing grant shows as a `DatasourceError` or `DatasourceNoData` alert for the platform, never as a healthy rule.
+- **Links.** `dashboard_url` is built from Grafana's `root_url` (`GF_SERVER_ROOT_URL`); set it so links are absolute. Data-quality alerts open the summary (`ttv-home`; the rule's panel is "Data as of" or "Where every GPU is now"). A stage breach opens its owner's page (`ttv-redbull`, `ttv-popai`, `ttv-samurai`, `ttv-apply` or `ttv-ml`), named by query B's `page` label from the stage of the owner's open intervals. The Asset page is gone, so there is no `asset_url`; the description names the oldest servers instead.
 - **Runbooks.** `runbook_url` points at `https://github.com/roiblum1/gpu-ttv/blob/main/docs/runbooks.md#<rule uid>`. For the air-gapped install, rewrite that prefix to the internal Git mirror in `ttv-rules.yaml`, and change `RUNBOOK_BASE` in `tests/test_alert_rules.py` to match.
 - **Shared Grafana.** `ttv-notifications.yaml` replaces the organisation's whole notification policy tree. In a Grafana that other teams use, mount only `ttv-rules.yaml` and add the two routes to the existing tree by hand.
 - **Thresholds.** Thresholds copy engine settings: 300 s scans and `TTV_UNKNOWN_GRACE_SCANS=2`. Edit the rule when one of them changes. The UNKNOWN-share thresholds are provisional.

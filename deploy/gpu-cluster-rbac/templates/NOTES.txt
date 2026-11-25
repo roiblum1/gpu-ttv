@@ -1,8 +1,13 @@
-gpu-ttv read-only access in {{ .Release.Namespace }}: ServiceAccount {{ .Values.serviceAccount.name }} (get/list/watch only).
+gpu-ttv read-only access in {{ .Release.Namespace }}: ServiceAccount {{ .Values.serviceAccount.name }} (get/list/watch only{{ if .Values.podMetrics.enabled }}, plus get on pods/proxy for vLLM /metrics{{ end }}).
 {{- if not .Values.discoveredKinds }}
 
 WARNING: discoveredKinds is empty, so Run:ai, KServe and other CRD owners cannot be looked up and their
 GPUs stay HOLDER_UNRESOLVED. Generate the list with ./discover-kinds.sh on this cluster.
+{{- end }}
+{{- if not .Values.podMetrics.enabled }}
+
+WARNING: podMetrics.enabled is false, so the engine cannot read vLLM's /metrics and serving models show
+"No data" (UNKNOWN), never zero.
 {{- end }}
 
 Hand the token and CA to the gpu-ttv operators (deploy/gpu-cluster-rbac/README.md, "Hand over the token").

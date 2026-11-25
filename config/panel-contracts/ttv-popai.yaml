@@ -1,0 +1,292 @@
+# Panel contracts for grafana/dashboards/ttv-popai.json (schema: README.md in this folder).
+dashboard: ttv-popai
+panels:
+- id: 1
+  title: GPUs wasted now
+  question: E03
+  status: built
+  audience: Senior managers, team leads
+  decision: How many GPUs POPAI is wasting right now.
+  definition: 'GPUs in open IDLE intervals with stage = GPU_PLATFORM. Label: the stage''s team name from
+    the ledger and the GPUs with no data (all UNKNOWN GPUs in scope).'
+  unit: GPUs
+  numerator: sum(gpus) of open IDLE intervals with stage = GPU_PLATFORM
+  denominator: null
+  population: Every GPU server server-scan lists (the only inventory source, ADR-0008).
+  window: now
+  filters:
+  - cluster
+  exclusions: null
+  query: grafana/dashboards/ttv-popai.json#1
+  lineage:
+  - capacity_intervals.category
+  - capacity_intervals.stage
+  - capacity_intervals.gpus
+  - capacity_intervals.cluster
+  - capacity_intervals.evidence
+  freshness: Latest engine scan (every 5 min); 'Data as of' on the summary page.
+  baseline: null
+  direction: lower_is_better
+  thresholds: null
+  uncertainty: null
+  missing_data: Before the first scan, or for a cluster filter that matches no GPU, the value is empty
+    ('no data yet'), never 0. After that an empty team is a real 0. GPUs with no data (UNKNOWN) are never
+    counted as wasted; their count is in the label.
+  value_kind: observed
+  gate: core
+  privileges: SELECT on capacity_intervals
+  cardinality: 1 value
+  drilldown: null
+  action: null
+  fixture: tests/test_dashboards_sql.py
+  expected: 8 GPUs.
+- id: 2
+  title: GPU-hours wasted
+  question: E03
+  status: built
+  audience: Senior managers, team leads
+  decision: How much waste POPAI accumulated in the period.
+  definition: Σ gpus × overlap of IDLE intervals with stage = GPU_PLATFORM with the time range (open intervals
+    end at now).
+  unit: GPU-hours
+  numerator: null
+  denominator: null
+  population: Every GPU server server-scan lists (the only inventory source, ADR-0008).
+  window: selected range
+  filters:
+  - cluster
+  exclusions: null
+  query: grafana/dashboards/ttv-popai.json#2
+  lineage:
+  - capacity_intervals.category
+  - capacity_intervals.stage
+  - capacity_intervals.gpus
+  - capacity_intervals.cluster
+  - capacity_intervals.evidence
+  freshness: Latest engine scan (every 5 min); 'Data as of' on the summary page.
+  baseline: null
+  direction: lower_is_better
+  thresholds: null
+  uncertainty: '''at least'' when the range starts before the first scan.'
+  missing_data: 'Empty (''no data yet'') when no interval in the cluster scope overlaps the range. When
+    the range starts before the first ok or partial engine scan, the label says ''at least'' (a lower
+    bound: time before observation is unknown, never zero).'
+  value_kind: observed
+  gate: core
+  privileges: SELECT on capacity_intervals
+  cardinality: 1 value
+  drilldown: null
+  action: null
+  fixture: tests/test_dashboards_sql.py
+  expected: 96 GPU-hours (default 7 days).
+- id: 3
+  title: Why GPUs are wasted now
+  question: E03
+  status: built
+  audience: Senior managers, team leads
+  decision: Which cause to fix first.
+  definition: Open IDLE GPUs of stage GPU_PLATFORM by reason, in plain words; every reason of the stage
+    is listed (0 when none), unmapped reasons as 'Other reason'.
+  unit: GPUs
+  numerator: null
+  denominator: null
+  population: Every GPU server server-scan lists (the only inventory source, ADR-0008).
+  window: now
+  filters:
+  - cluster
+  exclusions: null
+  query: grafana/dashboards/ttv-popai.json#3
+  lineage:
+  - capacity_intervals.category
+  - capacity_intervals.stage
+  - capacity_intervals.gpus
+  - capacity_intervals.cluster
+  - capacity_intervals.evidence
+  - capacity_intervals.reason_code
+  freshness: Latest engine scan (every 5 min); 'Data as of' on the summary page.
+  baseline: null
+  direction: lower_is_better
+  thresholds: null
+  uncertainty: null
+  missing_data: No rows (no data yet) before the first scan or for a cluster filter with no GPUs.
+  value_kind: observed
+  gate: core
+  privileges: SELECT on capacity_intervals
+  cardinality: 2 rows
+  drilldown: null
+  action: null
+  fixture: tests/test_dashboards_sql.py
+  expected: GPU software not ready 8, GPUs missing 0.
+- id: 4
+  title: Wasted GPUs over time, by reason
+  question: E03
+  status: built
+  audience: Senior managers, team leads
+  decision: Whether the team's waste is growing or shrinking.
+  definition: Open IDLE GPUs of stage GPU_PLATFORM sampled on a grid, one series per reason in plain words.
+  unit: GPUs
+  numerator: null
+  denominator: null
+  population: Every GPU server server-scan lists (the only inventory source, ADR-0008).
+  window: selected range
+  filters:
+  - cluster
+  exclusions: null
+  query: grafana/dashboards/ttv-popai.json#4
+  lineage:
+  - capacity_intervals.category
+  - capacity_intervals.stage
+  - capacity_intervals.gpus
+  - capacity_intervals.cluster
+  - capacity_intervals.evidence
+  - capacity_intervals.reason_code
+  freshness: Latest engine scan (every 5 min); 'Data as of' on the summary page.
+  baseline: null
+  direction: lower_is_better
+  thresholds: null
+  uncertainty: null
+  missing_data: Nothing before the first ok or partial engine scan.
+  value_kind: observed
+  gate: core
+  privileges: SELECT on capacity_intervals
+  cardinality: 2 series
+  drilldown: null
+  action: null
+  fixture: tests/test_dashboards_sql.py
+  expected: null
+- id: 6
+  title: Cost of waste at AWS prices
+  question: E03
+  status: built
+  audience: Senior managers, team leads
+  decision: How big POPAI's waste in the period is, in money.
+  definition: '#2''s wasted GPU-hours of stage GPU_PLATFORM × each interval''s AWS On-Demand per-GPU-hour
+    rate at the present-day snapshot.'
+  unit: USD
+  numerator: Σ gpus × clipped hours × per_gpu_hour_usd
+  denominator: null
+  population: Every GPU server server-scan lists (the only inventory source, ADR-0008).
+  window: selected range
+  filters:
+  - cluster
+  exclusions: null
+  query: grafana/dashboards/ttv-popai.json#6
+  lineage:
+  - capacity_intervals.category
+  - capacity_intervals.stage
+  - capacity_intervals.gpus
+  - capacity_intervals.cluster
+  - capacity_intervals.evidence
+  - gpu_model_aliases.canonical
+  - pricing_rates.per_gpu_hour_usd
+  - pricing_selection.snapshot_id
+  - pricing_snapshots.publication_date
+  freshness: Latest engine scan (every 5 min); 'Data as of' on the summary page.
+  baseline: null
+  direction: lower_is_better
+  thresholds: null
+  uncertainty: 'AWS On-Demand equivalent (us-east-1), a comparison, not our bill (ADR-0003): present-day
+    valuation, every GPU-hour at one snapshot (pricing_selection, else the latest by publication date
+    then capture time). GPU-hours whose model has no rate make it ''at least''.'
+  missing_data: 'No snapshot: no value, label ''no AWS price list loaded''. Wasted GPU-hours but none
+    priced: no value (''No price''), never $0; the label gives the unpriced GPU-hours. Nothing wasted:
+    a real 0.'
+  value_kind: benchmark
+  gate: core
+  privileges: SELECT on capacity_intervals, gpu_model_aliases, pricing_rates, pricing_selection, pricing_snapshots
+  cardinality: 1 value
+  drilldown: null
+  action: null
+  fixture: tests/test_dashboards_sql.py
+  expected: 'No price: its 96 GPU-hours are A16s, which have no AWS rate.'
+- id: 7
+  title: Wasted GPUs by model
+  question: E03
+  status: built
+  audience: Senior managers, team leads
+  decision: Which GPU models the team's waste sits on.
+  definition: Open IDLE GPUs of stage GPU_PLATFORM by GPU model (canonical, else raw, else 'Unknown model');
+    a single 'No wasted GPUs' bar at 0 when there are none.
+  unit: GPUs
+  numerator: null
+  denominator: null
+  population: Every GPU server server-scan lists (the only inventory source, ADR-0008).
+  window: now
+  filters:
+  - cluster
+  exclusions: null
+  query: grafana/dashboards/ttv-popai.json#7
+  lineage:
+  - capacity_intervals.category
+  - capacity_intervals.stage
+  - capacity_intervals.gpus
+  - capacity_intervals.cluster
+  - capacity_intervals.evidence
+  - capacity_intervals.gpu_model
+  - gpu_model_aliases.canonical
+  freshness: Latest engine scan (every 5 min); 'Data as of' on the summary page.
+  baseline: null
+  direction: lower_is_better
+  thresholds: null
+  uncertainty: null
+  missing_data: No rows (no data yet) before the first scan or for a cluster filter with no GPUs.
+  value_kind: observed
+  gate: core
+  privileges: SELECT on capacity_intervals, gpu_model_aliases
+  cardinality: one bar per GPU model
+  drilldown: null
+  action: null
+  fixture: tests/test_dashboards_sql.py
+  expected: A16 16GB 8.
+- id: 5
+  title: Servers wasting GPUs now
+  question: E03
+  status: built
+  audience: Senior managers, team leads
+  decision: Which servers to fix first.
+  definition: 'One row per server and stage episode with open IDLE intervals of stage GPU_PLATFORM: server
+    name, cluster, GPUs, reasons in plain words, time since the stage began and GPUs × hours since then;
+    biggest GPUs × time first.'
+  unit: GPUs
+  numerator: null
+  denominator: null
+  population: Every GPU server server-scan lists (the only inventory source, ADR-0008).
+  window: now
+  filters:
+  - cluster
+  exclusions: null
+  query: grafana/dashboards/ttv-popai.json#5
+  lineage:
+  - capacity_intervals.category
+  - capacity_intervals.stage
+  - capacity_intervals.gpus
+  - capacity_intervals.cluster
+  - capacity_intervals.evidence
+  - capacity_intervals.stage_entered_at
+  - capacity_intervals.stage_entered_lower_bound
+  - assets.name
+  - assets.gpu_model
+  - gpu_model_aliases.canonical
+  - pricing_rates.per_gpu_hour_usd
+  - pricing_selection.snapshot_id
+  - pricing_snapshots.publication_date
+  freshness: Latest engine scan (every 5 min); 'Data as of' on the summary page.
+  baseline: null
+  direction: lower_is_better
+  thresholds: null
+  uncertainty: '''≥'' when the stage began before observation (lower bound), and on the cost when part
+    of the server''s wasted GPUs has no AWS price. AWS On-Demand equivalent (us-east-1), a comparison,
+    not our bill (ADR-0003): present-day valuation, every GPU-hour at one snapshot (pricing_selection,
+    else the latest by publication date then capture time). GPU-hours whose model has no rate make it
+    ''at least''.'
+  missing_data: '''no wasted GPUs'' when none; a missing stage start reads ''not known''; a server with
+    no AWS rate reads ''no AWS price'', never $0.'
+  value_kind: observed
+  gate: core
+  privileges: SELECT on capacity_intervals, assets, gpu_model_aliases, pricing_rates, pricing_selection,
+    pricing_snapshots
+  cardinality: one row per server
+  drilldown: null
+  action: Ask POPAI to clear the top rows.
+  fixture: tests/test_dashboards_sql.py
+  expected: gpu-sw-05 (A16 16GB, 8 GPUs, 12 hours ago, 96, no AWS price).

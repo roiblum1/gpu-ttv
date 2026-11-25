@@ -389,6 +389,14 @@ async def test_lab_owner_walk_reaches_llminferenceservice(fake: FakeKube, token_
     assert fake.paths().count(llmisvc) == 1
 
 
+async def test_lab_metrics_ports(fake: FakeKube, token_file: Path) -> None:
+    pods = by_name(await fetch(fake, token_file, gpu_resource="cpu"))
+
+    # vLLM declares one unnamed port; the EPP's `metrics` port wins over its first (grpc) port.
+    assert pods["qwen-tiny-kserve-84fd6f5c76-b4wzq"].metrics_port == 8000
+    assert pods["qwen-tiny-kserve-router-scheduler-65bdbffc9-jch5b"].metrics_port == 9090
+
+
 async def test_finished_pods_are_dropped_even_if_the_selector_is_ignored(
     fake: FakeKube, token_file: Path
 ) -> None:
@@ -469,6 +477,74 @@ async def test_gpu_counting_and_pod_fields(fake: FakeKube, token_file: Path) -> 
     assert two.uid == "uid-pod-two-containers"
     assert pods["init-wins"].gpus == 4
     assert pods["init-wins"].phase == "Pending"
+
+
+def ported(name: str, image: str, *ports: dict[str, Any]) -> dict[str, Any]:
+    """A synthetic 1-GPU container declaring `ports`."""
+    return container(name, image=image, requests={GPU: "1"}) | {"ports": list(ports)}
+
+
+SIDECAR = "registry.test/proxy:1"
+VLLM = "registry.test/vLLM/vllm-openai:v0.32.0"
+
+
+@pytest.mark.parametrize(
+    ("containers", "expected"),
+    [
+        # A port named `metrics` wins, in any container.
+        (
+            [
+                ported("main", VLLM, {"containerPort": 8000}),
+                ported("proxy", SIDECAR, {"name": "metrics", "containerPort": 9090}),
+            ],
+            9090,
+        ),
+        # Else the first TCP port of the container whose image names vLLM (any case).
+        (
+            [
+                ported("proxy", SIDECAR, {"containerPort": 8443}),
+                ported(
+                    "main",
+                    VLLM,
+                    {"containerPort": 5353, "protocol": "UDP"},
+                    {"containerPort": 8200, "protocol": "TCP"},
+                ),
+            ],
+            8200,
+        ),
+        # Else the first container's first TCP port.
+        (
+            [
+                ported(
+                    "app",
+                    SIDECAR,
+                    {"name": "metrics", "containerPort": 9100, "protocol": "UDP"},
+                    {"containerPort": 8080},
+                ),
+                ported("other", SIDECAR, {"containerPort": 7000}),
+            ],
+            8080,
+        ),
+        # No declared TCP port at all.
+        (
+            [
+                ported("main", VLLM),
+                ported("udp", SIDECAR, {"containerPort": 53, "protocol": "UDP"}),
+            ],
+            None,
+        ),
+        ([ported("main", VLLM, {"containerPort": "8000"}, {"containerPort": 0})], None),
+    ],
+)
+async def test_metrics_port_rule(
+    fake: FakeKube, token_file: Path, containers: list[dict[str, Any]], expected: int | None
+) -> None:
+    fake.nodes = [gpu_node()]
+    fake.pods = [gpu_pod("serving-0", containers=containers)]
+
+    pod = (await fetch(fake, token_file)).pods[0]
+
+    assert pod.metrics_port == expected
 
 
 @pytest.mark.parametrize(

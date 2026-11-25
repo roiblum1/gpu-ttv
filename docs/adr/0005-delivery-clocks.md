@@ -1,8 +1,8 @@
 # ADR-0005: Delivery clocks, lower bounds and insufficient history (E02)
 
-- **Status:** proposed 2026-10-31, awaiting the user's review of the Delivery page.
+- **Status:** proposed 2026-10-31. The Delivery page was removed on 2026-11-25 with the other technical dashboards (ADR-0009); the clocks remain in the `milestones` table, with no page showing them.
 - **Context:** AGENT.md §13 "Are we getting faster?" (requirements 1-8), §20.5 "Lower bounds", §20.11, §0.6 (E02 in R1, E07 in R2); ADR-0002 "Stage clocks" and "Milestones".
-- **Code:** `grafana/dashboards/ttv-delivery.json` (SQL only, no view or migration), `config/panel-contracts/ttv-delivery.yaml`, `tests/test_delivery_sql.py`.
+- **Code:** formerly `grafana/dashboards/ttv-delivery.json`, its contract and `tests/test_delivery_sql.py` (in git history); the milestones are written by `src/ttv/engine.py`.
 - **Updated 2026-11-25** ([ADR-0008](0008-drop-dc-stage-and-collector.md)): the DC stage was removed, so there are three stage clocks (seven clocks in all).
 
 ## Clocks

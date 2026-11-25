@@ -59,7 +59,7 @@ def test_rule_has_contract_labels_and_annotations(rule: dict[str, Any]) -> None:
     assert set(rule["annotations"]) >= ANNOTATIONS
     assert {"severity", "kind", "owner"} <= set(rule["labels"])
     assert rule["annotations"]["runbook_url"] == RUNBOOK_BASE + rule["uid"]
-    assert rule["annotations"]["dashboard_url"].startswith("{{ externalURL }}d/ttv-")
+    assert rule["annotations"]["dashboard_url"].startswith("{{ externalURL }}d/")
     assert rule["for"] and not rule.get("isPaused")
 
 
@@ -110,6 +110,18 @@ def test_linked_panel_exists(rule: dict[str, Any]) -> None:
     assert board["uid"] == rule["dashboardUid"]
     panels = [*board["panels"], *(c for p in board["panels"] for c in p.get("panels", []))]
     assert rule["panelId"] in {p["id"] for p in panels if p["type"] != "row"}
+
+
+@by_uid
+def test_dashboard_links_name_existing_pages(rule: dict[str, Any]) -> None:
+    # Every page an annotation links to, or a query names as a link target, is provisioned.
+    pages = {p.stem for p in (ROOT / "grafana/dashboards").glob("*.json")}
+    text = json.dumps(rule["annotations"]) + " ".join(
+        q["model"].get("rawSql", "") for q in rule["data"]
+    )
+    named = set(re.findall(r"\bd/(ttv-[a-z-]+)", text)) | set(re.findall(r"'(ttv-[a-z-]+)'", text))
+    assert named, "every rule links a page"
+    assert named <= pages, named - pages
 
 
 @by_uid

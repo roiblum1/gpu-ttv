@@ -5,6 +5,7 @@
 - **Code:** `src/ttv/classify.py` (server-level rows), `src/ttv/gpu_rows.py` (rows 15-22), `src/ttv/cluster_view.py` (node and DCGM indexes). All pure: no I/O.
 - **Updated 2026-10-31:** slice 2 (target clusters, rows 11-22) implemented; additions marked *(added)*.
 - **Updated 2026-11-25 (ADR-0008):** the DC stage (`PRE_PROVISIONING`) and rows 3-5 (collector-only assets) were removed. Rows 6a, 6b and the row-13 hardware case are Redbull's. Row numbers are unchanged, so 3-5 are unused.
+- **Updated 2026-11-25 (ADR-0009):** five teams. Row 6a (maintenance) is NOT_CHARGED ("in repair"). Rows 16-22 changed: Run:ai and every other non-serving workload are Machine Learning, judged by GPU activity (rows 16, 16c, 16d, 20b, 21); served models are Apply's, judged by requests read from each vLLM pod (rows 16b-20); empty GPUs are Samurai's (row 22). `OTHER_WORKLOAD` is gone.
 
 Rules are evaluated per asset in order; the first match wins. A server-level match assigns all `E` GPUs (expected GPUs from server-scan's `hardware.gpus`). If none matches, the GPU-level rows split `E` across buckets. Per asset, bucket GPU counts always sum to `E`.
 
@@ -14,9 +15,11 @@ Rules are evaluated per asset in order; the first match wins. A server-level mat
 | --- | --- |
 | `PROVISIONING` | Redbull |
 | `GPU_PLATFORM` | POPAI |
-| `SERVING` | Serving |
+| `EMPTY` | Samurai |
+| `SERVING` | Apply |
+| `MACHINE_LEARNING` | Machine Learning |
 
-A policy that still names `PRE_PROVISIONING` in `teams` or `stage_objectives` is refused at startup (ADR-0008).
+A policy that still names `PRE_PROVISIONING` in `teams` or `stage_objectives` is refused at startup (ADR-0008), and so is one without all five stages (ADR-0009).
 
 ## Server-level rows
 
@@ -26,7 +29,7 @@ A policy that still names `PRE_PROVISIONING` in `teams` or `stage_objectives` is
 | 2 | `SOURCE_STALE` | The asset's source failed beyond `unknown_grace_scans`, or server-scan marks the record `stale` | UNKNOWN | — | 1 |
 | 2b | `IDENTITY_CONFLICT` | Two source records claim the same asset id | UNKNOWN | — | 1 |
 | 3-5 | *removed 2026-11-25* | `PROFILE_NONE`, `OTHER_INTENDED_USE` and `HANDOVER_PENDING` classified GPU servers only the profile-less collector saw (ADR-0004). They were removed with it (ADR-0008). | — | — | — |
-| 6a | `MAINTENANCE` | `maintenance.enabled`. Stage clock: `maintenance.created_at` for an INSTALLED server; otherwise Redbull's normal clock (below), because Redbull already held the server | IDLE | PROVISIONING (I8) | 1 |
+| 6a | `MAINTENANCE` | `maintenance.enabled`, wherever the server is. In repair, not waste (ADR-0009); `maintenance.created_at` goes in evidence | NOT_CHARGED | — | 1 |
 | 6b | `HARDWARE_CRITICAL`, `BMC_UNREACHABLE` | `health.overall` is a configured critical value, or `reachable == false`, **and the server is not INSTALLED in any cluster** (C3: running work wins). For INSTALLED servers they become flags; in a target cluster whose node is observed not Ready, the hardware reason applies at row 13 (slice 2). Stage clock: Redbull's normal clock | IDLE | PROVISIONING (I8) | 1 |
 | 7 | `CONTESTED` | `openshift.contested_with` is set | UNKNOWN | — | 1 |
 | 8 | `NOT_IN_CLUSTER` | `lifecycle_state == AVAILABLE` (also a GPU server whose `ocp*` profile is only assigned: C1) | IDLE | PROVISIONING | 1 |
@@ -48,28 +51,34 @@ A policy that still names `PRE_PROVISIONING` in `teams` or `stage_objectives` is
 | --- | --- | --- | --- | --- |
 | 15 | `GPU_MISSING` | `E − min(A, R)` if > 0. Evidence: `A`, `R`, last non-zero XID per GPU | IDLE | GPU_PLATFORM |
 | 15b | `HOLDER_UNRESOLVED` *(added)* | Held by a pod whose owner chain could not be read to the top (403, deleted owner, unknown kind) | UNKNOWN | — |
-| 16 | `RUNAI_WORKLOAD` | Held by a running (or warming-up) pod whose top `run.ai` owner is a Training, Distributed, Inference or DistributedInference workload, or a RunaiJob without an interactive priority class (C6) | PRODUCTIVE | — |
-| 16b | `TRAFFIC_UNOBSERVED` *(added)* | Held by a serving workload for which no counter of record has series. Unknown is never zero: missing telemetry is not "no demand" | UNKNOWN | — |
-| 17 | `SERVING_IN_USE` | Held by a vLLM / KServe / llm-d workload whose counter of record moved in `demand_window`, wherever it runs (C7). Before I2 is approved any genuine request qualifies, flagged `low_use_unverified`. | PRODUCTIVE | — |
-| 18 | `LOW_USE` | Genuine requests above 0 but below the approved I2 threshold in requests per GPU-hour (inactive until I2 is approved) | IDLE | SERVING |
-| 19 | `NO_REAL_DEMAND` | Serving pod Ready (or within `warmup_grace`) with zero requests over `demand_window` | IDLE | SERVING |
-| 20 | `WORKLOAD_NOT_READY` | Held by a pod that is not Ready beyond `warmup_grace` (crash loop, stuck model load) | IDLE | SERVING |
-| 21 | `OTHER_WORKLOAD` | Held by any other pod, including Run:ai workspaces and `build`-priority RunaiJobs (C6) | IDLE | SERVING |
-| 22 | `NO_WORKLOAD` | Healthy GPUs (`min(A, R, E)`) that no pod holds | IDLE | SERVING |
+| 16 | `RUNAI_WORKLOAD` | Held by a Ready (or starting) pod whose top owner is in the `run.ai` group, any kind, workspaces and build jobs included (ADR-0009), whose GPUs were busy | PRODUCTIVE | — |
+| 16c | `ML_WORKLOAD` *(ADR-0009)* | The same for any other pod that is not a served model (Kubeflow, Jobs, bare pods, …) | PRODUCTIVE | — |
+| 16d | `ACTIVITY_UNOBSERVED` *(ADR-0009)* | A Machine Learning pod past `warmup_grace` with neither DCGM activity nor rated power data. Unknown is never zero | UNKNOWN | — |
+| 16b | `TRAFFIC_UNOBSERVED` *(added)* | A served model, Ready or starting, with zero requests counted but a count that is not complete (a pod's `/metrics` unreadable, or history too short to prove zero) | UNKNOWN | — |
+| 17 | `SERVING_IN_USE` | A served model whose requests over `demand_window` (or since it started) reach `useful_requests_per_gpu_hour` per GPU-hour, wherever it runs (C7). A lower rate that can't be judged yet (count incomplete, model younger than `recent_window`, or the threshold off) is flagged `low_use_unverified` | PRODUCTIVE | — |
+| 18 | `LOW_USE` | Requests above 0 but below `useful_requests_per_gpu_hour` (1 per GPU per hour, chosen 2026-11-25, I2 provisional) over a complete count; or enough requests while the deployment's GPUs averaged under `power.threshold` (25%) of rated power over `demand_window` (`basis: power`, ADR-0009) | IDLE | SERVING |
+| 19 | `NO_REAL_DEMAND` | A served model, Ready or starting, with a complete count of zero requests | IDLE | SERVING |
+| 20 | `MODEL_NOT_READY` *(ADR-0009)* | A served model's pod not Ready beyond `warmup_grace` (crash loop, stuck model load) while its deployment had no requests | IDLE | SERVING |
+| 20b | `WORKLOAD_NOT_READY` | A Machine Learning pod not Ready beyond `warmup_grace` | IDLE | MACHINE_LEARNING |
+| 21 | `LOW_GPU_UTILIZATION` *(ADR-0009)* | A Machine Learning pod older than `allocated_idle.window` (6 h) whose highest GPU activity in that window stayed below `allocated_idle.threshold` (5%) **and** whose GPUs never reached `power.threshold` (25%) of rated power; either signal alone when the other is missing | IDLE | MACHINE_LEARNING |
+| 22b | `POWER_WITHOUT_POD` *(ADR-0009)* | Healthy GPUs no pod holds whose DCGM series (no pod label) reached `power.threshold` of rated power in `allocated_idle.window`, minus the GPUs of holders DCGM could not attribute: used by something Kubernetes doesn't show | UNKNOWN | — |
+| 22 | `NO_WORKLOAD` | Healthy GPUs (`min(A, R, E)`) that no pod holds | IDLE | EMPTY |
 
 How the GPU rows are applied *(added)*:
 - **Holders.** Every pod bound to the node that requests the GPU resource is a holder. `holder_ref` is the pod's top owner as `namespace/Kind/name` (a bare pod is `namespace/Pod/name`); pod names go in evidence, so a pod restart does not close the interval.
-- **Serving recognition** comes from the policy's versioned `serving.kinds`: top-owner group and kind (`serving.kserve.io/LLMInferenceService`, `serving.kserve.io/InferenceService`, `apps/Deployment` with a `vllm` image). Each kind lists **counter-of-record candidates** in order with the pods that carry them; the first candidate with series for that deployment wins and candidates are **never added**. Lab evidence: llm-d EPP v0.10.0 exports the same requests as both `llm_d_epp_request_total` and `inference_objective_request_total` (discovery.md, lab cluster). LLMInferenceService falls back to the decode/both vLLM counter and never counts `-kserve-prefill` pods (fact 48).
-- **Requests per GPU-hour** = `increase(counter[demand_window]) / (G × window hours)`, with `G` the GPUs the logical deployment holds across the cluster.
-- **Traffic attribution.** A counter without a synthetic-traffic filter (`matchers`, e.g. on EPP `fairness_id`) flags its buckets `user_attribution_unverified` (§7, D9).
-- **Warm-up.** A not-Ready pod younger than `warmup_grace` (or with no start time yet) is treated as starting: a serving pod is judged by demand (rows 17-19), a Run:ai pod stays productive. Beyond the grace it is row 20.
-- **Strict row order for serving pods.** Row 17 precedes row 20, so a serving pod is judged by its deployment's demand first: traffic unknown → `TRAFFIC_UNOBSERVED`; requests > 0 → row 17/18; zero → row 19 if Ready or warming, else row 20.
-- **Run:ai fractions (D7).** A reservation pod (in `reservation_namespaces`) takes the class of the fractional pods sharing its `runai-gpu-group` on the node (the most productive one wins); with none it is `NO_WORKLOAD`. Reservation pods are never `OTHER_WORKLOAD`.
+- **Order.** A Run:ai top owner makes a pod Machine Learning first, even with a vLLM image. Otherwise a recognised serving kind makes it a served model (rows 16b-20). Every other pod is Machine Learning (rows 16c-21).
+- **Serving recognition** comes from the policy's `serving.kinds`: top-owner group and kind (`serving.kserve.io/LLMInferenceService`, `serving.kserve.io/InferenceService`, `apps/Deployment` with a `vllm` image).
+- **Requests (ADR-0009).** Each scan the engine reads `serving.metric` (`vllm:request_success_total`, all labels added) from every Running pod of a served model that holds GPUs, through the kube API pod proxy, and skips pods whose `llm-d.ai/role` is `prefill` (they count each request a second time; fact 48). Readings are kept in `serving_counter_samples` for `demand_window` + 1 h. A deployment's requests in a window are its pods' counter rises, gone pods included, with a drop or a new restart counted as a reset (`src/ttv/demand.py`). The count is complete when every pod has a reading before the window, started inside it, or still reads 0 with no restart; otherwise it is a lower bound.
+- **Requests per GPU-hour** = requests / (`G` × covered hours), with `G` the GPUs the deployment holds across the cluster, and covered hours the window or the deployment's age, whichever is shorter.
+- **Traffic attribution.** Pod counters can't tell synthetic traffic apart, so every serving bucket is flagged `user_attribution_unverified` (§7, D9).
+- **Warm-up.** A not-Ready pod younger than `warmup_grace` (or with no start time yet) is treated as starting: a served model is judged by its requests, and a Machine Learning pod without activity data yet is in use. Beyond the grace it is row 20 or 20b.
+- **Strict row order for serving pods.** Requests > 0 → row 17 or 18, even if this pod is not Ready; then not Ready beyond grace → row 20; then an incomplete zero → row 16b; then row 19.
+- **Run:ai fractions (D7).** A reservation pod (in `reservation_namespaces`) takes the class of the fractional pods sharing its `runai-gpu-group` on the node (the most productive one wins), using the reservation pod's GPU activity when a fraction has none; with no fraction it is `NO_WORKLOAD`.
 - **Allocation order.** Row 15 takes its GPUs first, then holders in row order (productive first), then row 22 takes what is left. When holders claim more GPUs than are healthy, the shortfall comes off the lowest-precedence holders and the trace says so. GPU models are dealt to buckets in sorted order, so a mixed-model server still yields one bucket per model and the counts sum to `E`.
-- **Flags.** `allocated_idle` on rows 16-17 needs DCGM activity evidence covering the whole window (`DCGM_FI_PROF_GR_ENGINE_ACTIVE` ratio, else `DCGM_FI_DEV_GPU_UTIL` / 100) below the threshold, and a pod at least as old as the window; no data is never idle. Activity is read per pod, so under MIG it is relative to the pod's slice, not the parent GPU (fact 31; D4's parent-GPU rule is not applied yet). Hardware flags (C3) ride on every bucket.
+- **GPU activity and flags.** Row 21 for Machine Learning, and the `allocated_idle` flag on row 17, need DCGM activity evidence covering the whole window (`DCGM_FI_PROF_GR_ENGINE_ACTIVE` ratio, else `DCGM_FI_DEV_GPU_UTIL` / 100) below the threshold, and a pod at least as old as the window; no data is never idle. Activity is read per pod, so under MIG it is relative to the pod's slice, not the parent GPU (fact 31; D4's parent-GPU rule is not applied yet). Hardware flags (C3) ride on every bucket.
 - **Pools and teams.** `pool` is the first `pools` entry whose node selector matches. `team` is set on productive buckets from `team_map` (workload, then namespace), else `unassigned`.
-- **Stage clocks.** Redbull's normal clock (rows 6a outside a cluster, 6b, 8 and 9) is `openshift.claim_changed_at` if set, else server-scan's `created_at` as a lower bound: a server's pipeline starts when it first appears in server-scan, and earlier time is unknown (ADR-0008). Row 6a on an INSTALLED server uses `maintenance.created_at`. Row 13 dates Redbull's episode from the node's `Ready` `lastTransitionTime` as a lower bound, with or without a hardware reason. Rows 14-22 have no start evidence, so a new episode starts at first observation (`≥`).
-- **Clocks only date new assets.** The classifier's stage clock is used only for a server the ledger has never seen. For a known server the ledger keeps the episode while the stage stays the same, across reason changes and UNKNOWN gaps, so maintenance or a hardware fault outside a cluster continues Redbull's episode. A move into another stage starts a new episode at that scan (`ledger.py` `_stage_clock`).
+- **Stage clocks.** Redbull's normal clock (rows 6b, 8 and 9) is `openshift.claim_changed_at` if set, else server-scan's `created_at` as a lower bound: a server's pipeline starts when it first appears in server-scan, and earlier time is unknown (ADR-0008). Row 6a has no stage. Row 13 dates Redbull's episode from the node's `Ready` `lastTransitionTime` as a lower bound, with or without a hardware reason. Rows 14-22 have no start evidence, so a new episode starts at first observation (`≥`).
+- **Clocks only date new assets.** The classifier's stage clock is used only for a server the ledger has never seen. For a known server the ledger keeps the episode while the stage stays the same, across reason changes and UNKNOWN gaps, so a hardware fault outside a cluster continues Redbull's episode; maintenance closes it, because it has no stage. A move into another stage starts a new episode at that scan (`ledger.py` `_stage_clock`).
 - **Milestones.** `assigned_cluster` (exact from `claim_changed_at`, else a lower bound), `node_ready`, `gpu_ready`, `workload_running` and `first_genuine_request`, each first-time only.
 
 ## Assets with no GPUs

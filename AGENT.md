@@ -4,6 +4,8 @@
 
 **Revision 4 — 25 November 2026.** The user removed the DC stage and the profile-less collector (§0, ADR-0008). Three teams remain: Redbull, POPAI and Serving.
 
+**Revision 5 — 25 November 2026.** The user split Serving into Samurai and Apply, made Machine Learning a fifth team, made maintenance "in repair", moved request counting into the vLLM pods, and replaced the dashboards with six manager pages (§0, ADR-0009).
+
 - **Section 0** records the user's binding decisions and verified environment facts.
 - **Section 20** is the concrete Release 1 implementation spec.
 - **Precedence: Section 0 > Section 20 > Sections 1–19.** Where Sections 1–19 ask for more than Release 1, they are the contract for later releases (0.6).
@@ -14,14 +16,23 @@ The brief was prepared on **28 October 2026**. Research and pricing must be refr
 
 ## 0. Binding decisions and environment facts
 
+> **Decision of 2026-11-25, later the same day (the user; `docs/adr/0009-five-teams-and-manager-dashboards.md`).** "I want Redbull Waste, Popai Waste, Samurai Waste and Apply Waste, and a Home dashboard that summarises it all […] This should be a managers' flash board."
+> - **Five accountable teams:** Redbull, POPAI, **Samurai** (healthy GPUs with nothing on them), **Apply** (served models with too few requests, or not starting), and **Machine Learning** (Run:ai and every other non-serving workload that barely uses its GPUs, or doesn't start). This overrides 0.1's three teams and "Who Serving is".
+> - **Maintenance is in repair, not waste**, and is charged to nobody. Critical hardware health and an unreachable BMC stay Redbull's.
+> - **Requests are read from each vLLM pod's own `/metrics`** through the kube API pod proxy; no ServiceMonitor is needed. A served model shows its requests in the last 1 h and 24 h; it is waste below 1 request per GPU per hour (I2, provisional).
+> - **Machine Learning is judged by GPU utilization and power:** waste when its GPUs were never above 5% busy and never drew 25% of rated power for 6 h (power added 2026-11-26). A served model whose GPUs average under 25% of rated power is barely used even with requests. Run:ai workspaces and build jobs are no longer idle by kind (C6 dropped).
+> - **Dashboards:** Home plus one page per team, in GPUs and GPU-hours and, since 2026-11-26 at the user's request, their cost at AWS prices (the AWS-equivalent comparison of §0.5, never called our cost); plain words. The ten earlier dashboards are deleted.
+
 > **Decision of 2026-11-25 (the user; `docs/adr/0008-drop-dc-stage-and-collector.md`).** "Remove the part of DC team. Focus on the ServerScanner — if there is a GPU node there which is not inside a cluster, Redbull costs money, and from then the rest is the same."
 > - Three accountable teams remain: **Redbull, POPAI and Serving**. The DC team, its stage and the profile-less collector are removed.
 > - **server-scan is the only inventory source.** A GPU server's pipeline starts when it first appears in server-scan, in Redbull's stage. Time before that cannot be observed: it is shown as unknown or as a lower bound (`≥ X`), never as zero.
 > - GPU servers with no qualifying `ocp*` profile are invisible to server-scan (0.3), so they are **out of scope**: the platform neither finds nor charges them.
-> - Maintenance, critical hardware health and an unreachable BMC are **Redbull's** (I8), with the same reason codes.
+> - Maintenance, critical hardware health and an unreachable BMC are **Redbull's** (I8), with the same reason codes. *(Maintenance changed by ADR-0009: in repair, not charged.)*
 > - This decision overrides any text below that still implies a DC stage.
 
-### 0.1 Accountable teams (three; names configurable)
+### 0.1 Accountable teams (five since ADR-0009; names configurable)
+
+Since ADR-0009 the stages are `PROVISIONING` (Redbull), `GPU_PLATFORM` (POPAI), `EMPTY` (Samurai), `SERVING` (Apply) and `MACHINE_LEARNING` (Machine Learning); the table below is the earlier three-team split, kept for history. Maintenance time is no longer Redbull's.
 
 | Stage owner | Holds the GPUs while… |
 | --- | --- |
@@ -106,16 +117,16 @@ Proceed with these labelled assumptions; none blocks the R1 build.
 
 | ID | Input | Provisional assumption |
 | --- | --- | --- |
-| I1 | Stage objectives used to split overdue from normal time | Redbull 2 d, POPAI 1 d, Serving 7 d (DC's 3 d removed with the DC stage, 2026-11-25) |
-| I2 | Useful-use policy for serving (minimum genuine requests per GPU-hour, window), per model class | Record traffic distributions during Discovery and propose values. Until approved, `LOW_USE` is reported as "unverified", while `NO_REAL_DEMAND` (zero genuine requests) applies. |
+| I1 | Stage objectives used to split overdue from normal time | Redbull 2 d, POPAI 1 d, Samurai 1 d, Apply 7 d, Machine Learning 1 d (ADR-0009; DC's 3 d removed with the DC stage, 2026-11-25) |
+| I2 | Useful-use policy for serving (minimum genuine requests per GPU-hour, window), per model class | **Chosen 2026-11-25 at the user's request (ADR-0009), provisional:** 1 request per GPU per hour over 24 h; Machine Learning: under 5% GPU activity for 6 h. |
 | I3 | AWS region and FX date | Confirmed at pricing capture |
 | I4 | Where the platform runs; existing Postgres/Grafana to reuse | Blocks deployment, not build |
 | I5 | Intentional exclusions (lab, teaching, cold spare) | Empty list |
 | I6 | GPU servers with an applied non-`ocp` profile | **Closed 2026-11-25 (ADR-0008):** server-scan does not list them, so they are out of scope and no longer shown. Was: visible as "other intended use", not charged. |
 | I7 | GPU servers installed in clusters outside the target list | Visible as "not measured"; not charged |
-| I8 | Maintenance, critical hardware health, unreachable BMC | **Decided 2026-11-25 (ADR-0008):** stage owner Redbull (was DC); reason codes `MAINTENANCE`, `HARDWARE_CRITICAL`, `BMC_UNREACHABLE`, with the maintenance reason in evidence |
+| I8 | Maintenance, critical hardware health, unreachable BMC | **Decided 2026-11-25 (ADR-0008, ADR-0009):** maintenance is in repair, NOT_CHARGED, with its reason in evidence; `HARDWARE_CRITICAL` and `BMC_UNREACHABLE` are Redbull's |
 | I9 | Servers parked in MCE inventory with no cluster | Redbull |
-| I10 | Run:ai inference workloads: presence or traffic rule | Presence |
+| I10 | Run:ai inference workloads: presence or traffic rule | **GPU utilization (ADR-0009):** every Run:ai workload is Machine Learning |
 
 ---
 
@@ -546,7 +557,7 @@ Assign stable IDs to these questions. Map each to one or more panels, definition
 | --- | --- | --- | --- |
 | E01 | **What did we buy, and what is delivering value?** | Procurement/intake cohorts: ordered, received, accepted, GPU-ready, user-accessible, first real use, and sustained use. Show installed GPU classes and, when supplied, acquisition value not yet in service. | Track each investment to an operational outcome; distinguish supplier delivery from internal delay. |
 | E02 | **Are we getting faster?** | Comparable-cohort p50/p90 time to readiness, publication and first real use; intake-to-value conversion by age; throughput; unresolved aging; failures/rework alongside speed. | Judge whether delivery improvements are real and sustainable. |
-| E03 | **Where are we stuck—and why?** | Three handoff queues (Redbull, POPAI, Serving with its sub-reasons) with overdue GPUs, waiting versus processing time where known, aging, blocking dependencies, default/actual owner, and repeat failure reasons. | Identify the current limiting step and responsible next action. |
+| E03 | **Where are we stuck—and why?** | Five team queues since ADR-0009 (Redbull, POPAI, Samurai, Apply, Machine Learning) with overdue GPUs, waiting versus processing time where known, aging, blocking dependencies, default/actual owner, and repeat failure reasons. | Identify the current limiting step and responsible next action. |
 | E04 | **What changed since our last review?** | Reconciled movement from the previous snapshot: newly received, newly useful, recovered, regressed, decommissioned, and newly unobserved capacity; material demand/quality changes. | Focus the meeting on meaningful developments. |
 | E05 | **What should I unblock today?** | Ranked intervention cards: exact action, owner, unique compatible capacity potentially released, affected commitments, prerequisites, effort/risk, evidence, and estimated impact range. | Choose the highest-impact achievable intervention. |
 | E06 | **When will this batch or project get usable GPUs?** | Commitments and forecast ranges for readiness/publication by batch/project; planned date versus observed progress, dependencies, and delivery risk. | Manage launch promises and escalation timing. |
@@ -736,12 +747,12 @@ Implement meaningful automated tests and, where necessary, explicit live-validat
 - A qualifying `ocp` profile is assigned but not applied, or failed to apply: server-scan already lists the server, so it is in Redbull's queue (C1 in `docs/discovery.md`); the apply state is not observable.
 - A successfully applied `ocp` profile has no cluster membership after complete fresh cluster inventory: Redbull queue.
 - A cluster exists, but its GPU node is still provisioning or not schedulable: Redbull queue. The node is Ready but lacks healthy, allocatable, DCGM-reporting GPUs: POPAI queue. Neither is Serving-ready capacity.
-- A fully ready node has no qualifying GPU workload: Serving queue (`NO_WORKLOAD`).
+- A fully ready node has no qualifying GPU workload: Samurai queue (`NO_WORKLOAD`, ADR-0009).
 - A GPU server appears in server-scan for the first time: Redbull's queue opens, its stage clock starts at `openshift.claim_changed_at` if set, else at server-scan's `created_at` marked as a lower bound (`≥`). Earlier time is shown as unknown, never zero.
 - A standalone DGX registered in server-scan by Redbull: Redbull queue from registration, earlier time shown as unknown (the same rule as every server).
-- A server in maintenance, with critical hardware health or with an unreachable BMC: Redbull's queue with reason `MAINTENANCE`, `HARDWARE_CRITICAL` or `BMC_UNREACHABLE` (I8). A server Redbull already held keeps one Redbull episode across the reason change; maintenance on an INSTALLED node starts a Redbull episode at `maintenance.created_at`.
-- GPUs held by running Run:ai training, distributed, runaijobs, inference or deployment workloads: productive. A GPU held by a notebook or debug pod: Serving (`OTHER_WORKLOAD`) with the pod named.
-- A model is loaded and Ready but serves zero genuine requests over the window: Serving (`NO_REAL_DEMAND`), not productive.
+- A server in maintenance: in repair, not charged (`MAINTENANCE`, ADR-0009). With critical hardware health or an unreachable BMC: Redbull's queue with reason `HARDWARE_CRITICAL` or `BMC_UNREACHABLE` (I8); a server Redbull already held keeps one Redbull episode across the reason change.
+- GPUs held by any Run:ai workload, or by any other non-serving pod (a notebook, a debug pod): Machine Learning; productive while the GPUs are busy, Machine Learning waste (`LOW_GPU_UTILIZATION`) after 6 h under 5% activity, UNKNOWN without DCGM data (ADR-0009).
+- A model is loaded and Ready but serves zero genuine requests over the window: Apply (`NO_REAL_DEMAND`), not productive.
 - Redbull's server is blocked on Network (PXE VLAN): stage owner Redbull keeps the GPU-hours; next-action owner Network is shown with the recorded reason.
 - A server has both productive and unallocated GPUs: reconcile partial capacity correctly.
 - A deployed application has no working intended access path: appropriate publication blocker with evidence and owner.
@@ -887,6 +898,8 @@ Section 0 overrides this section; this section overrides Sections 1–19 for R1.
 - **No new metrics backend.** Query each target cluster's existing Thanos querier. Prometheus gauges are not the business ledger; Postgres is (§9).
 
 ### 20.2 Classification — ordered, first match wins
+
+*Rows 6a and 16–22 changed on 2026-11-25 (ADR-0009): maintenance is NOT_CHARGED; served models are Apply's, judged by requests read from each vLLM pod; Run:ai and every other non-serving workload are Machine Learning, judged by GPU utilization; empty GPUs are Samurai's. `docs/adr/0002-classification-rules.md` is the implemented version.*
 
 Evaluate per asset.
 - `E` = expected GPUs from inventory: server-scan `hardware.gpus`.
@@ -1069,7 +1082,7 @@ scan_runs(id bigserial primary key, kind text, started_at timestamptz,
   - no external fonts or CDNs in Grafana
   - GitLab CI builds images; Helm chart; ArgoCD.
 - **Per target cluster** (`deploy/gpu-cluster-rbac/`):
-  - ServiceAccount; ClusterRole with `get/list/watch` on nodes, pods, and the discovered Run:ai and serving kinds.
+  - ServiceAccount; ClusterRole with `get/list/watch` on nodes, pods, and the discovered Run:ai and serving kinds, plus `get` on `pods/proxy` to read each vLLM pod's `/metrics` (ADR-0009).
   - Binding to `cluster-monitoring-view`; a long-lived token Secret.
   - No write verbs.
 - **server-scan:** the read-only AUDITOR token only. The platform holds no management-appliance credentials (ADR-0008).

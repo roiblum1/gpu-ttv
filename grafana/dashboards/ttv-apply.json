@@ -1,0 +1,850 @@
+{
+  "uid": "ttv-apply",
+  "title": "GPU waste: Apply",
+  "description": "Apply's wasted GPUs: how many now, how many GPU-hours in the selected period and what they would cost at AWS prices, why, on which GPU models, and what is wasting them.",
+  "tags": [
+    "gpu-ttv",
+    "gpu-waste"
+  ],
+  "timezone": "browser",
+  "editable": false,
+  "graphTooltip": 1,
+  "refresh": "5m",
+  "schemaVersion": 39,
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "timepicker": {},
+  "fiscalYearStartMonth": 0,
+  "liveNow": false,
+  "weekStart": "",
+  "version": 1,
+  "links": [
+    {
+      "title": "Summary",
+      "type": "link",
+      "url": "/d/ttv-home",
+      "tooltip": "All teams: GPUs wasted now and over time",
+      "icon": "dashboard",
+      "tags": [],
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false
+    },
+    {
+      "title": "Samurai",
+      "type": "link",
+      "url": "/d/ttv-samurai",
+      "tooltip": "Healthy GPUs with nothing running on them",
+      "icon": "dashboard",
+      "tags": [],
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false
+    },
+    {
+      "title": "Redbull",
+      "type": "link",
+      "url": "/d/ttv-redbull",
+      "tooltip": "Servers that are not ready to use yet",
+      "icon": "dashboard",
+      "tags": [],
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false
+    },
+    {
+      "title": "POPAI",
+      "type": "link",
+      "url": "/d/ttv-popai",
+      "tooltip": "Ready servers whose GPU software is not working",
+      "icon": "dashboard",
+      "tags": [],
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false
+    },
+    {
+      "title": "Apply",
+      "type": "link",
+      "url": "/d/ttv-apply",
+      "tooltip": "Models that get few or no requests",
+      "icon": "dashboard",
+      "tags": [],
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false
+    },
+    {
+      "title": "Machine Learning",
+      "type": "link",
+      "url": "/d/ttv-ml",
+      "tooltip": "Machine learning jobs that barely use their GPUs",
+      "icon": "dashboard",
+      "tags": [],
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false
+    }
+  ],
+  "annotations": {
+    "list": []
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "cluster",
+        "label": "Cluster",
+        "description": "Show only these clusters. All shows every GPU, including servers that are not in a cluster yet ('(no cluster)').",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "ttv-postgres"
+        },
+        "query": "SELECT DISTINCT coalesce(cluster, evidence ->> 'cluster', evidence ->> 'cluster_name', '(no cluster)') AS cluster\nFROM capacity_intervals\nWHERE ended_at IS NULL OR ended_at > now() - interval '30 days'\nUNION\nSELECT cluster FROM workloads_now\nORDER BY 1",
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": "'__all__'",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "options": [],
+        "sort": 1,
+        "hide": 0,
+        "regex": "",
+        "skipUrlSync": false,
+        "definition": "SELECT DISTINCT coalesce(cluster, evidence ->> 'cluster', evidence ->> 'cluster_name', '(no cluster)') AS cluster\nFROM capacity_intervals\nWHERE ended_at IS NULL OR ended_at > now() - interval '30 days'\nUNION\nSELECT cluster FROM workloads_now\nORDER BY 1"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "stat",
+      "id": 1,
+      "title": "GPUs wasted now",
+      "description": "GPUs held by models that get almost no requests, or that do not start. A model is barely used below 1 request per GPU per hour over the last 24 hours, or when its GPUs averaged under 25% of their rated power over 24 hours. Below the number: GPUs of models whose requests we cannot read; they are not in this count.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 8,
+        "h": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH g AS (\n  SELECT count(*) AS n,\n         sum(i.gpus) FILTER (WHERE i.category = 'IDLE' AND i.stage = 'SERVING') AS wasted,\n         (SELECT sum(w.gpus) FROM workloads_now w WHERE w.kind = 'serving' AND w.category = 'UNKNOWN' AND ('__all__' IN ($cluster) OR w.cluster IN ($cluster))) AS no_data\n  FROM capacity_intervals i\n  WHERE i.ended_at IS NULL AND ('__all__' IN ($cluster) OR coalesce(i.cluster, i.evidence ->> 'cluster', i.evidence ->> 'cluster_name', '(no cluster)') IN ($cluster))\n)\nSELECT CASE WHEN g.n > 0 THEN coalesce(g.wasted, 0) END AS \"GPUs wasted now\",\n       coalesce((SELECT o.stage_owner FROM capacity_intervals o WHERE o.stage = 'SERVING' AND o.stage_owner IS NOT NULL ORDER BY o.started_at DESC, o.id DESC LIMIT 1), 'Apply')\n       || CASE WHEN g.no_data > 0 THEN ' · ' || to_char(g.no_data, 'FM999,999,990') || ' GPUs have no data' ELSE '' END AS label\nFROM g"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": true,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "limit": 1
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value_and_name",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "text": {
+          "titleSize": 14,
+          "valueSize": 56
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "locale",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "orange"
+          },
+          "noValue": "no data yet",
+          "decimals": 0,
+          "displayName": "${__data.fields.label}"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "id": 2,
+      "title": "GPU-hours wasted",
+      "description": "Wasted GPUs added up over the selected time range: one GPU wasted for one hour is one GPU-hour. 'At least' means part of the range is before our first scan, so the real number may be higher.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 0,
+        "w": 8,
+        "h": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH w AS (\n  SELECT $__timeFrom()::timestamptz AS t0, least($__timeTo()::timestamptz, now()) AS t1,\n         (SELECT min(started_at) FROM scan_runs WHERE kind = 'engine' AND status IN ('ok', 'partial')) AS first_scan\n), iv AS (\n  SELECT i.category,\n         i.gpus * extract(epoch FROM least(coalesce(i.ended_at, now()), w.t1) - greatest(i.started_at, w.t0)) / 3600 AS gpu_h\n  FROM capacity_intervals i\n  CROSS JOIN w\n  WHERE i.category IN ('IDLE') AND i.stage = 'SERVING' AND i.started_at < w.t1 AND coalesce(i.ended_at, now()) > w.t0\n    AND ('__all__' IN ($cluster) OR coalesce(i.cluster, i.evidence ->> 'cluster', i.evidence ->> 'cluster_name', '(no cluster)') IN ($cluster))\n)\nSELECT CASE WHEN EXISTS (SELECT 1 FROM capacity_intervals i0\n                         WHERE i0.started_at < w.t1 AND coalesce(i0.ended_at, now()) > w.t0 AND ('__all__' IN ($cluster) OR coalesce(i0.cluster, i0.evidence ->> 'cluster', i0.evidence ->> 'cluster_name', '(no cluster)') IN ($cluster)))\n            THEN coalesce((SELECT sum(gpu_h) FROM iv WHERE category = 'IDLE'), 0) END AS \"GPU-hours wasted\",\n       CASE WHEN w.first_scan IS NULL THEN 'nothing measured yet'\n            WHEN w.first_scan > w.t0 THEN 'at least: no data before ' || to_char(w.first_scan AT TIME ZONE 'UTC', 'FMDD Mon YYYY')\n            ELSE 'in the selected period' END AS label\nFROM w"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": true,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "limit": 1
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value_and_name",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "text": {
+          "titleSize": 14,
+          "valueSize": 56
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "locale",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "orange"
+          },
+          "noValue": "no data yet",
+          "decimals": 0,
+          "displayName": "${__data.fields.label}"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "id": 6,
+      "title": "Cost of waste at AWS prices",
+      "description": "What Apply's GPU-hours wasted in the selected range would cost. Money is what the same GPUs would cost to rent on AWS on-demand (us-east-1, at the AWS price list whose date is shown under the number): a comparison, not our bill. 'At least' means some of these GPUs have no AWS price (their model is not on the price list), so the real figure is higher; 'No price' means none of them has one. Neither is ever shown as 0.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 0,
+        "w": 8,
+        "h": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH w AS (\n  SELECT $__timeFrom()::timestamptz AS t0, least($__timeTo()::timestamptz, now()) AS t1,\n         (SELECT min(started_at) FROM scan_runs WHERE kind = 'engine' AND status IN ('ok', 'partial')) AS first_scan\n), snap AS (\n  SELECT s.snapshot_id, s.region, coalesce(s.publication_date, s.captured_at) AS published\n  FROM pricing_snapshots s\n  LEFT JOIN pricing_selection sel ON sel.snapshot_id = s.snapshot_id\n  ORDER BY (sel.snapshot_id IS NOT NULL) DESC, s.publication_date DESC NULLS LAST,\n           s.captured_at DESC, s.snapshot_id DESC\n  LIMIT 1\n), p AS (\n  SELECT coalesce(sum(x.gpu_h), 0) AS gpu_h, sum(x.gpu_h * x.rate) AS usd,\n         coalesce(sum(x.gpu_h) FILTER (WHERE x.rate IS NULL), 0) AS unpriced_h\n  FROM (\n    SELECT i.gpus * extract(epoch FROM least(coalesce(i.ended_at, now()), w.t1) - greatest(i.started_at, w.t0)) / 3600 AS gpu_h, r.per_gpu_hour_usd AS rate\n    FROM capacity_intervals i\n    CROSS JOIN w\n    LEFT JOIN gpu_model_aliases ga ON ga.raw_model = i.gpu_model\n  LEFT JOIN pricing_rates r ON r.snapshot_id = (SELECT snapshot_id FROM snap) AND r.gpu_model = ga.canonical\n    WHERE i.category = 'IDLE' AND i.stage = 'SERVING' AND i.started_at < w.t1 AND coalesce(i.ended_at, now()) > w.t0 AND ('__all__' IN ($cluster) OR coalesce(i.cluster, i.evidence ->> 'cluster', i.evidence ->> 'cluster_name', '(no cluster)') IN ($cluster))\n  ) x\n)\nSELECT CASE WHEN NOT EXISTS (SELECT 1 FROM snap) OR NOT EXISTS (SELECT 1 FROM capacity_intervals i0 WHERE i0.started_at < w.t1 AND coalesce(i0.ended_at, now()) > w.t0 AND ('__all__' IN ($cluster) OR coalesce(i0.cluster, i0.evidence ->> 'cluster', i0.evidence ->> 'cluster_name', '(no cluster)') IN ($cluster))) THEN NULL\n            WHEN p.gpu_h = 0 THEN 0 ELSE p.usd END AS \"Cost of waste at AWS prices\",\n       CASE WHEN NOT EXISTS (SELECT 1 FROM snap) THEN 'no AWS price list loaded'\n            WHEN NOT EXISTS (SELECT 1 FROM capacity_intervals i0 WHERE i0.started_at < w.t1 AND coalesce(i0.ended_at, now()) > w.t0 AND ('__all__' IN ($cluster) OR coalesce(i0.cluster, i0.evidence ->> 'cluster', i0.evidence ->> 'cluster_name', '(no cluster)') IN ($cluster))) THEN 'nothing measured yet'\n            ELSE concat_ws(' · ',\n                   CASE WHEN p.usd IS NOT NULL AND (p.unpriced_h > 0 OR w.first_scan > w.t0) THEN 'at least' END,\n                   CASE WHEN p.unpriced_h >= 0.5 THEN to_char(p.unpriced_h, 'FM999,999,990') || ' GPU-hours have no AWS price'\n                        WHEN p.unpriced_h > 0 THEN 'under 1 GPU-hour has no AWS price' END,\n                   CASE WHEN w.first_scan > w.t0\n                        THEN 'no data before ' || to_char(w.first_scan AT TIME ZONE 'UTC', 'FMDD Mon YYYY') END,\n                   (SELECT 'AWS price list of ' || to_char(published AT TIME ZONE 'UTC', 'FMDD Mon YYYY') || ' (' || region || ')' FROM snap))\n       END AS label\nFROM w CROSS JOIN p"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": true,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "limit": 1
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value_and_name",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "text": {
+          "titleSize": 14,
+          "valueSize": 56
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "prefix:$",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "orange"
+          },
+          "noValue": "No price",
+          "decimals": 0,
+          "displayName": "${__data.fields.label}"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "barchart",
+      "id": 3,
+      "title": "Why GPUs are wasted now",
+      "description": "Barely used: fewer than 1 request per GPU per hour over the last 24 hours, or requests come in but the GPUs averaged under 25% of their rated power. No requests: none in the last 24 hours, or since the model started if it is younger. Model not starting: the model does not come up.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 6,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH r (reason, ord) AS (\n  VALUES ('Barely used', 1), ('No requests', 2), ('Model not starting', 3)\n), cur AS (\n  SELECT CASE i.reason_code\n           WHEN 'NOT_IN_CLUSTER' THEN 'Not in a cluster yet'\n           WHEN 'IN_MCE_INVENTORY' THEN 'Waiting in cluster inventory'\n           WHEN 'NODE_NOT_READY' THEN 'Node not ready'\n           WHEN 'NODE_UNSCHEDULABLE' THEN 'Node switched off for scheduling'\n           WHEN 'HARDWARE_CRITICAL' THEN 'Hardware problem'\n           WHEN 'BMC_UNREACHABLE' THEN 'Management controller unreachable'\n           WHEN 'GPU_PLATFORM_NOT_READY' THEN 'GPU software not ready'\n           WHEN 'GPU_MISSING' THEN 'GPUs missing'\n           WHEN 'NO_WORKLOAD' THEN 'Empty: nothing running on it'\n           WHEN 'LOW_USE' THEN 'Barely used'\n           WHEN 'NO_REAL_DEMAND' THEN 'No requests'\n           WHEN 'MODEL_NOT_READY' THEN 'Model not starting'\n           WHEN 'LOW_GPU_UTILIZATION' THEN 'GPUs barely busy'\n           WHEN 'WORKLOAD_NOT_READY' THEN 'Job not starting'\n           WHEN 'MAINTENANCE' THEN 'In repair (before 25 Nov 2026)'\n           WHEN 'OTHER_WORKLOAD' THEN 'Other workload (before 25 Nov 2026)'\n           WHEN 'POWER_WITHOUT_POD' THEN 'Drawing power, no pod'\n           ELSE 'Other reason' END AS reason,\n         i.gpus\n  FROM capacity_intervals i\n  WHERE i.ended_at IS NULL AND i.category = 'IDLE' AND i.stage = 'SERVING' AND ('__all__' IN ($cluster) OR coalesce(i.cluster, i.evidence ->> 'cluster', i.evidence ->> 'cluster_name', '(no cluster)') IN ($cluster))\n), x AS (\n  SELECT r.reason, r.ord, coalesce(sum(c.gpus), 0) AS gpus\n  FROM r LEFT JOIN cur c ON c.reason = r.reason\n  GROUP BY r.reason, r.ord\n  UNION ALL\n  SELECT c.reason, 99, sum(c.gpus) FROM cur c WHERE c.reason NOT IN (SELECT reason FROM r) GROUP BY c.reason\n)\nSELECT x.reason AS \"Reason\", x.gpus AS \"GPUs\"\nFROM x\nWHERE EXISTS (SELECT 1 FROM capacity_intervals i0 WHERE i0.ended_at IS NULL AND ('__all__' IN ($cluster) OR coalesce(i0.cluster, i0.evidence ->> 'cluster', i0.evidence ->> 'cluster_name', '(no cluster)') IN ($cluster)))\nORDER BY x.ord, x.reason"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 0,
+            "fillOpacity": 85,
+            "gradientMode": "none",
+            "axisPlacement": "auto",
+            "axisLabel": "",
+            "axisColorMode": "text",
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisSoftMin": 0,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "unit": "locale",
+          "decimals": 0,
+          "min": 0,
+          "noValue": "no data yet",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "orange"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "xField": "Reason",
+        "stacking": "none",
+        "showValue": "always",
+        "groupWidth": 0.7,
+        "barWidth": 0.8,
+        "barRadius": 0,
+        "fullHighlight": false,
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0,
+        "legend": {
+          "showLegend": false,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        },
+        "text": {
+          "valueSize": 16
+        }
+      }
+    },
+    {
+      "type": "barchart",
+      "id": 7,
+      "title": "Wasted GPUs by model",
+      "description": "This team's wasted GPUs right now, by GPU model. A model we cannot name shows as reported, or as 'Unknown model'.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 6,
+        "w": 6,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH c AS (\n  SELECT regexp_replace(coalesce(ga.canonical, nullif(i.gpu_model, ''), 'Unknown model'), '^NVIDIA ', '') AS model, i.gpus\n  FROM capacity_intervals i\n  LEFT JOIN gpu_model_aliases ga ON ga.raw_model = i.gpu_model\n  WHERE i.ended_at IS NULL AND i.category = 'IDLE' AND i.stage = 'SERVING' AND ('__all__' IN ($cluster) OR coalesce(i.cluster, i.evidence ->> 'cluster', i.evidence ->> 'cluster_name', '(no cluster)') IN ($cluster))\n), x AS (\n  SELECT c.model, sum(c.gpus) AS gpus FROM c GROUP BY c.model\n  UNION ALL\n  SELECT 'No wasted GPUs', 0 WHERE NOT EXISTS (SELECT 1 FROM c)\n)\nSELECT x.model AS \"GPU model\", x.gpus AS \"Wasted GPUs\"\nFROM x\nWHERE EXISTS (SELECT 1 FROM capacity_intervals i0 WHERE i0.ended_at IS NULL AND ('__all__' IN ($cluster) OR coalesce(i0.cluster, i0.evidence ->> 'cluster', i0.evidence ->> 'cluster_name', '(no cluster)') IN ($cluster)))\nORDER BY x.gpus DESC, x.model"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 0,
+            "fillOpacity": 85,
+            "gradientMode": "none",
+            "axisPlacement": "auto",
+            "axisLabel": "",
+            "axisColorMode": "text",
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisSoftMin": 0,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "unit": "locale",
+          "decimals": 0,
+          "min": 0,
+          "noValue": "no data yet",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "orange"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "xField": "GPU model",
+        "stacking": "none",
+        "showValue": "always",
+        "groupWidth": 0.7,
+        "barWidth": 0.8,
+        "barRadius": 0,
+        "fullHighlight": false,
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0,
+        "legend": {
+          "showLegend": false,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        },
+        "text": {
+          "valueSize": 16
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 4,
+      "title": "Wasted GPUs over time, by reason",
+      "description": "This team's wasted GPUs over time, stacked by reason. Nothing is drawn before our first scan.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 14,
+        "y": 6,
+        "w": 10,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "WITH t AS (\n  SELECT generate_series($__timeFrom()::timestamptz, least($__timeTo()::timestamptz, now()),\n                         make_interval(secs => greatest($__interval_ms, 300000) / 1000.0)) AS t\n), g AS (\n  SELECT t.t FROM t\n  WHERE t.t >= (SELECT min(started_at) FROM scan_runs WHERE kind = 'engine' AND status IN ('ok', 'partial'))\n    AND EXISTS (SELECT 1 FROM capacity_intervals i0 WHERE ('__all__' IN ($cluster) OR coalesce(i0.cluster, i0.evidence ->> 'cluster', i0.evidence ->> 'cluster_name', '(no cluster)') IN ($cluster)))\n), r (reason, ord) AS (\n  VALUES ('Barely used', 1), ('No requests', 2), ('Model not starting', 3)\n), iv AS (\n  SELECT g.t,\n         CASE i.reason_code\n           WHEN 'NOT_IN_CLUSTER' THEN 'Not in a cluster yet'\n           WHEN 'IN_MCE_INVENTORY' THEN 'Waiting in cluster inventory'\n           WHEN 'NODE_NOT_READY' THEN 'Node not ready'\n           WHEN 'NODE_UNSCHEDULABLE' THEN 'Node switched off for scheduling'\n           WHEN 'HARDWARE_CRITICAL' THEN 'Hardware problem'\n           WHEN 'BMC_UNREACHABLE' THEN 'Management controller unreachable'\n           WHEN 'GPU_PLATFORM_NOT_READY' THEN 'GPU software not ready'\n           WHEN 'GPU_MISSING' THEN 'GPUs missing'\n           WHEN 'NO_WORKLOAD' THEN 'Empty: nothing running on it'\n           WHEN 'LOW_USE' THEN 'Barely used'\n           WHEN 'NO_REAL_DEMAND' THEN 'No requests'\n           WHEN 'MODEL_NOT_READY' THEN 'Model not starting'\n           WHEN 'LOW_GPU_UTILIZATION' THEN 'GPUs barely busy'\n           WHEN 'WORKLOAD_NOT_READY' THEN 'Job not starting'\n           WHEN 'MAINTENANCE' THEN 'In repair (before 25 Nov 2026)'\n           WHEN 'OTHER_WORKLOAD' THEN 'Other workload (before 25 Nov 2026)'\n           WHEN 'POWER_WITHOUT_POD' THEN 'Drawing power, no pod'\n           ELSE 'Other reason' END AS reason,\n         i.gpus\n  FROM g\n  JOIN capacity_intervals i\n    ON i.category = 'IDLE' AND i.stage = 'SERVING' AND i.started_at <= g.t AND (i.ended_at IS NULL OR i.ended_at > g.t)\n  WHERE ('__all__' IN ($cluster) OR coalesce(i.cluster, i.evidence ->> 'cluster', i.evidence ->> 'cluster_name', '(no cluster)') IN ($cluster))\n), reasons AS (\n  SELECT reason, ord FROM r\n  UNION\n  SELECT DISTINCT iv.reason, 99 FROM iv WHERE iv.reason NOT IN (SELECT reason FROM r)\n)\nSELECT x.time, x.metric, x.value\nFROM (\n  SELECT g.t AS time, s.reason AS metric, s.ord, coalesce(sum(iv.gpus), 0) AS value\n  FROM g\n  CROSS JOIN reasons s\n  LEFT JOIN iv ON iv.t = g.t AND iv.reason = s.reason\n  GROUP BY g.t, s.reason, s.ord\n) x\nORDER BY x.time, x.ord, x.metric"
+        }
+      ],
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "locale",
+          "decimals": 0,
+          "min": 0,
+          "noValue": "no data yet",
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "stepAfter",
+            "lineWidth": 2,
+            "fillOpacity": 18,
+            "gradientMode": "none",
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "normal",
+              "group": "waste"
+            },
+            "axisPlacement": "auto",
+            "axisLabel": "GPUs"
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "table",
+      "id": 5,
+      "title": "Every model on GPUs now",
+      "description": "Every model running on GPUs now, wasted or not; wasted rows are highlighted orange, rows with no data purple. Busy: it had requests in the last hour. Quiet this hour: in use, but no requests in the last hour. Barely used: fewer than 1 request per GPU per hour over the last 24 hours, or requests come in but the GPUs mostly sit idle (they averaged under 25% of their rated power over 24 hours). No requests: none in the last 24 hours, or since it started if it is younger ('in 6 h' gives the hours covered). GPU power is the share of each GPU's rated power it drew (its power limit, else the rating of its model); below 25% a GPU is idle. Not starting: the model does not come up. No data: we cannot read its requests. '≥' means our history does not cover the whole window yet, so the real number may be higher; the rate is then 'about', over the hours covered. Waste per day: GPUs × the AWS price per GPU-hour × 24, on wasted rows only. Money columns are what the same GPUs would cost to rent on AWS on-demand (us-east-1, at the AWS price list named under 'Cost of waste at AWS prices'): a comparison, not our bill. '≥' means part of it has no AWS price; 'no AWS price' means none of it has one.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ttv-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 14,
+        "w": 24,
+        "h": 12
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ttv-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH snap AS (\n  SELECT s.snapshot_id, s.region, coalesce(s.publication_date, s.captured_at) AS published\n  FROM pricing_snapshots s\n  LEFT JOIN pricing_selection sel ON sel.snapshot_id = s.snapshot_id\n  ORDER BY (sel.snapshot_id IS NOT NULL) DESC, s.publication_date DESC NULLS LAST,\n           s.captured_at DESC, s.snapshot_id DESC\n  LIMIT 1\n), m AS (\n  SELECT w.*,\n         CASE WHEN w.reason_code = 'SERVING_IN_USE' AND w.requests_recent > 0 THEN 'Busy'\n              WHEN w.reason_code = 'SERVING_IN_USE' AND w.requests_recent = 0 THEN 'Quiet this hour'\n              WHEN w.reason_code = 'LOW_USE' THEN 'Barely used'\n              WHEN w.reason_code = 'NO_REAL_DEMAND' THEN 'No requests'\n              WHEN w.reason_code = 'MODEL_NOT_READY' THEN 'Not starting'\n              WHEN w.category = 'PRODUCTIVE' THEN 'In use'\n              WHEN w.category = 'IDLE' THEN 'Wasted'\n              WHEN w.category = 'NOT_CHARGED' THEN 'Not counted'\n              ELSE 'No data' END AS status\n  FROM workloads_now w\n  WHERE w.kind = 'serving' AND ('__all__' IN ($cluster) OR w.cluster IN ($cluster))\n)\nSELECT regexp_replace(m.holder_ref, '^.*/', '') AS \"Model\",\n       coalesce((SELECT string_agg(d.n, ', ' ORDER BY d.n) FROM (SELECT DISTINCT regexp_replace(coalesce(gm.canonical, nullif(g.raw, ''), 'Unknown model'), '^NVIDIA ', '') AS n FROM unnest(m.gpu_models) AS g (raw) LEFT JOIN gpu_model_aliases gm ON gm.raw_model = g.raw) d), 'Unknown model') AS \"GPU model\",\n       split_part(m.holder_ref, '/', 1) AS \"Namespace\",\n       m.cluster AS \"Cluster\",\n       m.gpus AS \"GPUs\",\n       CASE WHEN m.requests_recent IS NOT NULL\n            THEN CASE WHEN m.recent_complete IS NOT TRUE THEN '≥ ' ELSE '' END || to_char(m.requests_recent, 'FM999,999,990') END AS \"Requests, last hour\",\n       CASE WHEN m.requests_window IS NOT NULL\n            THEN CASE WHEN m.window_complete IS NOT TRUE THEN '≥ ' ELSE '' END || to_char(m.requests_window, 'FM999,999,990')\n                 || CASE WHEN abs(m.window_hours - 24) > 0.05\n                         THEN ' in ' || trim_scale(round(m.window_hours::numeric, 1))::text || ' h' ELSE '' END\n       END AS \"Requests, last 24 h\",\n       CASE WHEN m.requests_per_gpu_hour IS NOT NULL\n            THEN CASE WHEN m.window_complete IS NOT TRUE THEN 'about ' ELSE '' END\n                 || CASE WHEN m.requests_per_gpu_hour < 10 THEN to_char(m.requests_per_gpu_hour, 'FM990.00')\n                         ELSE to_char(m.requests_per_gpu_hour, 'FM999,999,990') END\n       END AS \"Requests per GPU per hour\",\n       CASE WHEN m.gpu_power_avg IS NOT NULL\n            THEN to_char(100 * m.gpu_power_avg, 'FM990') || '%' END AS \"GPU power (24 h average)\",\n       m.status AS \"Status\",\n       CASE WHEN m.category <> 'IDLE' THEN NULL\n            WHEN NOT EXISTS (SELECT 1 FROM snap) THEN 'no price list'\n            WHEN p.usd_h IS NULL THEN 'no AWS price'\n            ELSE CASE WHEN p.any_unpriced THEN '≥ ' ELSE '' END || '$' || CASE WHEN p.usd_h * 24 >= 100 THEN to_char(p.usd_h * 24, 'FM999,999,999,990') ELSE to_char(p.usd_h * 24, 'FM990.00') END\n       END AS \"Waste per day at AWS prices\"\nFROM m\nLEFT JOIN LATERAL (\n  SELECT sum(i.gpus * r.per_gpu_hour_usd) AS usd_h, bool_or(r.per_gpu_hour_usd IS NULL) AS any_unpriced\n  FROM capacity_intervals i\n  LEFT JOIN gpu_model_aliases ga ON ga.raw_model = i.gpu_model\n  LEFT JOIN pricing_rates r ON r.snapshot_id = (SELECT snapshot_id FROM snap) AND r.gpu_model = ga.canonical\n  WHERE i.ended_at IS NULL AND i.cluster = m.cluster AND i.holder_ref = m.holder_ref\n    AND i.reason_code = m.reason_code\n) p ON true\nORDER BY CASE WHEN m.category = 'IDLE' THEN 1 WHEN m.category = 'UNKNOWN' THEN 2 ELSE 3 END,\n         m.gpus DESC, \"Model\", \"Namespace\", \"Cluster\""
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        },
+        "sortBy": []
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false,
+            "wrapHeaderText": true
+          },
+          "noValue": "no models on GPUs"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Model"
+            },
+            "properties": [
+              {
+                "id": "custom.minWidth",
+                "value": 130
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "GPU model"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 105
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Namespace"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 95
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Cluster"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 120
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "GPUs"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "custom.width",
+                "value": 55
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Requests, last hour"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "custom.width",
+                "value": 80
+              },
+              {
+                "id": "noValue",
+                "value": "—"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Requests, last 24 h"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "custom.width",
+                "value": 90
+              },
+              {
+                "id": "noValue",
+                "value": "—"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Requests per GPU per hour"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "custom.width",
+                "value": 90
+              },
+              {
+                "id": "noValue",
+                "value": "—"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "GPU power (24 h average)"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "custom.width",
+                "value": 90
+              },
+              {
+                "id": "noValue",
+                "value": " "
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Status"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 105
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic",
+                  "applyToRow": true
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "transparent"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "Barely used": {
+                        "color": "rgba(255, 152, 48, 0.25)",
+                        "index": 0
+                      },
+                      "No requests": {
+                        "color": "rgba(255, 152, 48, 0.25)",
+                        "index": 1
+                      },
+                      "Not starting": {
+                        "color": "rgba(255, 152, 48, 0.25)",
+                        "index": 2
+                      },
+                      "Wasted": {
+                        "color": "rgba(255, 152, 48, 0.25)",
+                        "index": 3
+                      },
+                      "No data": {
+                        "color": "rgba(184, 119, 217, 0.25)",
+                        "index": 4
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Waste per day at AWS prices"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "custom.width",
+                "value": 100
+              },
+              {
+                "id": "noValue",
+                "value": " "
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,5 +1,6 @@
 # One release per target GPU cluster, installed by that cluster's platform owners (README.md here).
 # Every rule gets the verbs get, list and watch, fixed in the template; values cannot add others.
+# The one subresource, pods/proxy for podMetrics below, gets get only.
 
 serviceAccount:
   name: gpu-ttv-reader
@@ -22,6 +23,13 @@ builtinKinds:
 discoveredKinds: []
 # - apiGroup: run.ai
 #   resources: [<from discover-kinds.sh>]
+
+# Serving requests (ADR-0009): `get` on pods/proxy, so the engine can GET each vLLM pod's own
+# /metrics page through the API server. It never needs a ServiceMonitor. The API proxy allows a GET
+# on any port of any pod, so some security teams review it (README.md). With false, serving models
+# show "No data" (UNKNOWN) on the dashboards, never zero.
+podMetrics:
+  enabled: true
 
 # Thanos querier access (docs/discovery.md D11): the platform's read-only monitoring role.
 monitoringClusterRole: cluster-monitoring-view

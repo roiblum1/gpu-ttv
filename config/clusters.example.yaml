@@ -25,5 +25,3 @@ clusters:
     # dcgm_uuid_label: UUID                # D2
     # dcgm_pod_label: exported_pod         # D3
     # dcgm_namespace_label: exported_namespace
-    # serving_pod_label: pod
-    # serving_namespace_label: namespace

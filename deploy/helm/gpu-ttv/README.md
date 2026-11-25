@@ -46,6 +46,16 @@ helm template gpu-ttv deploy/helm/gpu-ttv -n gpu-ttv -f values-production.yaml >
 
 `deploy/helm/gpu-ttv/ci/full-values.yaml` switches every optional part on with synthetic names; `tests/test_helm_charts.py` renders it and the defaults and checks: no RBAC write verb, every image by digest, `TTV_DRY_RUN` true by default, no Secret data, Grafana files byte-identical to `grafana/`, every `TTV_*` variable a real setting, generated config files that load in the engine, and a refusal of the removed `collector` values and DC stage.
 
+## Upgrading from 0.2.x
+
+0.3.0 has five teams and the manager dashboards (ADR-0009).
+- Add `EMPTY` (Samurai: healthy GPUs with nothing on them) and `MACHINE_LEARNING` (Run:ai and every other non-serving workload) to the policy's `teams` and `stage_objectives`, rename the `SERVING` team (Apply in the example), and bump `policy_version`. The chart and the engine refuse a policy without them.
+- Delete `counters` from any `policy.serving.kinds` entry, and `productive_kinds`, `interactive_priority_classes` and `priority_label` from `policy.runai`: requests now come from each vLLM pod's own `/metrics`, and every Run:ai workload is Machine Learning. The chart refuses them.
+- Upgrade the reader chart in every target cluster first (`deploy/gpu-cluster-rbac/`): the engine now needs `get` on `pods/proxy`. Without it, served models show "No data", never zero.
+- Maintenance is no longer waste: it shows as "In repair" and is charged to nobody.
+- The ten old dashboards are replaced by six: Home and one page per team. The old dashboard ConfigMaps go with `helm upgrade`.
+- At start the engine applies `migrations/0007_pod_requests_and_workloads_now.sql`, which adds two tables. Take the Postgres backup first.
+
 ## Upgrading from 0.1.x
 
 0.2.0 removes the profile-less collector and the DC stage (ADR-0008); server-scan is the only inventory source.

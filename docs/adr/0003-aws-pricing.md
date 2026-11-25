@@ -2,7 +2,7 @@
 
 - **Status:** accepted 2026-10-31. The user approved the proxies, the size rule and the unpriced V100 16GB the same day, and asked for B300 and H100 94/95GB (map 2026-10-31.2).
 - **Context:** AGENT.md §0.5, §10 "AWS comparison pricing", §17 "Numerical checks", §20.5, §20.7, §20.11; user decision of 2026-10-31 in `docs/discovery.md` ("Inputs from the user").
-- **Code:** `src/ttv/pricing/` (`catalog.py`, `mapping.py`, `snapshot.py`, `capture.py`, `importer.py`, `cli.py`), `migrations/0002_pricing.sql`, `src/ttv/queries.py`, `grafana/dashboards/ttv-queues.json` (panels 16-20).
+- **Code:** `src/ttv/pricing/` (`catalog.py`, `mapping.py`, `snapshot.py`, `capture.py`, `importer.py`, `cli.py`), `migrations/0002_pricing.sql`, `src/ttv/queries.py`. Since 2026-11-26 the manager pages (`grafana/dashboards/`, ADR-0009) show waste at present-day AWS prices from the engine's selected snapshot; the Queues value panels were removed with the old pages.
 
 ## Decision
 

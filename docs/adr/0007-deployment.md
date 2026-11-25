@@ -105,6 +105,7 @@ A small chart, installed once per target cluster by its owners (`helm install`, 
 - **Built-in kinds:** the approved list (`docs/discovery.md`, 2026-10-28): nodes, pods, namespaces, replicasets, deployments, statefulsets, jobs, and clusterversions for the `cluster_id` check.
 - **CRD kinds** (Run:ai, KServe, LeaderWorkerSet, Kubeflow, Knative) come only from `discover-kinds.sh`, which runs `oc api-resources` on that cluster. CRD names are never written by hand (CLAUDE.md), and Run:ai is on some clusters only.
 - **Refused resources:** the template refuses secrets, service accounts, OAuth token kinds, subresources (`pods/exec`) and wildcards, the same plurals `sources/kube.py` refuses in code.
+- **One fixed subresource (chart 0.2.0, ADR-0009):** `get` on `pods/proxy`, so the engine can read each vLLM pod's `/metrics`. It is written in the template, not built from values, and `podMetrics.enabled: false` removes it (served models then show "No data"). The proxy allows a GET to any port of any pod, which is why it is a separate, documented rule; `sources/pod_metrics.py` only ever sends `GET …/pods/<scheme>:<pod>:<port>/proxy/metrics`.
 - **Discovery URLs:** `get` on the API discovery URLs, which most clusters grant to every user anyway.
 
 **The rest:**

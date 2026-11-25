@@ -76,12 +76,16 @@ def policy() -> Policy:
         teams={
             Stage.PROVISIONING: "Redbull",
             Stage.GPU_PLATFORM: "POPAI",
-            Stage.SERVING: "Serving",
+            Stage.EMPTY: "Samurai",
+            Stage.SERVING: "Apply",
+            Stage.MACHINE_LEARNING: "Machine Learning",
         },
         stage_objectives={
             Stage.PROVISIONING: timedelta(hours=1),
             Stage.GPU_PLATFORM: timedelta(days=1),
+            Stage.EMPTY: timedelta(days=1),
             Stage.SERVING: timedelta(days=7),
+            Stage.MACHINE_LEARNING: timedelta(days=1),
         },
         target_clusters=frozenset({"ocp4-prod-gpu-site1"}),
     )

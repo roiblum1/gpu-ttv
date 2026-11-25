@@ -1,9 +1,12 @@
 {{- /*
 Read-only access for gpu-ttv on this cluster. Verbs are fixed here; resources come from values and
 are refused when they are credentials, subresources or wildcards (src/ttv/sources/kube.py refuses
-the same plurals in code).
+the same plurals in code). The only subresource, pods/proxy (get), is fixed here behind podMetrics.
 */ -}}
 {{- $name := .Values.serviceAccount.name -}}
+{{- if not (kindIs "bool" .Values.podMetrics.enabled) }}
+{{- fail "gpu-cluster-rbac: podMetrics.enabled must be true or false, not a string" }}
+{{- end }}
 {{- $refused := list "secrets" "serviceaccounts" "oauthaccesstokens" "oauthauthorizetokens" "useroauthaccesstokens" "oauthclients" "tokenreviews" -}}
 {{- $kinds := concat .Values.builtinKinds .Values.discoveredKinds -}}
 {{- range $kinds }}
@@ -34,6 +37,12 @@ rules:
   - apiGroups: [{{ .apiGroup | quote }}]
     resources: {{ toJson .resources }}
     verbs: ["get", "list", "watch"]
+  {{- end }}
+  {{- if .Values.podMetrics.enabled }}
+  # GET each vLLM pod's /metrics through the API proxy (ADR-0009; values.yaml, podMetrics).
+  - apiGroups: [""]
+    resources: ["pods/proxy"]
+    verbs: ["get"]
   {{- end }}
   # API discovery, which the owner walk uses to map a kind to its plural (most clusters grant it already).
   - nonResourceURLs: ["/api", "/api/*", "/apis", "/apis/*"]

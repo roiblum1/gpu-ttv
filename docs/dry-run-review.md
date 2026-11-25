@@ -50,7 +50,7 @@ Run every command against production as the platform operator; nothing here writ
    for verb in create update patch delete; do oc auth can-i $verb pods --as=$SA; done   # "no" four times
    oc auth can-i get secrets --as=$SA     # "no"
    ```
-   Expect only `>` lines: the chart's kinds with `[get list watch]`, and `prometheuses.monitoring.coreos.com/api [k8s] [get create update]`.
+   Expect only `>` lines: the chart's kinds with `[get list watch]`, `pods/proxy` with `[get]` (vLLM `/metrics`, ADR-0009; absent when `podMetrics.enabled` is false), and `prometheuses.monitoring.coreos.com/api [k8s] [get create update]`.
    - That last line comes from OpenShift's `cluster-monitoring-view`, bound for Thanos. Its proxy authorizes metric queries as verbs on that virtual subresource; it cannot change the Prometheus object.
    - A plain `--list` also shows what OpenShift gives every authenticated user, such as `create` on `builds/*` and `buildconfigs/webhooks`. The diff leaves those out.
    - Seen on OpenShift 4.22 in the lab, 2026-10-31.
@@ -97,7 +97,7 @@ Every item must hold. If one fails, fix it. If the fix changes the configuration
 | 6 | Every UNKNOWN reason with GPUs is explained, and is either fixed or accepted in writing by the user with a reason. Unknown is never zero: it stays visible | `metrics.txt`, `/decisions?category=UNKNOWN` |
 | 7 | Identity conflicts: the count is stable over the window, and each conflict kind present is understood (no silent merge) | `ttv_identity_conflicts`, `/decisions?reason=IDENTITY_CONFLICT` |
 | 8 | Spot check: at least 10 assets covering every category with GPUs; every one matches the source, or the mismatch is fixed and re-checked | step 5 table |
-| 9 | Read-only verified: cluster RBAC is only get/list/watch (step 2); the server-scan token is the read-only AUDITOR token | step 2 output; `docs/discovery.md` |
+| 9 | Read-only verified: cluster RBAC is only get/list/watch, plus get on `pods/proxy` (step 2); the server-scan token is the read-only AUDITOR token | step 2 output; `docs/discovery.md` |
 | 10 | No pod restarts, OOM kills or probe failures in the window; memory is well under the limit | `oc get pods`, `oc describe` |
 | 11 | Alerts behave as in step 6, and nothing was sent | Grafana |
 | 12 | The policy that will write is approved: the I1 stage objectives (Redbull, POPAI, Serving) are approved, or accepted as provisional in writing | the record |

@@ -1,4 +1,4 @@
-"""GPU-level rows 15-22 of ADR-0002 for one Ready, GPU-ready node. Pure: no I/O."""
+"""GPU-level rows 15-22 of ADR-0002 (as changed by ADR-0009) for one Ready node. Pure: no I/O."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from functools import lru_cache
 from typing import Any
 
 from ttv.cluster_view import ClusterView, clean_hostname, holder_ref
-from ttv.config import CounterOfRecord, Policy, ServingKind
+from ttv.config import Policy, ServingKind
 from ttv.models import (
     Category,
     ClusterNode,
@@ -21,20 +21,64 @@ from ttv.models import (
     Stage,
 )
 
-# Allocation precedence when pods claim more GPUs than report healthy (first match wins).
+# Allocation precedence when pods claim more GPUs than report healthy (first match wins),
+# and each row's ADR-0002 label for the trace.
 _RANK: Mapping[Reason, float] = {
     Reason.HOLDER_UNRESOLVED: 15.5,
     Reason.RUNAI_WORKLOAD: 16,
+    Reason.ML_WORKLOAD: 16.1,
+    Reason.ACTIVITY_UNOBSERVED: 16.2,
     Reason.TRAFFIC_UNOBSERVED: 16.5,
     Reason.SERVING_IN_USE: 17,
     Reason.LOW_USE: 18,
     Reason.NO_REAL_DEMAND: 19,
-    Reason.WORKLOAD_NOT_READY: 20,
-    Reason.OTHER_WORKLOAD: 21,
+    Reason.MODEL_NOT_READY: 20,
+    Reason.WORKLOAD_NOT_READY: 20.5,
+    Reason.LOW_GPU_UTILIZATION: 21,
+    Reason.POWER_WITHOUT_POD: 21.5,
     Reason.NO_WORKLOAD: 22,
 }
+_ROW: Mapping[Reason, str] = {
+    Reason.HOLDER_UNRESOLVED: "15b",
+    Reason.RUNAI_WORKLOAD: "16",
+    Reason.ML_WORKLOAD: "16c",
+    Reason.ACTIVITY_UNOBSERVED: "16d",
+    Reason.TRAFFIC_UNOBSERVED: "16b",
+    Reason.SERVING_IN_USE: "17",
+    Reason.LOW_USE: "18",
+    Reason.NO_REAL_DEMAND: "19",
+    Reason.MODEL_NOT_READY: "20",
+    Reason.WORKLOAD_NOT_READY: "20b",
+    Reason.LOW_GPU_UTILIZATION: "21",
+    Reason.POWER_WITHOUT_POD: "22b",
+    Reason.NO_WORKLOAD: "22",
+}
+_PRODUCTIVE = frozenset({Reason.RUNAI_WORKLOAD, Reason.ML_WORKLOAD, Reason.SERVING_IN_USE})
+_UNKNOWN = frozenset(
+    {
+        Reason.HOLDER_UNRESOLVED,
+        Reason.TRAFFIC_UNOBSERVED,
+        Reason.ACTIVITY_UNOBSERVED,
+        Reason.POWER_WITHOUT_POD,
+    }
+)
+_STAGE: Mapping[Reason, Stage] = {
+    Reason.LOW_USE: Stage.SERVING,
+    Reason.NO_REAL_DEMAND: Stage.SERVING,
+    Reason.MODEL_NOT_READY: Stage.SERVING,
+    Reason.WORKLOAD_NOT_READY: Stage.MACHINE_LEARNING,
+    Reason.LOW_GPU_UTILIZATION: Stage.MACHINE_LEARNING,
+    Reason.NO_WORKLOAD: Stage.EMPTY,
+}
 _WORKLOAD_PRESENT = frozenset(
-    {Reason.RUNAI_WORKLOAD, Reason.SERVING_IN_USE, Reason.LOW_USE, Reason.NO_REAL_DEMAND}
+    {
+        Reason.RUNAI_WORKLOAD,
+        Reason.ML_WORKLOAD,
+        Reason.SERVING_IN_USE,
+        Reason.LOW_USE,
+        Reason.NO_REAL_DEMAND,
+        Reason.LOW_GPU_UTILIZATION,
+    }
 )
 
 
@@ -154,7 +198,7 @@ def gpu_level(
     for group in _group(classes):
         take = min(group.gpus, remaining)
         trace.append(
-            f"{int(_RANK[group.reason])} {group.reason}: "
+            f"{_ROW[group.reason]} {group.reason}: "
             f"{take} held by {group.holder_ref}"
             + (f" (claims {group.gpus}, only {take} healthy left)" if take < group.gpus else "")
         )
@@ -174,13 +218,30 @@ def gpu_level(
                     group.evidence,
                 )
             )
+    powered = _powered_free_gpus(node, pods, view, policy)
+    unseen = min(powered, remaining)
+    trace.append(f"22b POWER_WITHOUT_POD: {unseen} (no pod, drawing power)")
+    if unseen:
+        slices.append(
+            Slice(
+                Category.UNKNOWN,
+                Reason.POWER_WITHOUT_POD,
+                None,
+                unseen,
+                None,
+                None,
+                tuple(base_flags),
+                {"powered_gpus_without_pod": powered, "threshold": policy.power.threshold},
+            )
+        )
+        remaining -= unseen
     trace.append(f"22 NO_WORKLOAD: {remaining}")
     if remaining:
         slices.append(
             Slice(
                 Category.IDLE,
                 Reason.NO_WORKLOAD,
-                Stage.SERVING,
+                Stage.EMPTY,
                 remaining,
                 None,
                 None,
@@ -203,6 +264,34 @@ def gpu_level(
     if any(c.reason in (Reason.SERVING_IN_USE, Reason.LOW_USE) for c in classes):
         milestones.append(MilestoneFact("first_genuine_request", None, True, {}))
     return GpuRows(tuple(slices), tuple(trace), tuple(milestones))
+
+
+def _powered_free_gpus(
+    node: ClusterNode, pods: Sequence[ClusterPod], view: ClusterView, policy: Policy
+) -> int:
+    """
+    GPUs no pod holds that drew working power in the activity window (row 22b, ADR-0009).
+
+    DCGM series without a pod also come from GPUs whose holder DCGM could not attribute, so
+    those holders' GPUs are subtracted first.
+
+    Args:
+        node (ClusterNode): The node.
+        pods (Sequence[ClusterPod]): Its GPU-relevant pods.
+        view (ClusterView): The cluster view.
+        policy (Policy): Policy (`power.threshold`).
+
+    Returns:
+        int: GPUs in use by something unseen.
+    """
+    threshold = policy.power.threshold
+    if threshold is None:
+        return 0
+    shares = view.free_power_by_clean.get(clean_hostname(node.name) or node.name, ())
+    powered = sum(1 for share in shares if share >= threshold)
+    attributed = view.thanos.power_by_pod if view.thanos else {}
+    unattributed = sum(p.gpus for p in pods if p.gpus and (p.namespace, p.name) not in attributed)
+    return max(powered - unattributed, 0)
 
 
 def _classify_holder(
@@ -240,7 +329,8 @@ def _classify_holder(
                 Reason.NO_WORKLOAD, holder_ref(pod), pod.gpus, pod.name, evidence=evidence
             )
         best = min(
-            (_classify_pod(m, view, policy, now) for m in members), key=lambda c: _RANK[c.reason]
+            (_classify_pod(m, view, policy, now, activity_of=pod) for m in members),
+            key=lambda c: _RANK[c.reason],
         )
         return _PodClass(
             best.reason,
@@ -256,15 +346,27 @@ def _classify_holder(
     return _classify_pod(pod, view, policy, now)
 
 
-def _classify_pod(pod: ClusterPod, view: ClusterView, policy: Policy, now: datetime) -> _PodClass:
+def _classify_pod(
+    pod: ClusterPod,
+    view: ClusterView,
+    policy: Policy,
+    now: datetime,
+    *,
+    activity_of: ClusterPod | None = None,
+) -> _PodClass:
     """
-    Rows 16-21 for one workload pod, first match wins.
+    Rows 16-21 for one workload pod, first match wins (ADR-0009).
+
+    Run:ai and every other non-serving workload are Machine Learning, judged by GPU activity;
+    recognised serving deployments are judged by their requests.
 
     Args:
         pod (ClusterPod): The pod.
         view (ClusterView): The cluster view.
         policy (Policy): Policy.
         now (datetime): Scan time.
+        activity_of (ClusterPod | None): Pod whose GPU activity to use when this pod has none
+            (the Run:ai reservation pod that holds a fractional pod's GPU).
 
     Returns:
         _PodClass: The classification.
@@ -272,11 +374,11 @@ def _classify_pod(pod: ClusterPod, view: ClusterView, policy: Policy, now: datet
     ref = holder_ref(pod)
     started = pod.started_at
     warming = not pod.ready and (started is None or now - started < policy.serving.warmup_grace)
-    usable = pod.ready or warming
     base: dict[str, Any] = {
         "pod": f"{pod.namespace}/{pod.name}",
         "ready": pod.ready,
         "phase": pod.phase,
+        "started_at": started.isoformat() if started else None,
         "owners": [f"{o.kind}/{o.name}" for o in pod.owners],
     }
     if pod.waiting_reasons:
@@ -294,9 +396,7 @@ def _classify_pod(pod: ClusterPod, view: ClusterView, policy: Policy, now: datet
         Returns:
             _PodClass: The class.
         """
-        idle = reason in (Reason.RUNAI_WORKLOAD, Reason.SERVING_IN_USE) and _allocated_idle(
-            pod, view, policy, now
-        )
+        idle = reason is Reason.SERVING_IN_USE and _allocated_idle(pod, view, policy, now)
         return _PodClass(
             reason, ref, pod.gpus, pod.name, idle, tuple(flags), base | extra, started, pod.ready
         )
@@ -304,52 +404,164 @@ def _classify_pod(pod: ClusterPod, view: ClusterView, policy: Policy, now: datet
     if not pod.owners_complete:
         return make(Reason.HOLDER_UNRESOLVED)
     top = pod.owners[-1] if pod.owners else None
-    runai = policy.runai
-    if top is not None and top.group == runai.group and top.kind in runai.productive_kinds:
-        interactive = (
-            top.kind == "RunaiJob"
-            and pod.labels.get(runai.priority_label) in runai.interactive_priority_classes
-        )
-        if not interactive and (pod.phase == "Running" or warming):
-            return make(Reason.RUNAI_WORKLOAD, runai_kind=top.kind)
+    runai = top is not None and top.group == policy.runai.group
+    kind = None if runai or top is None else _serving_kind(pod, policy)
+    if kind is not None:
+        return _serving(pod, ref, view, policy, warming, kind, make)
+    if not (pod.ready or warming):
+        return make(Reason.WORKLOAD_NOT_READY, kind="ml", runai=runai)
+    return _machine_learning(pod, view, policy, now, runai, activity_of, make)
 
-    kind = _serving_kind(pod, policy) if top is not None else None
-    if kind is not None and top is not None:
-        counter, requests, counted = _demand(view, kind, pod.namespace, top.name)
-        if counter is None or requests is None:
-            return make(
-                Reason.TRAFFIC_UNOBSERVED,
-                serving_kind=kind.kind,
-                tried=[c.selector for c in kind.counters],
-            )
-        held = view.gpus_by_holder.get(ref, 0)
-        hours = policy.serving.demand_window.total_seconds() / 3600
-        per_gpu_hour = requests / (held * hours) if held and hours else None
-        demand: dict[str, Any] = {
-            "counter": counter.selector,
-            "requests": requests,
-            "window_hours": hours,
-            "deployment_gpus": held,
-            "requests_per_gpu_hour": per_gpu_hour,
-            "counted_pods": counted,
+
+def _serving(
+    pod: ClusterPod,
+    ref: str,
+    view: ClusterView,
+    policy: Policy,
+    warming: bool,
+    kind: ServingKind,
+    make: Any,
+) -> _PodClass:
+    """
+    Rows 16b-20 for a pod of a recognised serving deployment, from its requests (ADR-0009).
+
+    Args:
+        pod (ClusterPod): The pod.
+        ref (str): Its `holder_ref`.
+        view (ClusterView): The cluster view (with `demand`).
+        policy (Policy): Policy.
+        warming (bool): Not Ready but within `warmup_grace`.
+        kind (ServingKind): The matched serving kind.
+        make (Any): The caller's class builder.
+
+    Returns:
+        _PodClass: The classification.
+    """
+    rules = policy.serving
+    demand = view.demand.get(ref)
+    held = view.gpus_by_holder.get(ref, 0)
+    power_avg = view.power_avg_by_holder.get(ref)
+    window_hours = rules.demand_window.total_seconds() / 3600
+    evidence: dict[str, Any] = {
+        "kind": "serving",
+        "serving_kind": kind.kind,
+        "metric": rules.metric,
+        "deployment_gpus": held,
+        "window_hours": window_hours,
+        "recent_hours": rules.recent_window.total_seconds() / 3600,
+        "gpu_power_avg": power_avg,
+    }
+    if demand is not None:
+        hours = demand.covered_hours if demand.covered_hours > 0 else None
+        evidence |= {
+            "requests": demand.requests,
+            "complete": demand.complete,
+            "covered_hours": demand.covered_hours,
+            "recent_requests": demand.recent_requests,
+            "recent_complete": demand.recent_complete,
+            "requests_per_gpu_hour": demand.requests / (held * hours) if held and hours else None,
+            "counted_pods": list(demand.pods),
+            "unreadable_pods": list(demand.unreadable),
         }
-        attribution = () if counter.excludes_synthetic else (Flag.USER_ATTRIBUTION_UNVERIFIED,)
-        if requests > 0:
-            threshold = policy.serving.useful_requests_per_gpu_hour
-            if threshold is None:
-                return make(
-                    Reason.SERVING_IN_USE, flags=(Flag.LOW_USE_UNVERIFIED, *attribution), **demand
-                )
-            if per_gpu_hour is not None and per_gpu_hour >= threshold:
-                return make(Reason.SERVING_IN_USE, flags=attribution, **demand)
-            return make(Reason.LOW_USE, flags=attribution, threshold=threshold, **demand)
-        if usable:
-            return make(Reason.NO_REAL_DEMAND, flags=attribution, **demand)
-        return make(Reason.WORKLOAD_NOT_READY, **demand)
-
+    flags = (Flag.USER_ATTRIBUTION_UNVERIFIED,)
+    usable = pod.ready or warming
+    if demand is not None and demand.requests > 0:
+        threshold = rules.useful_requests_per_gpu_hour
+        per_gpu_hour = evidence["requests_per_gpu_hour"]
+        young = demand.covered_hours < evidence["recent_hours"]
+        if threshold is None or not demand.complete or young:
+            if threshold is None or per_gpu_hour is None or per_gpu_hour < threshold:
+                flags = (Flag.LOW_USE_UNVERIFIED, *flags)
+            return make(Reason.SERVING_IN_USE, flags=flags, **evidence)
+        if per_gpu_hour is None or per_gpu_hour < threshold:
+            return make(
+                Reason.LOW_USE, flags=flags, threshold=threshold, basis="requests", **evidence
+            )
+        line = policy.power.threshold
+        if line is not None and power_avg is not None and power_avg < line:
+            return make(Reason.LOW_USE, flags=flags, threshold=line, basis="power", **evidence)
+        return make(Reason.SERVING_IN_USE, flags=flags, **evidence)
     if not usable:
-        return make(Reason.WORKLOAD_NOT_READY)
-    return make(Reason.OTHER_WORKLOAD)
+        return make(Reason.MODEL_NOT_READY, **evidence)
+    if demand is None or not demand.complete:
+        return make(Reason.TRAFFIC_UNOBSERVED, **evidence)
+    return make(Reason.NO_REAL_DEMAND, flags=flags, **evidence)
+
+
+def _machine_learning(
+    pod: ClusterPod,
+    view: ClusterView,
+    policy: Policy,
+    now: datetime,
+    runai: bool,
+    activity_of: ClusterPod | None,
+    make: Any,
+) -> _PodClass:
+    """
+    Rows 16, 16c, 16d and 21: a running Machine Learning pod, judged by its GPU activity.
+
+    Args:
+        pod (ClusterPod): The pod.
+        view (ClusterView): The cluster view.
+        policy (Policy): Policy (`allocated_idle` is the utilization rule).
+        now (datetime): Scan time.
+        runai (bool): The top owner is a Run:ai workload.
+        activity_of (ClusterPod | None): Fallback pod for the activity lookup.
+        make (Any): The caller's class builder.
+
+    Returns:
+        _PodClass: The classification.
+    """
+    rule, line = policy.allocated_idle, policy.power.threshold
+    snapshot = view.thanos
+    keys = [(pod.namespace, pod.name)]
+    if activity_of is not None:
+        keys.append((activity_of.namespace, activity_of.name))
+    activity = next(
+        (snapshot.activity_by_pod[k] for k in keys if snapshot and k in snapshot.activity_by_pod),
+        None,
+    )
+    reading = next(
+        (snapshot.power_by_pod[k] for k in keys if snapshot and k in snapshot.power_by_pod), None
+    )
+    power = reading.peak if reading is not None and line is not None else None
+    evidence: dict[str, Any] = {
+        "kind": "ml",
+        "runai": runai,
+        "gpu_busy_peak": activity,
+        "gpu_power_peak": power,
+        "busy_window_hours": rule.window.total_seconds() / 3600,
+        "activity_metric": snapshot.activity_metric if snapshot else None,
+    }
+    in_use = Reason.RUNAI_WORKLOAD if runai else Reason.ML_WORKLOAD
+    age = now - pod.started_at if pod.started_at is not None else None
+    if activity is None and power is None:
+        if age is not None and age < policy.serving.warmup_grace:
+            return make(in_use, **evidence)
+        return make(Reason.ACTIVITY_UNOBSERVED, **evidence)
+    busy = activity is not None and activity >= rule.threshold
+    powered = power is not None and line is not None and power >= line
+    if age is not None and age >= rule.window and not busy and not powered:
+        return make(
+            Reason.LOW_GPU_UTILIZATION, threshold=rule.threshold, power_threshold=line, **evidence
+        )
+    return make(in_use, **evidence)
+
+
+def is_serving_pod(pod: ClusterPod, policy: Policy) -> bool:
+    """
+    Whether rows 16b-20 apply: a pod of a recognised serving deployment that is not Run:ai.
+
+    Args:
+        pod (ClusterPod): The pod.
+        policy (Policy): Policy.
+
+    Returns:
+        bool: True when its counter decides whether the GPUs are used (ADR-0009).
+    """
+    if not pod.owners_complete or not pod.owners:
+        return False
+    return pod.owners[-1].group != policy.runai.group and _serving_kind(pod, policy) is not None
 
 
 def _serving_kind(pod: ClusterPod, policy: Policy) -> ServingKind | None:
@@ -373,42 +585,9 @@ def _serving_kind(pod: ClusterPod, policy: Policy) -> ServingKind | None:
     return None
 
 
-def _demand(
-    view: ClusterView, kind: ServingKind, namespace: str, name: str
-) -> tuple[CounterOfRecord | None, float | None, list[str]]:
-    """
-    Genuine requests of one logical deployment from its counter of record (D8).
-
-    The first counter candidate with series for this deployment's pods wins; candidates are
-    never added together (the same requests appear under several names).
-
-    Args:
-        view (ClusterView): The cluster view.
-        kind (ServingKind): The deployment's serving kind.
-        namespace (str): Namespace.
-        name (str): Logical deployment (top owner) name.
-
-    Returns:
-        tuple[CounterOfRecord | None, float | None, list[str]]: The counter, `increase()` over
-        the demand window, and the pods counted; `(None, None, [])` when no candidate has series.
-    """
-    counters = view.thanos.counters if view.thanos else {}
-    for counter in kind.counters:
-        values = counters.get(counter.selector)
-        if values is None:
-            continue
-        pattern = _regex(counter.pod_regex.replace("{name}", re.escape(name)))
-        matched = {
-            pod: v for (ns, pod), v in values.items() if ns == namespace and pattern.match(pod)
-        }
-        if matched:
-            return counter, sum(matched.values()), sorted(matched)
-    return None, None, []
-
-
 def _allocated_idle(pod: ClusterPod, view: ClusterView, policy: Policy, now: datetime) -> bool:
     """
-    Whether a productive pod stayed below the activity threshold for the whole window.
+    Whether a serving pod stayed below the activity threshold for the whole window (a flag).
 
     Args:
         pod (ClusterPod): The pod.
@@ -484,24 +663,24 @@ def _category(reason: Reason) -> Category:
     Returns:
         Category: PRODUCTIVE, UNKNOWN or IDLE.
     """
-    if reason in (Reason.RUNAI_WORKLOAD, Reason.SERVING_IN_USE):
+    if reason in _PRODUCTIVE:
         return Category.PRODUCTIVE
-    if reason in (Reason.HOLDER_UNRESOLVED, Reason.TRAFFIC_UNOBSERVED):
+    if reason in _UNKNOWN:
         return Category.UNKNOWN
     return Category.IDLE
 
 
 def _stage(reason: Reason) -> Stage | None:
     """
-    The stage of a GPU-level row: Serving for idle holders, none otherwise.
+    The stage of a GPU-level row: Apply's, Machine Learning's or Samurai's for idle rows.
 
     Args:
         reason (Reason): The row.
 
     Returns:
-        Stage | None: The stage.
+        Stage | None: The stage; None for rows that are not idle.
     """
-    return Stage.SERVING if _category(reason) is Category.IDLE else None
+    return _STAGE.get(reason)
 
 
 def _team(group: _Group, policy: Policy) -> str:

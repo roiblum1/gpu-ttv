@@ -4,8 +4,8 @@ The R1 alerts cover monitoring blindness and stage-objective breaches (AGENT.md 
 
 Every alert carries:
 
-- **Labels:** `severity` (`critical` or `warning`), `kind` (`data_quality` or `stage_breach`) and `owner`. `owner` is `platform` for every data-quality alert and the stage owner (Redbull, POPAI, Serving) for a stage breach.
-- **Annotations:** `summary`, `description` (counts, affected assets, evidence, duration), `impact`, `confidence`, `next_step`, `runbook_url` (this file), `dashboard_url`, and `asset_url` where one asset is the place to start. Each rule also links one panel (`__dashboardUid__`/`__panelId__`).
+- **Labels:** `severity` (`critical` or `warning`), `kind` (`data_quality` or `stage_breach`) and `owner`. `owner` is `platform` for every data-quality alert and the stage owner (Redbull, POPAI, Samurai, Apply or Machine Learning; ADR-0009) for a stage breach.
+- **Annotations:** `summary`, `description` (counts, affected assets, evidence, duration), `impact`, `confidence`, `next_step`, `runbook_url` (this file), and `dashboard_url` (Home, or the owner's page for a stage breach). Each rule also links one panel (`__dashboardUid__`/`__panelId__`).
 
 **No notification destination is configured.** The contact point `ttv-unconfigured` is inert and both routes are muted (`grafana/README.md`, "Alerts"). Until destinations are supplied, read alerts in Grafana under Alerting > Alert rules, folder "GPU Time-to-Value alerts".
 
@@ -45,7 +45,7 @@ Grafana treats a rule as NoData when **any** of its queries returns no rows, or 
 ### TTV engine scans stale
 
 - **Means:** no engine scan with status `ok` or `partial` has finished for more than 15 minutes (three missed 5-minute scans). With no engine scan at all, the age counts from when the ledger schema was created. Fires after 5 more minutes; severity `critical`.
-- **Evidence:** Evidence (`/d/ttv-evidence`), "Data age" (panel 40), "Engine scans per hour, by result" (panel 17) and "Recent partial or failed scans" (panel 19). The description gives the newest scan's status and errors.
+- **Evidence:** Home (`/d/ttv-home`), "Data as of". The description gives the newest scan's status and errors; `SELECT status, started_at, errors FROM scan_runs WHERE kind = 'engine' ORDER BY id DESC LIMIT 5` gives the history (the Evidence page was removed by ADR-0009).
 - **Likely causes:** the ttv-engine pod is down or crash-looping; it lost Postgres; another replica holds the advisory lock but is stuck; every scan ends `failed` (server-scan unreachable from a cold start); the engine runs with `TTV_DRY_RUN=true` (status `dry_run` never updates the ledger, so this alert fires by design during the §20.6 dry run; see `docs/dry-run-review.md`).
 - **Next step:** check the pod's logs (`scan.done`, `serverscan.fetch_failed`), `/readyz`, and `SELECT status, started_at, errors FROM scan_runs WHERE kind = 'engine' ORDER BY id DESC LIMIT 5`.
 - **Who acts:** platform operators.
@@ -54,7 +54,7 @@ Grafana treats a rule as NoData when **any** of its queries returns no rows, or 
 ### TTV source failing past grace
 
 - **Means:** a source in `source_state` (`serverscan`, `kube:<cluster>`, `thanos:<cluster>`) has failed 2 or more consecutive engine scans, so its assets are UNKNOWN. One instance per source attempted in the last hour. Severity `critical` for `serverscan`, else `warning`. Fires after 5 minutes and keeps firing 10 minutes after recovery.
-- **Evidence:** Evidence, "Source health" (panel 21). The description gives the last success, the last error and how many GPUs are UNKNOWN because of this source.
+- **Evidence:** `SELECT * FROM source_state ORDER BY name` (sources include `vllm:<cluster>` for the pod-metrics read, ADR-0009). The description gives the last success, the last error and how many GPUs are UNKNOWN because of this source.
 - **Likely causes:** server-scan API down, its token expired or revoked, or a CA bundle change; a cluster API or Thanos querier unreachable, its service-account token rotated, or a read slower than `TTV_CLUSTER_TIMEOUT_SECONDS`.
 - **Next step:** from the engine pod, call the source read-only: one page of server-scan's `GET /api/v1/servers` with the auditor token and the CA bundle; `oc --kubeconfig … get nodes`; a Thanos `query?query=up`. Never call server-scan's `/servers/available`: despite being a GET, it writes.
 - **Who acts:** platform operators; the cluster's admins for kube or Thanos access.
@@ -63,8 +63,8 @@ Grafana treats a rule as NoData when **any** of its queries returns no rows, or 
 ### TTV UNKNOWN share high
 
 - **Means:** more than 10% of the GPUs in open ledger intervals (every category) are UNKNOWN. Fires after 30 minutes. With no open interval at all the share cannot be computed, and Grafana raises `DatasourceNoData` for this rule.
-- **Evidence:** Evidence, "Unknown GPUs now, by reason" (panel 25) and "Known state" (panel 41). The description lists GPUs by reason and the servers whose GPU count is unread (never zero, not in the ledger).
-- **Likely causes by reason:** `SOURCE_STALE` (source failure, or server-scan marks records stale); `CLUSTER_NOT_OBSERVED` (a target cluster missing from `TTV_CLUSTERS_FILE`); `CLUSTER_UNREACHABLE`; `IDENTITY_CONFLICT` (see "Open identity conflicts"); `NODE_NOT_FOUND`; `CONTESTED`; `TRAFFIC_UNOBSERVED` (no counter of record for a serving deployment).
+- **Evidence:** Home, "Where every GPU is now" (No data). The description lists GPUs by reason and the servers whose GPU count is unread (never zero, not in the ledger).
+- **Likely causes by reason:** `SOURCE_STALE` (source failure, or server-scan marks records stale); `CLUSTER_NOT_OBSERVED` (a target cluster missing from `TTV_CLUSTERS_FILE`); `CLUSTER_UNREACHABLE`; `IDENTITY_CONFLICT` (see "Open identity conflicts"); `NODE_NOT_FOUND`; `CONTESTED`; `TRAFFIC_UNOBSERVED` (a served model's pod `/metrics` unreadable, or not a full count yet: check the `vllm:<cluster>` row of `source_state`, and `get` on `pods/proxy` in the reader chart; ADR-0009); `ACTIVITY_UNOBSERVED` (no DCGM activity for a Machine Learning pod).
 - **Next step:** fix the largest reason first; each has its own alert or Evidence panel.
 - **Who acts:** platform operators.
 - **Threshold:** 10% is a provisional default, not an approved policy. Tune it in the rule.
@@ -72,7 +72,7 @@ Grafana treats a rule as NoData when **any** of its queries returns no rows, or 
 ### TTV UNKNOWN share growing
 
 - **Means:** the UNKNOWN share rose by more than 5 percentage points within the last hour. The ledger is sampled now and an hour ago. Fires after 10 minutes; with less than an hour of history the rule has no value and holds its state.
-- **Evidence:** Evidence, panels 25 and 31. The description lists the change by reason (for example `CLUSTER_UNREACHABLE +480`).
+- **Evidence:** Home, "Where every GPU is now" and "GPUs wasted over time, by team" (its No data line). The description lists the change by reason (for example `CLUSTER_UNREACHABLE +480`).
 - **Likely causes:** a source just crossed its grace (a cluster or server-scan outage); a policy or clusters-file change; a burst of identity conflicts after a server-scan import.
 - **Next step:** follow the reason that grew: "TTV source failing past grace", "TTV node not found" or Evidence, "Open identity conflicts". Expect stage-breach counts to drop for monitoring reasons while this fires; that is not an improvement.
 - **Who acts:** platform operators.
@@ -80,7 +80,7 @@ Grafana treats a rule as NoData when **any** of its queries returns no rows, or 
 ### TTV node not found
 
 - **Means:** server-scan places a GPU server `INSTALLED` in an observed target cluster, but no node of that cluster has its name. The name is `reported_name`, else the server-scan name, cleaned as server-scan cleans it (ADR-0002 row 12, D10). The GPUs are `NODE_NOT_FOUND` (UNKNOWN). One instance per cluster. Fires after 30 minutes and keeps firing 15 minutes after recovery.
-- **Evidence:** Evidence, panel 25 (`NODE_NOT_FOUND`). The description lists the oldest servers with the node name expected; `asset_url` opens the oldest one.
+- **Evidence:** Home, "Where every GPU is now" (No data). The description lists the oldest servers with the node name expected; the engine's `/explain/{asset}` gives the details.
 - **Likely causes:** the node was removed or renamed but server-scan's membership was not updated; node names carry a domain suffix or case that the cleaning rule does not strip; the server is still joining and the node object does not exist yet; server-scan's `reported_name` is wrong.
 - **Next step:** compare the expected name with `oc --kubeconfig <cluster> get nodes -o name` (read-only). If many servers of one cluster appear at once, suspect the naming rule rather than missing nodes.
 - **Who acts:** platform operators; Redbull to correct server-scan membership.
@@ -88,13 +88,13 @@ Grafana treats a rule as NoData when **any** of its queries returns no rows, or 
 ### TTV stage objective breached
 
 - **Means:** GPUs in open IDLE intervals have been in their current stage episode longer than the stage objective of their policy version (`stage_objectives`). One instance per stage owner, with severity `warning`. Fires after 1 hour above zero and keeps firing for 1 hour after it clears. The objectives are provisional (AGENT.md I1: Redbull 2 d, POPAI 1 d, Serving 7 d).
-- **Evidence:** Queues filtered to the owner (`/d/ttv-queues?var-stage_owner=<owner>`), "Longest waits" (panel 14) and "Idle and overdue GPU-hours" (panel 12). The description gives:
+- **Evidence:** the owner's page (`dashboard_url`: `ttv-redbull`, `ttv-popai`, `ttv-samurai`, `ttv-apply` or `ttv-ml`), whose table lists what is wasting GPUs, biggest first. The description gives:
   - the overdue GPUs and the overdue GPU-hours accrued so far in their current stage episodes (`≥` when a stage clock began before observation);
   - the five longest waits, with reasons, days in stage, the objective and any next-action owner;
   - the idle GPUs that cannot be judged (no objective for their policy version, or no stage clock);
   - the ledger's as-of time.
-- **Likely causes:** by reason. `NOT_IN_CLUSTER`/`IN_MCE_INVENTORY`/`NODE_NOT_READY`/`NODE_UNSCHEDULABLE` (Redbull provisioning); `MAINTENANCE`/`HARDWARE_CRITICAL`/`BMC_UNREACHABLE` (Redbull: hardware in maintenance or broken, I8; ADR-0008); `GPU_PLATFORM_NOT_READY`/`GPU_MISSING` (POPAI); `NO_WORKLOAD`/`NO_REAL_DEMAND`/`WORKLOAD_NOT_READY`/`OTHER_WORKLOAD` (Serving).
-- **Next step:** open the first asset (`asset_url`) and the engine's `/explain/{asset}`, confirm the evidence, then ask the stage owner to clear it. If another team blocks it (for example a hardware repair or a vendor RMA behind `HARDWARE_CRITICAL`), record a next-action owner with a reason and an expiry. The breach stays with the stage owner.
+- **Likely causes:** by reason. `NOT_IN_CLUSTER`/`IN_MCE_INVENTORY`/`NODE_NOT_READY`/`NODE_UNSCHEDULABLE` (Redbull provisioning); `HARDWARE_CRITICAL`/`BMC_UNREACHABLE` (Redbull: broken hardware nobody put in maintenance, I8); `GPU_PLATFORM_NOT_READY`/`GPU_MISSING` (POPAI); `NO_WORKLOAD` (Samurai); `LOW_USE`/`NO_REAL_DEMAND`/`MODEL_NOT_READY` (Apply); `LOW_GPU_UTILIZATION`/`WORKLOAD_NOT_READY` (Machine Learning). `MAINTENANCE` is in repair and never idle (ADR-0009).
+- **Next step:** take the first entry of the owner's table and the engine's `/explain/{asset}`, confirm the evidence, then ask the stage owner to clear it. If another team blocks it (for example a hardware repair or a vendor RMA behind `HARDWARE_CRITICAL`), record a next-action owner with a reason and an expiry. The breach stays with the stage owner.
 - **Who acts:** the stage owner named in `owner`.
 - **Not counted:** UNKNOWN and NOT_CHARGED GPUs. While the engine is stale or server-scan is failing, the alert holds its last state; see "Blindness never becomes a stage accusation" above.
 

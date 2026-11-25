@@ -15,7 +15,7 @@ from psycopg.types.json import Jsonb
 from ttv.config import Policy
 from ttv.identity import IdentityConflict
 from ttv.ledger import BucketKey, LastStage, LedgerPlan, OpenInterval
-from ttv.models import SourceStatus
+from ttv.models import CounterSample, SourceStatus
 from ttv.pricing.catalog import CATALOG_VERSION
 from ttv.sources.serverscan import CachedDetail
 
@@ -105,6 +105,81 @@ INSERT INTO serverscan_cache (id, row_hash, fetched_at, payload) VALUES (%s, %s,
 ON CONFLICT (id) DO UPDATE SET
     row_hash = EXCLUDED.row_hash, fetched_at = EXCLUDED.fetched_at, payload = EXCLUDED.payload
 """
+
+_INSERT_SAMPLE = """
+INSERT INTO serving_counter_samples
+    (cluster, namespace, pod, holder_ref, observed_at, value, pod_started_at, restarts)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+ON CONFLICT (cluster, namespace, pod, observed_at) DO UPDATE SET
+    value = EXCLUDED.value, restarts = EXCLUDED.restarts
+"""
+_LOAD_SAMPLES = """
+SELECT cluster, namespace, pod, holder_ref, observed_at, value, pod_started_at, restarts
+FROM serving_counter_samples WHERE observed_at >= %s ORDER BY observed_at
+"""
+_INSERT_WORKLOAD = """
+INSERT INTO workloads_now (cluster, holder_ref, reason_code, category, kind, runai, stage,
+    stage_owner, gpus, gpu_models, requests_window, window_hours, window_complete, requests_recent,
+    recent_hours, recent_complete, requests_per_gpu_hour, gpu_busy_peak, busy_window_hours,
+    gpu_power_peak, gpu_power_avg, since, updated_at, scan_id)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+    %s, %s)
+"""
+
+
+@dataclass(frozen=True)
+class WorkloadRow:
+    """
+    One GPU-holding workload for `workloads_now` (ADR-0009), summed over its buckets.
+
+    Attributes:
+        cluster (str): Target cluster.
+        holder_ref (str): `namespace/Kind/name`.
+        reason (str): Reason code.
+        category (str): Category.
+        kind (str): `serving`, `ml` or `unresolved`.
+        runai (bool): A Run:ai workload.
+        stage (str | None): Stage when idle.
+        stage_owner (str | None): Team when idle.
+        gpus (int): GPUs it holds with this reason.
+        gpu_models (tuple[str, ...]): GPU models.
+        requests_window (float | None): Serving: requests in the demand window.
+        window_hours (float | None): Hours `requests_window` covers: the demand window, or
+            less while the history fills or the model is younger.
+        window_complete (bool | None): False when `requests_window` is a lower bound.
+        requests_recent (float | None): Serving: requests in the recent window.
+        recent_hours (float | None): Recent window, hours.
+        recent_complete (bool | None): False when `requests_recent` is a lower bound.
+        requests_per_gpu_hour (float | None): Serving: requests per GPU per hour.
+        gpu_busy_peak (float | None): ML: highest GPU activity (0-1) over the busy window.
+        busy_window_hours (float | None): ML: that window, hours.
+        gpu_power_peak (float | None): ML: highest power, as a share of rated, over that window.
+        gpu_power_avg (float | None): Serving: mean power share over the demand window.
+        since (datetime | None): Oldest pod start.
+    """
+
+    cluster: str
+    holder_ref: str
+    reason: str
+    category: str
+    kind: str
+    runai: bool
+    stage: str | None
+    stage_owner: str | None
+    gpus: int
+    gpu_models: tuple[str, ...]
+    requests_window: float | None = None
+    window_hours: float | None = None
+    window_complete: bool | None = None
+    requests_recent: float | None = None
+    recent_hours: float | None = None
+    recent_complete: bool | None = None
+    requests_per_gpu_hour: float | None = None
+    gpu_busy_peak: float | None = None
+    busy_window_hours: float | None = None
+    gpu_power_peak: float | None = None
+    gpu_power_avg: float | None = None
+    since: datetime | None = None
 
 
 @dataclass(frozen=True)
@@ -395,6 +470,7 @@ class PostgresStore:
         resolve_missing_conflicts: bool,
         now: datetime,
         gpu_aliases: Mapping[str, str | None] | None = None,
+        workloads: Sequence[WorkloadRow] | None = None,
     ) -> None:
         """
         Write one scan's changes atomically, so a crash leaves the ledger as it was.
@@ -408,8 +484,13 @@ class PostgresStore:
             resolve_missing_conflicts (bool): Resolve open conflicts not seen (complete listings).
             now (datetime): Scan time.
             gpu_aliases (Mapping[str, str | None] | None): Raw GPU models seen → canonical name.
+            workloads (Sequence[WorkloadRow] | None): When given, replaces `workloads_now`.
         """
         async with self.conn.transaction():
+            if workloads is not None:
+                await self.conn.execute("DELETE FROM workloads_now")
+                for w in workloads:
+                    await self.conn.execute(_INSERT_WORKLOAD, _workload_params(w, now, scan_id))
             await self._upsert_aliases(gpu_aliases or {}, now)
             for a in assets:
                 await self.conn.execute(_UPSERT_ASSET, _asset_params(a, now))
@@ -459,6 +540,61 @@ class PostgresStore:
                 await self.conn.execute(
                     _RESOLVE_MISSING_CONFLICTS, (now, Jsonb({"auto": "no longer observed"}), seen)
                 )
+
+    async def record_counter_samples(
+        self, samples: Sequence[CounterSample], *, prune_before: datetime
+    ) -> None:
+        """
+        Store this scan's serving counter readings and drop expired ones (also in dry run).
+
+        Each statement commits on its own: no transaction, because the scan's other reads
+        share this connection concurrently, and a reading needs no atomicity with the others.
+
+        Args:
+            samples (Sequence[CounterSample]): Readings.
+            prune_before (datetime): Readings older than this are deleted.
+        """
+        for c in samples:
+            await self.conn.execute(
+                _INSERT_SAMPLE,
+                (
+                    c.cluster,
+                    c.namespace,
+                    c.pod,
+                    c.holder_ref,
+                    c.observed_at,
+                    c.value,
+                    c.pod_started_at,
+                    c.restarts,
+                ),
+            )
+        await self.conn.execute(
+            "DELETE FROM serving_counter_samples WHERE observed_at < %s", (prune_before,)
+        )
+
+    async def load_counter_samples(self, since: datetime) -> list[CounterSample]:
+        """
+        Serving counter readings since a time, oldest first (to refill memory after a restart).
+
+        Args:
+            since (datetime): Earliest reading.
+
+        Returns:
+            list[CounterSample]: The readings.
+        """
+        return [
+            CounterSample(
+                cluster=r["cluster"],
+                namespace=r["namespace"],
+                pod=r["pod"],
+                holder_ref=r["holder_ref"],
+                observed_at=r["observed_at"],
+                value=r["value"],
+                pod_started_at=r["pod_started_at"],
+                restarts=r["restarts"],
+            )
+            for r in await self._all(_LOAD_SAMPLES, (since,))
+        ]
 
     async def _upsert_aliases(self, aliases: Mapping[str, str | None], now: datetime) -> None:
         """
@@ -595,4 +731,44 @@ def _open_interval(r: dict[str, Any]) -> OpenInterval:
         started_at=r["started_at"],
         flags=tuple(r["flags"] or ()),
         evidence=r["evidence"] or {},
+    )
+
+
+def _workload_params(w: WorkloadRow, now: datetime, scan_id: int) -> tuple[Any, ...]:
+    """
+    Insert parameters of one `workloads_now` row.
+
+    Args:
+        w (WorkloadRow): The row.
+        now (datetime): Scan time.
+        scan_id (int): Scan id.
+
+    Returns:
+        tuple[Any, ...]: Parameters in `_INSERT_WORKLOAD` order.
+    """
+    return (
+        w.cluster,
+        w.holder_ref,
+        w.reason,
+        w.category,
+        w.kind,
+        w.runai,
+        w.stage,
+        w.stage_owner,
+        w.gpus,
+        list(w.gpu_models),
+        w.requests_window,
+        w.window_hours,
+        w.window_complete,
+        w.requests_recent,
+        w.recent_hours,
+        w.recent_complete,
+        w.requests_per_gpu_hour,
+        w.gpu_busy_peak,
+        w.busy_window_hours,
+        w.gpu_power_peak,
+        w.gpu_power_avg,
+        w.since,
+        now,
+        scan_id,
     )

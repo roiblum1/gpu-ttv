@@ -65,8 +65,8 @@ groups:
         noDataState: NoData
         execErrState: Error
         for: 5m
-        dashboardUid: ttv-evidence
-        panelId: 40
+        dashboardUid: ttv-home
+        panelId: 4
         isPaused: false
         labels:
           severity: critical
@@ -90,7 +90,7 @@ groups:
             Check the ttv-engine pod: logs ("scan.done", "serverscan.fetch_failed"), /readyz, the Postgres connection and
             whether another replica holds the advisory lock. If TTV_DRY_RUN=true, the ledger is intentionally not written.
           runbook_url: https://github.com/roiblum1/gpu-ttv/blob/main/docs/runbooks.md#ttv-engine-scans-stale
-          dashboard_url: '{{ externalURL }}d/ttv-evidence'
+          dashboard_url: '{{ externalURL }}d/ttv-home'
 
       - uid: ttv-source-failing-past-grace
         title: TTV source failing past grace
@@ -148,8 +148,8 @@ groups:
         execErrState: Error
         for: 5m
         keepFiringFor: 10m
-        dashboardUid: ttv-evidence
-        panelId: 21
+        dashboardUid: ttv-home
+        panelId: 3
         isPaused: false
         labels:
           severity: '{{ if eq .Labels.source "serverscan" }}critical{{ else }}warning{{ end }}'
@@ -170,10 +170,11 @@ groups:
             {{ if eq $labels.source "serverscan" }}Past grace the whole server-scan inventory is unobserved: its assets are SOURCE_STALE and stage-objective alerts hold their last state.{{ else }}Past grace the assets of cluster {{ reReplaceAll "^[a-z]+:" "" $labels.source }} are CLUSTER_UNREACHABLE (UNKNOWN).{{ end }}
           confidence: Observed in source_state (consecutive failed reads recorded by the engine).
           next_step: >-
-            Open Evidence, "Source health", for the error. Check reachability, the token or service-account secret and the CA bundle
-            from the engine pod; for kube:/thanos: sources, check the cluster's API or Thanos querier.
+            The description gives the last error; the engine's logs ("scan.done") give the rest. Check reachability, the token
+            or service-account secret and the CA bundle from the engine pod; for kube:/thanos:/vllm: sources, check the cluster's
+            API, its Thanos querier or the pods/proxy grant. The summary page counts these GPUs as "No data".
           runbook_url: https://github.com/roiblum1/gpu-ttv/blob/main/docs/runbooks.md#ttv-source-failing-past-grace
-          dashboard_url: '{{ externalURL }}d/ttv-evidence'
+          dashboard_url: '{{ externalURL }}d/ttv-home'
 
       - uid: ttv-unknown-share-high
         title: TTV UNKNOWN share high
@@ -231,8 +232,8 @@ groups:
         noDataState: NoData
         execErrState: Error
         for: 30m
-        dashboardUid: ttv-evidence
-        panelId: 25
+        dashboardUid: ttv-home
+        panelId: 3
         isPaused: false
         labels:
           severity: warning
@@ -248,13 +249,13 @@ groups:
             UNKNOWN GPUs are never counted as idle or productive and are never valued.
           impact: >-
             Idle, overdue and productive figures cover only the known GPUs; the true idle time may be larger.
-          confidence: Observed from open capacity_intervals (same definition as Evidence "Known state", panel 41).
+          confidence: Observed from open capacity_intervals (the same GPUs as "No data" in "Where every GPU is now" on the summary page).
           next_step: >-
-            Open Evidence "UNKNOWN GPUs now, by reason". The largest reason names the cause: SOURCE_STALE (source or record
-            stale), CLUSTER_UNREACHABLE / CLUSTER_NOT_OBSERVED (cluster read or clusters file), IDENTITY_CONFLICT, NODE_NOT_FOUND,
-            TRAFFIC_UNOBSERVED.
+            The description lists the GPUs by reason; the largest names the cause: SOURCE_STALE (source or record stale),
+            CLUSTER_UNREACHABLE / CLUSTER_NOT_OBSERVED (cluster read or clusters file), IDENTITY_CONFLICT, NODE_NOT_FOUND,
+            TRAFFIC_UNOBSERVED (a served model's requests unread), ACTIVITY_UNOBSERVED (a job's GPU activity unread).
           runbook_url: https://github.com/roiblum1/gpu-ttv/blob/main/docs/runbooks.md#ttv-unknown-share-high
-          dashboard_url: '{{ externalURL }}d/ttv-evidence'
+          dashboard_url: '{{ externalURL }}d/ttv-home'
 
       - uid: ttv-unknown-share-growing
         title: TTV UNKNOWN share growing
@@ -322,8 +323,8 @@ groups:
         noDataState: KeepLast
         execErrState: Error
         for: 10m
-        dashboardUid: ttv-evidence
-        panelId: 25
+        dashboardUid: ttv-home
+        panelId: 3
         isPaused: false
         labels:
           severity: warning
@@ -343,9 +344,9 @@ groups:
           confidence: Observed from open intervals sampled now and 1 h ago. Needs 1 h of ledger history; with less there is no value (no data, state kept).
           next_step: >-
             Look at the reason that grew. SOURCE_STALE or CLUSTER_UNREACHABLE: see "TTV source failing past grace".
-            NODE_NOT_FOUND: see "TTV node not found". IDENTITY_CONFLICT: Evidence, "Open identity conflicts".
+            NODE_NOT_FOUND: see "TTV node not found". IDENTITY_CONFLICT: the engine's /explain/{asset} names the candidates.
           runbook_url: https://github.com/roiblum1/gpu-ttv/blob/main/docs/runbooks.md#ttv-unknown-share-growing
-          dashboard_url: '{{ externalURL }}d/ttv-evidence'
+          dashboard_url: '{{ externalURL }}d/ttv-home'
 
       - uid: ttv-node-not-found
         title: TTV node not found
@@ -422,8 +423,8 @@ groups:
         execErrState: Error
         for: 30m
         keepFiringFor: 15m
-        dashboardUid: ttv-evidence
-        panelId: 25
+        dashboardUid: ttv-home
+        panelId: 3
         isPaused: false
         labels:
           severity: warning
@@ -445,8 +446,7 @@ groups:
             Compare the expected node name with `oc get nodes` on the cluster (read-only). If the node was removed or renamed,
             server-scan's membership is stale (Redbull to correct it); if names differ only by suffix or case, fix the matching rule.
           runbook_url: https://github.com/roiblum1/gpu-ttv/blob/main/docs/runbooks.md#ttv-node-not-found
-          dashboard_url: '{{ externalURL }}d/ttv-evidence'
-          asset_url: '{{ with $values.B }}{{ if .Labels.first_asset }}{{ externalURL }}d/ttv-asset?var-asset_id={{ urlquery .Labels.first_asset }}{{ end }}{{ end }}'
+          dashboard_url: '{{ externalURL }}d/ttv-home'
 
   - orgId: 1
     name: ttv-stage-objectives
@@ -553,7 +553,13 @@ groups:
                          AS unjudged_idle_gpus,
                        coalesce((SELECT to_char(max(finished_at) AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI "UTC"')
                                    FROM scan_runs WHERE kind = 'engine' AND status IN ('ok', 'partial')), 'never')
-                         AS ledger_as_of
+                         AS ledger_as_of,
+                       coalesce((SELECT CASE p.stage WHEN 'EMPTY' THEN 'ttv-samurai' WHEN 'PROVISIONING' THEN 'ttv-redbull'
+                                                     WHEN 'GPU_PLATFORM' THEN 'ttv-popai' WHEN 'SERVING' THEN 'ttv-apply'
+                                                     WHEN 'MACHINE_LEARNING' THEN 'ttv-ml' ELSE 'ttv-home' END
+                                   FROM capacity_intervals p
+                                  WHERE p.ended_at IS NULL AND p.stage_owner = w.stage_owner
+                                  ORDER BY p.started_at DESC, p.id DESC LIMIT 1), 'ttv-home') AS page
                 FROM owners w
                 LEFT JOIN ranked r ON r.stage_owner = w.stage_owner
                 LEFT JOIN assets a ON a.asset_id = r.asset_id
@@ -576,8 +582,8 @@ groups:
         execErrState: KeepLast
         for: 1h
         keepFiringFor: 1h
-        dashboardUid: ttv-queues
-        panelId: 14
+        dashboardUid: ttv-home
+        panelId: 1
         isPaused: false
         labels:
           severity: warning
@@ -595,14 +601,13 @@ groups:
             Only IDLE GPUs count: UNKNOWN GPUs (stale sources, unmatched nodes, conflicts) are never charged here, and a
             next-action owner is display-only and never moves the breach.
           impact: >-
-            Overdue GPU-hours are idle capacity charged to {{ $labels.stage_owner }} (AGENT.md §20.5). The AWS-equivalent
-            value is on Queues; it is a comparison, not a cost.
+            Overdue GPU-hours are wasted GPU time charged to {{ $labels.stage_owner }} (AGENT.md §20.5).
           confidence: >-
             Observed from the ledger; "≥" marks stage episodes that began before observation (lower bounds). Evaluated only
             while the engine is fresh and server-scan is read; otherwise the alert holds its last state.
           next_step: >-
-            Open Queues for {{ $labels.stage_owner }}, "Longest waits"; for the first asset open the Asset page and the
-            engine's /explain/{asset}. Ask {{ $labels.stage_owner }} to clear it or record a next-action owner with a reason.
+            Open the {{ $labels.stage_owner }} page (dashboard_url): its table lists what is wasting GPUs, biggest first. For
+            the first asset, the engine's /explain/{asset} gives the evidence. Ask {{ $labels.stage_owner }} to clear it or
+            record a next-action owner with a reason.
           runbook_url: https://github.com/roiblum1/gpu-ttv/blob/main/docs/runbooks.md#ttv-stage-objective-breached
-          dashboard_url: '{{ externalURL }}d/ttv-queues?var-stage_owner={{ urlquery $labels.stage_owner }}'
-          asset_url: '{{ with $values.B }}{{ if .Labels.first_asset }}{{ externalURL }}d/ttv-asset?var-asset_id={{ urlquery .Labels.first_asset }}{{ end }}{{ end }}'
+          dashboard_url: '{{ externalURL }}d/{{ with $values.B }}{{ .Labels.page }}{{ else }}ttv-home{{ end }}'

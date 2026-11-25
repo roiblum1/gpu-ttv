@@ -25,16 +25,12 @@ CONTRACTS = sorted(CONTRACT_DIR.glob("*.yaml"))
 
 # The links bar every page carries, in order (grafana/README.md, "Pages and stable UIDs").
 PAGES = (
-    ("Home", "ttv-home"),
-    ("Queues", "ttv-queues"),
-    ("Delivery", "ttv-delivery"),
-    ("GPU use", "ttv-gpu-use"),
-    ("Asset", "ttv-asset"),
-    ("Evidence", "ttv-evidence"),
-    ("Actions", "ttv-actions"),
-    ("Capacity", "ttv-capacity"),
-    ("Service", "ttv-service"),
-    ("Economics", "ttv-economics"),
+    ("Summary", "ttv-home"),
+    ("Samurai", "ttv-samurai"),
+    ("Redbull", "ttv-redbull"),
+    ("POPAI", "ttv-popai"),
+    ("Apply", "ttv-apply"),
+    ("Machine Learning", "ttv-ml"),
 )
 PAGE_UIDS = {uid for _, uid in PAGES}
 QUESTIONS = tuple(f"E{n:02d}" for n in range(1, 19))
@@ -328,13 +324,34 @@ def test_no_contract_file_without_dashboard() -> None:
     assert not [c.name for c in CONTRACTS if c.stem not in stems]
 
 
-def test_every_question_is_covered() -> None:
-    """E01-E18 each have at least one contract across all pages (after every R1 page lands)."""
-    if not (DASHBOARD_DIR / "ttv-home.json").exists():
-        pytest.skip("ttv-home.json not merged yet: E01-E18 coverage is checked once Home exists")
-    files = [yaml.safe_load(c.read_text()) for c in CONTRACTS]
-    covered = {e.get("question") for f in files for e in f["panels"]}
-    assert not [q for q in QUESTIONS if q not in covered]
+def _map_rows() -> dict[str, str]:
+    """
+    Return the question map's table rows by question id.
+
+    Returns:
+        dict[str, str]: `E01` → the whole Markdown row.
+    """
+    text = (ROOT / "docs" / "executive-question-map.md").read_text()
+    return {m.group(1): m.group(0) for m in re.finditer(r"^\| (E\d\d) \|.*$", text, re.MULTILINE)}
+
+
+def test_question_map_names_every_page_that_answers_a_question() -> None:
+    """Each question a contract answers has a map row that names that page (ADR-0009 pages)."""
+    rows = _map_rows()
+    problems = []
+    for c in CONTRACTS:
+        data = yaml.safe_load(c.read_text())
+        questions = {e.get("question") for e in data["panels"]} - {"support"}
+        page = f"`{data['dashboard']}`"
+        problems += [f"{q}: the map row does not name {page}" for q in questions
+                     if page not in rows.get(q, "")]  # fmt: skip
+    assert not problems, "\n".join(problems)
+
+
+def test_question_map_names_only_existing_pages() -> None:
+    """A page the map names exists, so a removed page cannot linger in the map."""
+    named = set(re.findall(r"`(ttv-[a-z-]+)`", "\n".join(_map_rows().values())))
+    assert named <= {p.stem for p in DASHBOARDS}, named - {p.stem for p in DASHBOARDS}
 
 
 def test_schema_matches_readme() -> None:

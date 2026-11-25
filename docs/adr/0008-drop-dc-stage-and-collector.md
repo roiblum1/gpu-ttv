@@ -1,6 +1,6 @@
 # ADR-0008: Drop the DC stage and the profile-less collector
 
-- **Status:** accepted 2026-11-25 by the user, who owns AGENT.md. Supersedes ADR-0004 and the DC parts of ADR-0001, ADR-0002, ADR-0005, ADR-0006 and ADR-0007. AGENT.md (revision 4) records the decision in §0.
+- **Status:** accepted 2026-11-25 by the user, who owns AGENT.md. Amended the same day by [ADR-0009](0009-five-teams-and-manager-dashboards.md): five teams, and maintenance is in repair (not charged). Supersedes ADR-0004 and the DC parts of ADR-0001, ADR-0002, ADR-0005, ADR-0006 and ADR-0007. AGENT.md (revision 4) records the decision in §0.
 - **Context:** AGENT.md §0.1, §0.3, §0.7 (I1, I6, I8), §20.2; ADR-0004 (the collector); `docs/discovery.md`, "Managers and the profile-less collector" and C1.
 - **Code:** `src/ttv/models.py` (`Stage`, `Reason`, `Flag`), `src/ttv/classify.py` (rows 6a, 6b and 13), `src/ttv/config.py` (`Policy._no_dc_stage`), `migrations/0006_drop_collector.sql`. Tests: `tests/test_classify.py`, `tests/test_ledger_plan.py`, `tests/test_engine_pg.py`.
 
@@ -73,7 +73,7 @@ Absence from server-scan was never proof that a server does not exist, and the f
 **Open questions for the user.** None blocks R1.
 - **I1:** the three stage objectives are still provisional.
 - **Fleet completeness:** without the collector, nothing reports how many GPU servers sit outside server-scan. If the CEO view ("what did we buy", E01) must cover them, procurement records (R3) are the way in, not a collector.
-- **Maintenance outside the target clusters:** row 6a runs before row 10, so a server in maintenance that is INSTALLED in a cluster outside the target list (I7, "not measured") is charged to Redbull, as it was charged to DC before. If such servers should stay "not measured", row 6a needs a target-cluster condition.
+- **Maintenance outside the target clusters** *(settled by ADR-0009: maintenance is never charged)*: row 6a runs before row 10, so a server in maintenance that is INSTALLED in a cluster outside the target list (I7, "not measured") is charged to Redbull, as it was charged to DC before. If such servers should stay "not measured", row 6a needs a target-cluster condition.
 
 ## What would bring it back
 

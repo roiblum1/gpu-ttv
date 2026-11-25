@@ -277,12 +277,11 @@ async def test_unknown_share_growing_compares_now_with_an_hour_ago(
 ) -> None:
     uid = "ttv-unknown-share-growing"
     now = await db_now(store)
-    await interval(store, "s", "IDLE", "NO_WORKLOAD", 12, now - 3 * HOUR, stage_owner="Serving")
+    empty = {"stage": "EMPTY", "stage_owner": "Samurai"}  # ADR-0009: empty GPUs are Samurai's
+    await interval(store, "s", "IDLE", "NO_WORKLOAD", 12, now - 3 * HOUR, **empty)
     assert await evaluate(store, uid) != []
     start = now - 3 * HOUR
-    await interval(
-        store, "c", "IDLE", "NO_WORKLOAD", 8, start, stage_owner="Serving", ended_at=now - 20 * MIN
-    )
+    await interval(store, "c", "IDLE", "NO_WORKLOAD", 8, start, ended_at=now - 20 * MIN, **empty)
     await interval(store, "c", "UNKNOWN", "CLUSTER_UNREACHABLE", 8, now - 20 * MIN)
     [grown] = await evaluate(store, uid)
     assert grown.firing
@@ -358,6 +357,8 @@ async def test_stage_breach_one_instance_per_owner_with_overdue_gpu_hours(
     assert (b["POPAI"]["value"], b["POPAI"]["top_assets"], b["POPAI"]["first_asset"]) == (
         0, "none", "",
     )  # fmt: skip
+    # dashboard_url opens each owner's own waste page (ADR-0009).
+    assert {k: v["page"] for k, v in b.items()} == {"Redbull": "ttv-redbull", "POPAI": "ttv-popai"}
 
 
 async def test_next_action_annotation_never_moves_the_breach(
@@ -400,6 +401,8 @@ async def test_no_idle_gpus_resolves_through_a_zero_row_not_nodata(
     await interval(store, "p", "PRODUCTIVE", "RUNAI_WORKLOAD", 8, now - HOUR)
     [only] = await evaluate(store, "ttv-stage-objective-breached")
     assert (only.labels, only.value, only.firing) == ({"stage_owner": "(no idle GPUs)"}, 0, False)
+    page = (await detail(store, "ttv-stage-objective-breached", "stage_owner"))["(no idle GPUs)"]
+    assert page["page"] == "ttv-home"
 
 
 async def test_stale_engine_or_serverscan_holds_stage_breach_state(

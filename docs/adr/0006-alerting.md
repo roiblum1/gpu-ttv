@@ -1,8 +1,8 @@
 # ADR-0006: R1 alerts as Grafana-managed rules on the ledger
 
-- **Status:** accepted 2026-10-31. **Updated 2026-11-25** ([ADR-0008](0008-drop-dc-stage-and-collector.md)): "TTV collector manager stale" and "TTV handover overdue" were removed with the profile-less collector, so 8 rules became 6.
+- **Status:** accepted 2026-10-31. **Updated 2026-11-25** ([ADR-0008](0008-drop-dc-stage-and-collector.md)): "TTV collector manager stale" and "TTV handover overdue" were removed with the profile-less collector, so 8 rules became 6. **Updated again 2026-11-25** ([ADR-0009](0009-five-teams-and-manager-dashboards.md)): the stage-breach rule now has up to five owners (Samurai, Redbull, POPAI, Apply, Machine Learning) and counts them as before, and every rule links the new managers' pages instead of the removed Evidence, Queues and Asset pages (see "Links to the dashboards").
   - `fixture-tested`: every rule query against synthetic ledgers (`tests/test_alert_rules_pg.py`).
-  - `lab-tested`: provisioned in Grafana 12.4.14 and evaluated against the lab ledger (`grafana/README.md`, "Alerts"). That run had all 8 rules and predates ADR-0008.
+  - `lab-tested`: provisioned in Grafana 12.4.14 and evaluated against the lab ledger (`grafana/README.md`, "Alerts"). That run had all 8 rules and predates ADR-0008 and ADR-0009's links.
   - Not production evidence. No notification has been sent anywhere.
 - **Context:** AGENT.md §20 (R1: "alerts for monitoring blindness and stage-objective breaches"; ADR-0002 row 12 raises an alert) and §14 (content, grouping, hysteresis, grace; a missing collector raises a data-quality issue, never an accusation; destinations unconfigured until supplied).
 - **Files:**
@@ -17,7 +17,7 @@
 | Group (interval) | Rule | kind / owner |
 | --- | --- | --- |
 | `ttv-data-quality` (1m) | engine scans stale, source failing past grace, UNKNOWN share high, UNKNOWN share growing, node not found (row 12) | `data_quality` / `platform` |
-| `ttv-stage-objectives` (5m) | stage objective breached, one instance per stage owner (Redbull, POPAI, Serving) | `stage_breach` / the stage owner |
+| `ttv-stage-objectives` (5m) | stage objective breached, one instance per stage owner (Samurai, Redbull, POPAI, Apply, Machine Learning) | `stage_breach` / the stage owner |
 
 Thresholds, `for` and `keepFiringFor` are in `docs/runbooks.md`, "Rule contracts". They assume the engine defaults: 5-minute scans and grace 2. The UNKNOWN-share thresholds (10%, +5 points in 1 h) are provisional defaults, not approved policy.
 
@@ -67,6 +67,14 @@ No inhibition rules are used. The gate and the engine's UNKNOWN classification a
 - `execErrState: Error` replaces a rule's existing instances with one rule-level instance that carries only the rule's labels. That is why the stage-breach labels need their `data_quality`/`platform` fallback, and why that rule uses `KeepLast` instead.
 - On a fresh Grafana database, the provisioned notification policy reaches the Alertmanager about a minute after start; until then Grafana's default policy applies. Every TTV rule has `for` of 5 minutes or more, so no TTV alert can fire in that window.
 
+### Links to the dashboards
+
+Since ADR-0009 the rules link the six managers' pages:
+
+- **Data-quality rules** link the summary (`ttv-home`): "engine scans stale" its "Data as of" panel (#4), the others "Where every GPU is now" (#3), whose "No data" bar counts the UNKNOWN GPUs these rules are about. Source health, identity conflicts and UNKNOWN reasons are no longer on a page, so the annotations carry them (last error, GPUs by reason, oldest servers).
+- **Stage breach** links the summary's "GPUs wasted now" (#1) as its panel, and `dashboard_url` opens the owner's own page. Query B adds a `page` label, taken from the stage of the owner's newest open interval: `EMPTY` → `ttv-samurai`, `PROVISIONING` → `ttv-redbull`, `GPU_PLATFORM` → `ttv-popai`, `SERVING` → `ttv-apply`, `MACHINE_LEARNING` → `ttv-ml`, anything else and the `(no idle GPUs)` row → `ttv-home`. The label is volatile detail, so it sits in B, never in A.
+- `tests/test_alert_rules.py` checks that every linked page and panel exists; `tests/test_alert_rules_pg.py` checks the `page` label per owner.
+
 ### Notification routing
 
 `ttv-notifications.yaml` replaces the organisation's notification policy tree. The root groups by `kind`, `owner` and `alertname`, and there is one muted route per kind:
@@ -85,4 +93,4 @@ In a shared Grafana, do not mount this file: merge the two routes into the exist
   - `cluster` and `node_name` on `NODE_NOT_FOUND`.
 
   The Postgres end-to-end test covers the server-scan path; the others are covered by synthetic rows shaped like the engine's.
-- `asset_url` annotations open the Asset page (`ttv-asset`) for the first asset the detail query names.
+- The rules name their oldest assets in the description; there is no `asset_url` since the Asset page was removed (ADR-0009). The engine's `/explain/{asset}` gives one asset's evidence.

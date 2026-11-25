@@ -98,16 +98,29 @@ def test_stage_change_starts_a_new_episode_at_scan_time(policy: Policy) -> None:
     )
 
 
-def test_maintenance_stays_in_redbulls_episode(policy: Policy) -> None:
+def test_hardware_problem_stays_in_redbulls_episode(policy: Policy) -> None:
     first = run_plan(decide(policy), []).opens[0]
     opened = [as_open(first, 1)]
     later = T0 + timedelta(hours=3)
-    (new,) = run_plan(decide(policy, maintenance_enabled=True), opened, now=later).opens
-    assert (new.bucket.reason, new.bucket.stage_owner) == ("MAINTENANCE", "Redbull")
+    (new,) = run_plan(decide(policy, health_overall="CRITICAL"), opened, now=later).opens
+    assert (new.bucket.reason, new.bucket.stage_owner) == ("HARDWARE_CRITICAL", "Redbull")
     assert (new.stage_entered_at, new.stage_entered_lower_bound) == (
         first.stage_entered_at,
         first.stage_entered_lower_bound,
     )
+
+
+def test_maintenance_closes_redbulls_episode_and_charges_nobody(policy: Policy) -> None:
+    first = run_plan(decide(policy), []).opens[0]
+    later = T0 + timedelta(hours=3)
+    result = run_plan(decide(policy, maintenance_enabled=True), [as_open(first, 1)], now=later)
+    (new,) = result.opens
+    assert (new.bucket.category, new.bucket.stage_owner, new.stage_entered_at) == (
+        "NOT_CHARGED",
+        None,
+        None,
+    )
+    assert [c.interval_id for c in result.closes] == [1]
 
 
 def test_episode_survives_an_unknown_gap(policy: Policy) -> None:
@@ -123,7 +136,7 @@ def test_known_asset_entering_a_stage_after_unknown_is_a_lower_bound(policy: Pol
     unknown = run_plan(decide(policy, stale=True), [], known_assets={A}).opens[0]
     later = T0 + timedelta(hours=1)
     (new,) = run_plan(
-        decide(policy, maintenance_enabled=True), [as_open(unknown, 3)], now=later
+        decide(policy, health_overall="CRITICAL"), [as_open(unknown, 3)], now=later
     ).opens
     assert (new.stage_entered_at, new.stage_entered_lower_bound) == (later, True)
 

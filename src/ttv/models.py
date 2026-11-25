@@ -19,11 +19,13 @@ class Category(enum.StrEnum):
 
 
 class Stage(enum.StrEnum):
-    """Pipeline stages; each maps to a configurable owning team."""
+    """Where idle GPUs sit; each maps to a configurable owning team (ADR-0009)."""
 
     PROVISIONING = "PROVISIONING"
     GPU_PLATFORM = "GPU_PLATFORM"
+    EMPTY = "EMPTY"
     SERVING = "SERVING"
+    MACHINE_LEARNING = "MACHINE_LEARNING"
 
 
 class Reason(enum.StrEnum):
@@ -49,13 +51,17 @@ class Reason(enum.StrEnum):
     GPU_MISSING = "GPU_MISSING"
     HOLDER_UNRESOLVED = "HOLDER_UNRESOLVED"
     RUNAI_WORKLOAD = "RUNAI_WORKLOAD"
+    ML_WORKLOAD = "ML_WORKLOAD"
+    ACTIVITY_UNOBSERVED = "ACTIVITY_UNOBSERVED"
     TRAFFIC_UNOBSERVED = "TRAFFIC_UNOBSERVED"
     SERVING_IN_USE = "SERVING_IN_USE"
     LOW_USE = "LOW_USE"
     NO_REAL_DEMAND = "NO_REAL_DEMAND"
+    MODEL_NOT_READY = "MODEL_NOT_READY"
     WORKLOAD_NOT_READY = "WORKLOAD_NOT_READY"
-    OTHER_WORKLOAD = "OTHER_WORKLOAD"
+    LOW_GPU_UTILIZATION = "LOW_GPU_UTILIZATION"
     NO_WORKLOAD = "NO_WORKLOAD"
+    POWER_WITHOUT_POD = "POWER_WITHOUT_POD"
 
 
 class Flag(enum.StrEnum):
@@ -324,6 +330,9 @@ class ClusterPod:
         images (tuple[str, ...]): Container images.
         waiting_reasons (tuple[str, ...]): Container waiting reasons, e.g. `CrashLoopBackOff`.
         restarts (int): Sum of container restart counts.
+        metrics_port (int | None): Port serving vLLM's `/metrics` (ADR-0009): the container port
+            named `metrics`, else the first TCP port of the container whose image names vLLM,
+            else the first container's first TCP port; None when no container declares one.
     """
 
     namespace: str
@@ -342,6 +351,7 @@ class ClusterPod:
     images: tuple[str, ...] = ()
     waiting_reasons: tuple[str, ...] = ()
     restarts: int = 0
+    metrics_port: int | None = None
 
 
 @dataclass(frozen=True)
@@ -367,6 +377,22 @@ class KubeSnapshot:
 
 
 @dataclass(frozen=True)
+class PodPower:
+    """
+    A pod's GPU power as a share of rated power (ADR-0009); None where no GPU had a rating.
+
+    Attributes:
+        peak (float | None): Highest share any of its GPUs reached over the activity window.
+        average (float | None): Mean share of its GPUs over the demand window.
+        gpus (int): GPUs with a rating that the shares cover.
+    """
+
+    peak: float | None
+    average: float | None
+    gpus: int
+
+
+@dataclass(frozen=True)
 class ThanosSnapshot:
     """
     One complete read of a target cluster's Thanos querier.
@@ -380,9 +406,9 @@ class ThanosSnapshot:
         activity_by_pod (Mapping[tuple[str, str], float]): `(namespace, pod)` → highest GPU
             activity over the `allocated_idle` window, as a 0-1 ratio.
         activity_metric (str | None): DCGM field the activity came from.
-        counters (Mapping[str, Mapping[tuple[str, str], float]]): Serving counter selector →
-            `(namespace, pod)` → `increase()` over the demand window. A selector with no
-            series is absent; a selector whose series did not move maps pods to 0.0.
+        power_by_pod (Mapping[tuple[str, str], PodPower]): `(namespace, pod)` → GPU power.
+        free_gpu_power_by_node (Mapping[str, tuple[float, ...]]): Per value of the DCGM node
+            label, the peak power share of each rated GPU whose series has no pod.
     """
 
     cluster: str
@@ -391,4 +417,56 @@ class ThanosSnapshot:
     last_xid_by_node: Mapping[str, Mapping[str, float]] = field(default_factory=dict)
     activity_by_pod: Mapping[tuple[str, str], float] = field(default_factory=dict)
     activity_metric: str | None = None
-    counters: Mapping[str, Mapping[tuple[str, str], float]] = field(default_factory=dict)
+    power_by_pod: Mapping[tuple[str, str], PodPower] = field(default_factory=dict)
+    free_gpu_power_by_node: Mapping[str, tuple[float, ...]] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class CounterSample:
+    """
+    One reading of a serving pod's vLLM request counter (ADR-0009).
+
+    Attributes:
+        cluster (str): Target cluster.
+        namespace (str): Pod namespace.
+        pod (str): Pod name.
+        holder_ref (str): The pod's logical workload, `namespace/Kind/name`.
+        observed_at (datetime): Scan time of the reading.
+        value (float): Counter value (requests since the container started).
+        pod_started_at (datetime | None): `status.startTime` of the pod.
+        restarts (int): Container restarts when read; after a restart the counter began again.
+    """
+
+    cluster: str
+    namespace: str
+    pod: str
+    holder_ref: str
+    observed_at: datetime
+    value: float
+    pod_started_at: datetime | None
+    restarts: int
+
+
+@dataclass(frozen=True)
+class Demand:
+    """
+    Requests of one logical serving deployment, from its pods' own counters (ADR-0009).
+
+    Attributes:
+        requests (float): Requests in the demand window (24 h by default).
+        complete (bool): False when the history may miss some of the window, so `requests` is
+            a lower bound (`≥ X`).
+        covered_hours (float): Hours of the demand window the readings cover.
+        recent_requests (float): Requests in the recent window (1 h by default).
+        recent_complete (bool): Like `complete`, for the recent window.
+        pods (tuple[str, ...]): Pods whose counters were read this scan.
+        unreadable (tuple[str, ...]): Pods whose `/metrics` could not be read this scan.
+    """
+
+    requests: float
+    complete: bool
+    covered_hours: float
+    recent_requests: float
+    recent_complete: bool
+    pods: tuple[str, ...] = ()
+    unreadable: tuple[str, ...] = ()

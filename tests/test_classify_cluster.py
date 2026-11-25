@@ -1,4 +1,4 @@
-"""Cluster rows 11-22 of ADR-0002 on synthetic snapshots (fixture-tested, not lab evidence)."""
+"""Cluster rows 11-22 of ADR-0002 (with ADR-0009) on synthetic snapshots (fixture-tested)."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ import pytest
 from conftest import T0, server
 from ttv.classify import ClassifyContext, classify
 from ttv.cluster_view import ClusterView, build_cluster_view
-from ttv.config import CounterOfRecord, Policy, Pool, ServingPolicy, TeamMap
+from ttv.config import Policy, Pool, ServingPolicy, TeamMap
 from ttv.models import (
     AssetInput,
     Bucket,
@@ -19,17 +19,19 @@ from ttv.models import (
     ClusterNode,
     ClusterPod,
     Decision,
+    Demand,
     Flag,
     KubeSnapshot,
     OwnerRef,
+    PodPower,
     Reason,
+    Stage,
     ThanosSnapshot,
 )
 
 CLUSTER = "ocp4-prod-gpu-site1"
 NODE = "ocp4-prod-site1-gpu-01"
-EPP = "llm_d_epp_request_total"
-VLLM = "vllm:request_success_total"
+QWEN = "team-a/LLMInferenceService/qwen"
 
 
 def node(**overrides: Any) -> ClusterNode:
@@ -72,25 +74,37 @@ def llmisvc(name: str) -> tuple[OwnerRef, ...]:
     )
 
 
+def demand(
+    requests: float, *, complete: bool = True, covered: float = 24.0, recent: float = 0.0
+) -> Demand:
+    """A serving deployment's requests, as the engine would compute them from pod counters."""
+    return Demand(requests, complete, covered, recent, complete, ("team-a/p",), ())
+
+
 def view(
     *pods: ClusterPod,
     n: ClusterNode | None = None,
     uuids: int = 8,
-    counters: dict[str, dict[tuple[str, str], float]] | None = None,
     activity: dict[tuple[str, str], float] | None = None,
+    requests: dict[str, Demand] | None = None,
+    power: dict[tuple[str, str], PodPower] | None = None,
+    free_power: tuple[float, ...] = (),
     **kw: Any,
 ) -> ClusterView:
-    """Index a one-node cluster."""
+    """Index a one-node cluster; GPU-holding pods are busy unless `activity` says otherwise."""
     the_node = n or node()
     kube = KubeSnapshot(CLUSTER, "cid", T0, (the_node,), pods, frozenset({"apps"}))
+    busy = {(p.namespace, p.name): 0.9 for p in pods} if activity is None else activity
     thanos = ThanosSnapshot(
         CLUSTER,
         T0,
         gpu_uuids_by_node={the_node.name: frozenset(f"GPU-{i}" for i in range(uuids))},
-        activity_by_pod=activity or {},
-        counters=counters or {},
+        activity_by_pod=busy,
+        activity_metric="DCGM_FI_PROF_GR_ENGINE_ACTIVE",
+        power_by_pod=power or {},
+        free_gpu_power_by_node={the_node.name: free_power} if free_power else {},
     )
-    return build_cluster_view(CLUSTER, kube, thanos, **kw)
+    return build_cluster_view(CLUSTER, kube, thanos, demand=requests, **kw)
 
 
 def decide(policy: Policy, v: ClusterView | None = None, **fields: Any) -> Decision:
@@ -171,7 +185,7 @@ def test_row13_not_ready_with_critical_hardware_is_redbull(policy: Policy) -> No
 def test_c3_ready_node_with_critical_hardware_keeps_gpu_rows_and_flags(policy: Policy) -> None:
     decision = decide(policy, view(), health_overall="CRITICAL")
     bucket = only(decision, Reason.NO_WORKLOAD)
-    assert Flag.HARDWARE_CRITICAL in bucket.flags and bucket.stage_owner == "Serving"
+    assert Flag.HARDWARE_CRITICAL in bucket.flags and bucket.stage_owner == "Samurai"
 
 
 def test_row13_cordoned_node_is_redbull(policy: Policy) -> None:
@@ -197,6 +211,16 @@ def test_row15_gpus_missing_from_dcgm_are_popai(policy: Policy) -> None:
     assert only(decision, Reason.GPU_MISSING).stage_owner == "POPAI"
 
 
+def test_row22_empty_healthy_gpus_are_samurais(policy: Policy) -> None:
+    bucket = only(decide(policy, view()), Reason.NO_WORKLOAD)
+    assert (bucket.category, bucket.stage, bucket.stage_owner, bucket.gpus) == (
+        Category.IDLE,
+        Stage.EMPTY,
+        "Samurai",
+        8,
+    )
+
+
 def test_section6_eight_gpu_server_with_two_productive_is_not_fully_productive(
     policy: Policy,
 ) -> None:
@@ -208,113 +232,159 @@ def test_section6_eight_gpu_server_with_two_productive_is_not_fully_productive(
         "team-a/TrainingWorkload/llama-ft",
         "unassigned",
     )
+    assert productive.evidence["runai"] is True and productive.evidence["gpu_busy_peak"] == 0.9
 
 
-def test_c6_interactive_runai_work_is_idle(policy: Policy) -> None:
+def test_every_runai_workload_is_machine_learning_judged_by_gpu_use(policy: Policy) -> None:
+    """ADR-0009: workspaces and build jobs are no longer idle by kind, only by GPU activity."""
     workspace = pod("ws-0", 1, OwnerRef("run.ai", "InteractiveWorkload", "notebook"))
     build_job = pod(
         "job-0", 1, OwnerRef("run.ai", "RunaiJob", "debug"), labels={"priorityClassName": "build"}
     )
-    decision = decide(policy, view(workspace, build_job))
-    assert rows(decision) == [
+    busy = decide(policy, view(workspace, build_job))
+    assert rows(busy) == [
         ("NO_WORKLOAD", None, 6),
-        ("OTHER_WORKLOAD", "team-a/InteractiveWorkload/notebook", 1),
-        ("OTHER_WORKLOAD", "team-a/RunaiJob/debug", 1),
+        ("RUNAI_WORKLOAD", "team-a/InteractiveWorkload/notebook", 1),
+        ("RUNAI_WORKLOAD", "team-a/RunaiJob/debug", 1),
     ]
-    assert {b.holder_ref for b in decision.buckets if b.reason == Reason.OTHER_WORKLOAD} == {
+    quiet = view(
+        workspace, build_job, activity={("team-a", "ws-0"): 0.01, ("team-a", "job-0"): 0.6}
+    )
+    bucket = only(decide(policy, quiet), Reason.LOW_GPU_UTILIZATION)
+    assert (bucket.holder_ref, bucket.stage, bucket.stage_owner, bucket.category) == (
         "team-a/InteractiveWorkload/notebook",
-        "team-a/RunaiJob/debug",
+        Stage.MACHINE_LEARNING,
+        "Machine Learning",
+        Category.IDLE,
+    )
+    assert bucket.evidence["threshold"] == 0.05
+
+
+def test_row21_ml_waste_needs_low_activity_for_the_whole_window(policy: Policy) -> None:
+    owner = OwnerRef("run.ai", "TrainingWorkload", "t")
+    idle = view(pod("train-0", 8, owner), activity={("team-a", "train-0"): 0.01})
+    assert only(decide(policy, idle), Reason.LOW_GPU_UTILIZATION).gpus == 8
+    at_threshold = view(pod("train-0", 8, owner), activity={("team-a", "train-0"): 0.05})
+    assert only(decide(policy, at_threshold), Reason.RUNAI_WORKLOAD).gpus == 8
+    young = pod("train-0", 8, owner, started_at=T0 - timedelta(hours=5))
+    fresh = view(young, activity={("team-a", "train-0"): 0.0})
+    assert only(decide(policy, fresh), Reason.RUNAI_WORKLOAD).gpus == 8
+
+
+def test_row16d_ml_without_gpu_activity_is_unknown_not_in_use(policy: Policy) -> None:
+    """Unknown is never zero: no DCGM data for a pod is neither waste nor proven use."""
+    trainer = pod("train-0", 4, OwnerRef("run.ai", "TrainingWorkload", "t"))
+    decision = decide(policy, view(trainer, activity={}))
+    assert summary(decision) == {
+        ("UNKNOWN", "ACTIVITY_UNOBSERVED", 4),
+        ("IDLE", "NO_WORKLOAD", 4),
     }
+    starting = pod(
+        "train-0",
+        4,
+        OwnerRef("run.ai", "TrainingWorkload", "t"),
+        started_at=T0 - timedelta(minutes=5),
+    )
+    assert only(decide(policy, view(starting, activity={})), Reason.RUNAI_WORKLOAD).gpus == 4
 
 
-def test_row17_serving_with_genuine_requests_before_i2_is_flagged_unverified(
-    policy: Policy,
+def test_row16c_any_other_workload_is_machine_learning(policy: Policy) -> None:
+    bench = pod("bench-x", 1, OwnerRef("batch", "Job", "aiperf-1"), images=("aiperf:1",))
+    bucket = only(decide(policy, view(bench)), Reason.ML_WORKLOAD)
+    assert (bucket.category, bucket.holder_ref, bucket.evidence["pods"]) == (
+        Category.PRODUCTIVE,
+        "team-a/Job/aiperf-1",
+        ["team-a/bench-x"],
+    )
+    assert bucket.evidence["runai"] is False
+    quiet = view(bench, activity={("team-a", "bench-x"): 0.0})
+    assert only(decide(policy, quiet), Reason.LOW_GPU_UTILIZATION).stage_owner == "Machine Learning"
+
+
+def test_row20b_crash_looping_ml_pod_beyond_warmup_is_ml_waste(policy: Policy) -> None:
+    crash = pod("dbg-0", 2, ready=False, waiting_reasons=("CrashLoopBackOff",))
+    bucket = only(decide(policy, view(crash)), Reason.WORKLOAD_NOT_READY)
+    assert (bucket.stage_owner, bucket.evidence["waiting"]) == (
+        "Machine Learning",
+        ["CrashLoopBackOff"],
+    )
+
+
+def test_row17_serving_in_use_above_one_request_per_gpu_hour(policy: Policy) -> None:
+    decode = pod("qwen-kserve-84fd6f5c76-abcde", 4, *llmisvc("qwen"))
+    decision = decide(policy, view(decode, requests={QWEN: demand(480.0, recent=12.0)}))
+    bucket = only(decision, Reason.SERVING_IN_USE)
+    assert (bucket.category, bucket.gpus, bucket.flags) == (
+        Category.PRODUCTIVE,
+        4,
+        (Flag.USER_ATTRIBUTION_UNVERIFIED,),
+    )
+    assert bucket.evidence["requests_per_gpu_hour"] == pytest.approx(480 / (4 * 24))
+    assert (bucket.evidence["requests"], bucket.evidence["recent_requests"]) == (480.0, 12.0)
+
+
+def test_row18_below_one_request_per_gpu_hour_is_apply_low_use(policy: Policy) -> None:
+    decode = pod("qwen-kserve-84fd6f5c76-abcde", 4, *llmisvc("qwen"))
+    low = only(decide(policy, view(decode, requests={QWEN: demand(48.0)})), Reason.LOW_USE)
+    assert (low.category, low.stage_owner, low.evidence["threshold"]) == (
+        Category.IDLE,
+        "Apply",
+        1.0,
+    )
+    assert low.evidence["requests_per_gpu_hour"] == pytest.approx(0.5)
+
+
+@pytest.mark.parametrize(
+    ("d", "threshold"),
+    [
+        (demand(48.0, complete=False, covered=20.0), 1.0),
+        (demand(1.0, covered=0.5), 1.0),
+        (demand(48.0), None),
+    ],
+    ids=["history-filling", "younger-than-1h", "threshold-off"],
+)
+def test_low_rate_that_cannot_be_judged_yet_is_in_use_unverified(
+    policy: Policy, d: Demand, threshold: float | None
+) -> None:
+    rules = policy.model_copy(
+        update={"serving": ServingPolicy(useful_requests_per_gpu_hour=threshold)}
+    )
+    decode = pod("qwen-kserve-84fd6f5c76-abcde", 4, *llmisvc("qwen"))
+    bucket = only(decide(rules, view(decode, requests={QWEN: d})), Reason.SERVING_IN_USE)
+    assert Flag.LOW_USE_UNVERIFIED in bucket.flags
+
+
+def test_row19_ready_serving_with_zero_requests_is_no_real_demand(policy: Policy) -> None:
+    decode = pod("qwen-kserve-84fd6f5c76-abcde", 8, *llmisvc("qwen"))
+    bucket = only(decide(policy, view(decode, requests={QWEN: demand(0.0)})), Reason.NO_REAL_DEMAND)
+    assert (bucket.category, bucket.stage, bucket.stage_owner, bucket.gpus) == (
+        Category.IDLE,
+        Stage.SERVING,
+        "Apply",
+        8,
+    )
+
+
+@pytest.mark.parametrize(
+    "requests", [{}, {QWEN: demand(0.0, complete=False, covered=3.0)}], ids=["unread", "partial"]
+)
+def test_unknown_is_never_zero_serving_without_a_full_count_is_unknown(
+    policy: Policy, requests: dict[str, Demand]
 ) -> None:
     decode = pod("qwen-kserve-84fd6f5c76-abcde", 4, *llmisvc("qwen"))
-    counters = {EPP: {("team-a", "qwen-kserve-router-scheduler-65bdbffc9-jch5b"): 480.0}}
-    decision = decide(policy, view(decode, counters=counters))
-    bucket = only(decision, Reason.SERVING_IN_USE)
-    assert bucket.category == Category.PRODUCTIVE and bucket.gpus == 4
-    assert Flag.LOW_USE_UNVERIFIED in bucket.flags
-    assert Flag.USER_ATTRIBUTION_UNVERIFIED in bucket.flags
-    assert bucket.evidence["requests_per_gpu_hour"] == pytest.approx(480 / (4 * 24))
-
-
-def test_d8_counters_of_record_are_never_added(policy: Policy) -> None:
-    decode = pod("qwen-kserve-84fd6f5c76-abcde", 4, *llmisvc("qwen"))
-    epp_pod = ("team-a", "qwen-kserve-router-scheduler-65bdbffc9-jch5b")
-    counters = {
-        EPP: {epp_pod: 5.0},
-        "inference_objective_request_total": {epp_pod: 5.0},
-        VLLM: {("team-a", "qwen-kserve-84fd6f5c76-abcde"): 5.0},
-    }
-    bucket = only(decide(policy, view(decode, counters=counters)), Reason.SERVING_IN_USE)
-    assert (bucket.evidence["counter"], bucket.evidence["requests"]) == (EPP, 5.0)
-
-
-def test_d8_falls_back_to_decode_vllm_counter_and_ignores_prefill(policy: Policy) -> None:
-    decode = pod("qwen-kserve-84fd6f5c76-abcde", 4, *llmisvc("qwen"))
-    counters = {
-        VLLM: {
-            ("team-a", "qwen-kserve-84fd6f5c76-abcde"): 7.0,
-            ("team-a", "qwen-kserve-856fc8d7db-zzzzz"): 3.0,
-            ("team-a", "qwen-kserve-prefill-7d9f8b-xxxxx"): 10.0,
-        }
-    }
-    bucket = only(decide(policy, view(decode, counters=counters)), Reason.SERVING_IN_USE)
-    assert (bucket.evidence["counter"], bucket.evidence["requests"]) == (VLLM, 10.0)
-
-
-def test_unknown_is_never_zero_serving_without_telemetry_is_unknown(policy: Policy) -> None:
-    decode = pod("qwen-kserve-84fd6f5c76-abcde", 4, *llmisvc("qwen"))
-    other = {EPP: {("team-a", "other-kserve-router-scheduler-1-a"): 0.0}}
-    decision = decide(policy, view(decode, counters=other))
-    assert summary(decision) == {
+    assert summary(decide(policy, view(decode, requests=requests))) == {
         ("UNKNOWN", "TRAFFIC_UNOBSERVED", 4),
         ("IDLE", "NO_WORKLOAD", 4),
     }
 
 
-def test_row19_ready_serving_with_zero_requests_is_no_real_demand(policy: Policy) -> None:
-    decode = pod("qwen-kserve-84fd6f5c76-abcde", 8, *llmisvc("qwen"))
-    counters = {EPP: {("team-a", "qwen-kserve-router-scheduler-65bdbffc9-jch5b"): 0.0}}
-    decision = decide(policy, view(decode, counters=counters))
-    bucket = only(decision, Reason.NO_REAL_DEMAND)
-    assert (bucket.category, bucket.stage_owner, bucket.gpus) == (Category.IDLE, "Serving", 8)
-
-
-def test_row18_low_use_applies_only_once_i2_is_approved(policy: Policy) -> None:
-    approved = policy.model_copy(
-        update={"serving": ServingPolicy(useful_requests_per_gpu_hour=10.0)}
-    )
-    decode = pod("qwen-kserve-84fd6f5c76-abcde", 4, *llmisvc("qwen"))
-    counters = {EPP: {("team-a", "qwen-kserve-router-scheduler-65bdbffc9-jch5b"): 480.0}}
-    low = only(decide(approved, view(decode, counters=counters)), Reason.LOW_USE)
-    assert low.category == Category.IDLE and low.evidence["threshold"] == 10.0
-    busy = {EPP: {("team-a", "qwen-kserve-router-scheduler-65bdbffc9-jch5b"): 960.0}}
-    assert only(decide(approved, view(decode, counters=busy)), Reason.SERVING_IN_USE).flags == (
-        Flag.USER_ATTRIBUTION_UNVERIFIED,
-    )
-
-
-def test_d9_counter_with_synthetic_filter_drops_the_attribution_flag(policy: Policy) -> None:
-    filtered = CounterOfRecord(
-        metric=EPP,
-        pod_regex="^{name}-kserve-router-scheduler-[a-z0-9]+-[a-z0-9]+$",
-        matchers='fairness_id!="canary"',
-    )
-    kinds = [policy.serving.kinds[0].model_copy(update={"counters": [filtered]})]
-    custom = policy.model_copy(update={"serving": ServingPolicy(kinds=kinds)})
-    decode = pod("qwen-kserve-84fd6f5c76-abcde", 4, *llmisvc("qwen"))
-    counters = {filtered.selector: {("team-a", "qwen-kserve-router-scheduler-1-a"): 3.0}}
-    bucket = only(decide(custom, view(decode, counters=counters)), Reason.SERVING_IN_USE)
-    assert bucket.flags == (Flag.LOW_USE_UNVERIFIED,)
-
-
-def test_row20_crash_looping_pod_beyond_warmup_is_not_ready(policy: Policy) -> None:
-    crash = pod("dbg-0", 2, ready=False, waiting_reasons=("CrashLoopBackOff",))
-    bucket = only(decide(policy, view(crash)), Reason.WORKLOAD_NOT_READY)
-    assert bucket.evidence["waiting"] == ["CrashLoopBackOff"]
+@pytest.mark.parametrize("requests", [{}, {QWEN: demand(0.0)}], ids=["unread", "zero"])
+def test_row20_model_not_ready_beyond_warmup_is_apply_waste(
+    policy: Policy, requests: dict[str, Demand]
+) -> None:
+    stuck = pod("qwen-kserve-84fd6f5c76-abcde", 4, *llmisvc("qwen"), ready=False)
+    bucket = only(decide(policy, view(stuck, requests=requests)), Reason.MODEL_NOT_READY)
+    assert (bucket.category, bucket.stage_owner) == (Category.IDLE, "Apply")
 
 
 def test_row20_serving_pod_loading_within_warmup_is_judged_by_demand(policy: Policy) -> None:
@@ -325,24 +395,22 @@ def test_row20_serving_pod_loading_within_warmup_is_judged_by_demand(policy: Pol
         ready=False,
         started_at=T0 - timedelta(minutes=5),
     )
-    counters = {EPP: {("team-a", "qwen-kserve-router-scheduler-1-a"): 0.0}}
-    assert only(decide(policy, view(loading, counters=counters)), Reason.NO_REAL_DEMAND).gpus == 4
-
-
-def test_row21_other_workload_names_its_holder(policy: Policy) -> None:
-    bench = pod("bench-x", 1, OwnerRef("batch", "Job", "aiperf-1"), images=("aiperf:1",))
-    bucket = only(decide(policy, view(bench)), Reason.OTHER_WORKLOAD)
-    assert bucket.holder_ref == "team-a/Job/aiperf-1"
-    assert bucket.evidence["pods"] == ["team-a/bench-x"]
+    decision = decide(policy, view(loading, requests={QWEN: demand(0.0, covered=0.1)}))
+    assert only(decision, Reason.NO_REAL_DEMAND).gpus == 4
 
 
 def test_plain_vllm_deployment_is_recognised_by_image(policy: Policy) -> None:
     owners = (OwnerRef("apps", "ReplicaSet", "chat-7d4b9c"), OwnerRef("apps", "Deployment", "chat"))
     plain = pod("chat-7d4b9c-abcde", 2, *owners)
-    counters = {VLLM: {("team-a", "chat-7d4b9c-abcde"): 12.0}}
-    assert only(decide(policy, view(plain, counters=counters)), Reason.SERVING_IN_USE).gpus == 2
+    v = view(plain, requests={"team-a/Deployment/chat": demand(120.0)})
+    assert only(decide(policy, v), Reason.SERVING_IN_USE).gpus == 2
     not_vllm = pod("chat-7d4b9c-abcde", 2, *owners, images=("registry.example/triton:24",))
-    assert only(decide(policy, view(not_vllm)), Reason.OTHER_WORKLOAD).gpus == 2
+    assert only(decide(policy, view(not_vllm)), Reason.ML_WORKLOAD).gpus == 2
+
+
+def test_runai_inference_with_a_vllm_image_is_machine_learning(policy: Policy) -> None:
+    infer = pod("infer-0", 2, OwnerRef("run.ai", "InferenceWorkload", "chat"))
+    assert only(decide(policy, view(infer)), Reason.RUNAI_WORKLOAD).gpus == 2
 
 
 def test_unresolved_owner_chain_is_unknown(policy: Policy) -> None:
@@ -368,9 +436,12 @@ def test_d7_reservation_pod_takes_its_fractional_workload_class(policy: Policy) 
         fractional=True,
         gpu_group="g1",
     )
-    v = view(reservation, fraction, reservation_namespaces=frozenset({"runai-reservation"}))
+    namespaces = frozenset({"runai-reservation"})
+    on_reservation = {("runai-reservation", "runai-reservation-gpu-abc"): 0.4}
+    v = view(reservation, fraction, activity=on_reservation, reservation_namespaces=namespaces)
     bucket = only(decide(policy, v), Reason.RUNAI_WORKLOAD)
     assert bucket.gpus == 1 and bucket.holder_ref == "team-a/InferenceWorkload/small-model"
+    assert bucket.evidence["gpu_busy_peak"] == 0.4
 
 
 def test_d7_reservation_pod_without_fractions_is_no_workload(policy: Policy) -> None:
@@ -389,19 +460,18 @@ def test_holders_beyond_healthy_gpus_are_capped_in_row_order(policy: Policy) -> 
     assert summary(decision) == {
         ("IDLE", "GPU_MISSING", 1),
         ("PRODUCTIVE", "RUNAI_WORKLOAD", 6),
-        ("IDLE", "OTHER_WORKLOAD", 1),
+        ("PRODUCTIVE", "ML_WORKLOAD", 1),
     }
 
 
-def test_allocated_idle_flag_needs_low_activity_for_the_whole_window(policy: Policy) -> None:
-    trainer = pod("train-0", 8, OwnerRef("run.ai", "TrainingWorkload", "t"))
-    idle = view(trainer, activity={("team-a", "train-0"): 0.01})
-    assert Flag.ALLOCATED_IDLE in only(decide(policy, idle), Reason.RUNAI_WORKLOAD).flags
-    no_data = view(trainer)
-    assert Flag.ALLOCATED_IDLE not in only(decide(policy, no_data), Reason.RUNAI_WORKLOAD).flags
-    young = pod("train-0", 8, OwnerRef("run.ai", "TrainingWorkload", "t"), started_at=T0)
-    fresh = view(young, activity={("team-a", "train-0"): 0.0})
-    assert Flag.ALLOCATED_IDLE not in only(decide(policy, fresh), Reason.RUNAI_WORKLOAD).flags
+def test_allocated_idle_flag_marks_quiet_gpus_of_a_busy_model(policy: Policy) -> None:
+    decode = pod("qwen-kserve-84fd6f5c76-abcde", 4, *llmisvc("qwen"))
+    quiet = view(
+        decode,
+        activity={("team-a", "qwen-kserve-84fd6f5c76-abcde"): 0.01},
+        requests={QWEN: demand(480.0)},
+    )
+    assert Flag.ALLOCATED_IDLE in only(decide(policy, quiet), Reason.SERVING_IN_USE).flags
 
 
 def test_pool_and_team_are_recorded(policy: Policy) -> None:
@@ -430,8 +500,7 @@ def test_mixed_models_are_dealt_across_gpu_rows_and_sum_to_e(policy: Policy) -> 
 
 def test_milestones_seen_on_a_serving_node(policy: Policy) -> None:
     decode = pod("qwen-kserve-84fd6f5c76-abcde", 4, *llmisvc("qwen"))
-    counters = {EPP: {("team-a", "qwen-kserve-router-scheduler-1-a"): 3.0}}
-    decision = decide(policy, view(decode, counters=counters))
+    decision = decide(policy, view(decode, requests={QWEN: demand(300.0)}))
     names = {m.name for m in decision.milestones}
     assert names == {
         "assigned_cluster",
@@ -440,3 +509,76 @@ def test_milestones_seen_on_a_serving_node(policy: Policy) -> None:
         "workload_running",
         "first_genuine_request",
     }
+
+
+# --- GPU power as a second sign of work (ADR-0009) ---------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("activity", "peak", "expected"),
+    [
+        (0.01, 0.6, Reason.RUNAI_WORKLOAD),
+        (0.01, 0.1, Reason.LOW_GPU_UTILIZATION),
+        (None, 0.6, Reason.RUNAI_WORKLOAD),
+        (None, 0.1, Reason.LOW_GPU_UTILIZATION),
+        (0.3, 0.1, Reason.RUNAI_WORKLOAD),
+    ],
+    ids=["busy-by-power", "both-low", "power-only-busy", "power-only-idle", "busy-by-activity"],
+)
+def test_ml_waste_needs_both_low_activity_and_low_power(
+    policy: Policy, activity: float | None, peak: float, expected: Reason
+) -> None:
+    trainer = pod("train-0", 4, OwnerRef("run.ai", "TrainingWorkload", "t"))
+    key = ("team-a", "train-0")
+    v = view(
+        trainer,
+        activity={} if activity is None else {key: activity},
+        power={key: PodPower(peak=peak, average=None, gpus=4)},
+    )
+    bucket = only(decide(policy, v), expected)
+    assert bucket.evidence["gpu_power_peak"] == peak
+
+
+def test_power_off_leaves_ml_without_activity_unknown(policy: Policy) -> None:
+    off = policy.model_copy(update={"power": policy.power.model_copy(update={"threshold": None})})
+    trainer = pod("train-0", 4, OwnerRef("run.ai", "TrainingWorkload", "t"))
+    power = {("team-a", "train-0"): PodPower(peak=0.9, average=None, gpus=4)}
+    assert only(decide(off, view(trainer, activity={}, power=power)), Reason.ACTIVITY_UNOBSERVED)
+
+
+@pytest.mark.parametrize(
+    ("average", "expected"),
+    [(0.15, Reason.LOW_USE), (0.4, Reason.SERVING_IN_USE), (None, Reason.SERVING_IN_USE)],
+    ids=["gpus-mostly-idle", "gpus-working", "no-power-data"],
+)
+def test_served_model_with_requests_but_idle_gpus_is_barely_used(
+    policy: Policy, average: float | None, expected: Reason
+) -> None:
+    """The user: a model can get requests yet not use its GPUs well enough."""
+    decode = pod("qwen-kserve-84fd6f5c76-abcde", 4, *llmisvc("qwen"))
+    power = (
+        {}
+        if average is None
+        else {("team-a", decode.name): PodPower(peak=0.5, average=average, gpus=4)}
+    )
+    v = view(decode, requests={QWEN: demand(480.0)}, power=power)
+    bucket = only(decide(policy, v), expected)
+    assert bucket.evidence["gpu_power_avg"] == average
+    if expected is Reason.LOW_USE:
+        assert (bucket.evidence["basis"], bucket.evidence["threshold"]) == ("power", 0.25)
+
+
+def test_empty_gpus_drawing_power_are_used_by_something_unseen(policy: Policy) -> None:
+    decision = decide(policy, view(free_power=(0.6, 0.5, 0.05)))
+    assert summary(decision) == {
+        ("UNKNOWN", "POWER_WITHOUT_POD", 2),
+        ("IDLE", "NO_WORKLOAD", 6),
+    }
+    assert only(decision, Reason.POWER_WITHOUT_POD).stage_owner is None
+
+
+def test_power_of_an_unattributed_holder_is_not_counted_as_unseen_use(policy: Policy) -> None:
+    """DCGM couldn't name the trainer's pod, so its two GPUs show up as GPUs with no pod."""
+    trainer = pod("train-0", 2, OwnerRef("run.ai", "TrainingWorkload", "t"))
+    decision = decide(policy, view(trainer, free_power=(0.7, 0.6)))
+    assert summary(decision) == {("PRODUCTIVE", "RUNAI_WORKLOAD", 2), ("IDLE", "NO_WORKLOAD", 6)}

@@ -150,6 +150,11 @@ def test_no_rbac_rule_has_a_write_verb(docs_name: str, request: pytest.FixtureRe
     for rule in rules:
         assert set(rule["verbs"]) <= READ_VERBS, rule
         assert "*" not in rule.get("resources", []) + rule.get("apiGroups", []), rule
+        subresources = [r for r in rule.get("resources", []) if "/" in r]
+        if subresources:  # only the pod proxy, GET only (ADR-0009)
+            assert (rule["apiGroups"], subresources, rule["verbs"]) == (
+                [""], ["pods/proxy"], ["get"]
+            ), rule  # fmt: skip
     if docs_name != "rbac_docs":
         assert not rules  # the app chart binds no RBAC at all
 
@@ -160,7 +165,7 @@ def test_cluster_reader_has_read_access_monitoring_view_and_a_token(
     role = by_kind(rbac_docs, "ClusterRole")["gpu-ttv-reader"]
     granted = {(g, r) for rule in role["rules"] for g in rule.get("apiGroups", [])
                for r in rule.get("resources", [])}  # fmt: skip
-    assert {("", "nodes"), ("", "pods"), ("run.ai", "trainingworkloads"),
+    assert {("", "nodes"), ("", "pods"), ("", "pods/proxy"), ("run.ai", "trainingworkloads"),
             ("serving.kserve.io", "llminferenceservices")} <= granted  # fmt: skip
     assert not any(r in ("secrets", "configmaps") for _, r in granted)
     bindings = {b["roleRef"]["name"] for b in by_kind(rbac_docs, "ClusterRoleBinding").values()}
@@ -181,6 +186,16 @@ def test_cluster_reader_refuses_credentials_subresources_and_wildcards(resource:
     )  # fmt: skip
     assert result.returncode != 0
     assert "refusing resource" in result.stderr
+
+
+def test_cluster_reader_pod_metrics_can_be_turned_off() -> None:
+    off = by_kind(render(RBAC_CHART, "--set", "podMetrics.enabled=false"), "ClusterRole")
+    resources = {r for rule in off["gpu-ttv-reader"]["rules"] for r in rule.get("resources", [])}
+    assert "pods/proxy" not in resources
+    assert "pods" in resources
+    result = helm_template(RBAC_CHART, "--set-string", "podMetrics.enabled=false")
+    assert result.returncode != 0
+    assert "must be true or false" in result.stderr
 
 
 @pytest.mark.parametrize("docs_name", ["default_docs", "full_docs", "rbac_docs"])
@@ -249,7 +264,8 @@ def test_generated_config_files_load_in_the_engine(
         Policy.model_validate(yaml.safe_load(config_map_file(docs, "-policy", "policy.yaml")))
         for docs in (default_docs, full_docs)
     ]
-    stages = {Stage.PROVISIONING, Stage.GPU_PLATFORM, Stage.SERVING}
+    stages = set(Stage)
+    assert len(stages) == 5
     for policy in policies:
         assert set(policy.teams) == set(policy.stage_objectives) == stages
     clusters = ClustersFile.model_validate(
@@ -308,6 +324,15 @@ def test_only_the_engine_runs(
         (["--set", "settings.TTV_COLLECTOR_STALE_AFTER=1h"], "TTV_COLLECTOR_STALE_AFTER"),
         (["--set", "policy.teams.PRE_PROVISIONING=DC"], "PRE_PROVISIONING) was removed"),
         (["--set", "policy.stage_objectives.PRE_PROVISIONING=3d"], "PRE_PROVISIONING) was removed"),
+        (["--set", "policy.teams.EMPTY=null"], "add EMPTY to teams"),
+        (
+            [
+                "--set-json",
+                'policy.serving={"kinds":[{"group":"apps","kind":"Deployment","counters":[]}]}',
+            ],
+            "counters were removed",
+        ),
+        (["--set", "policy.runai.priority_label=x"], "policy.runai.priority_label was removed"),
     ],
 )
 def test_values_for_the_removed_collector_and_dc_stage_are_refused(

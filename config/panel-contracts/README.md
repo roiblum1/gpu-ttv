@@ -1,9 +1,9 @@
 # Panel contracts
 
-One YAML file per dashboard, named after its UID (`ttv-queues.yaml` for `grafana/dashboards/ttv-queues.json`). Each non-row panel has exactly one entry, keyed by its Grafana panel `id`, which must stay stable (AGENT.md §13 "A contract for every executive panel"). The question map that ties E01–E18 to these entries is `docs/executive-question-map.md`. `tests/test_panel_contracts.py` checks the files against the dashboards.
+One YAML file per dashboard, named after its UID (`ttv-samurai.yaml` for `grafana/dashboards/ttv-samurai.json`). Each non-row panel has exactly one entry, keyed by its Grafana panel `id`, which must stay stable (AGENT.md §13 "A contract for every executive panel"). The question map that ties E01–E18 to these entries is `docs/executive-question-map.md`. `tests/test_panel_contracts.py` checks the files against the dashboards.
 
 ```yaml
-dashboard: ttv-queues            # the dashboard UID
+dashboard: ttv-samurai           # the dashboard UID
 panels:
   - id: 7                        # Grafana panel id
     title: Idle GPUs now, by stage owner     # must equal the panel title
@@ -20,7 +20,7 @@ panels:
     window: now                  # now | selected range | <explicit window>
     filters: [stage_owner, site] # dashboard variables honoured
     exclusions: UNKNOWN, PRODUCTIVE and NOT_CHARGED GPUs.
-    query: grafana/dashboards/ttv-queues.json#7      # where the exact query lives
+    query: grafana/dashboards/ttv-samurai.json#5     # where the exact query lives
     lineage: [capacity_intervals.gpus, capacity_intervals.stage_owner, assets.site]
     freshness: Latest engine scan; "Data as of" shows its age.
     baseline: null               # comparison baseline, if any
@@ -34,8 +34,8 @@ panels:
     gate: core                   # core | history | business_input
     privileges: SELECT on capacity_intervals, assets
     cardinality: one row per stage owner (≤ 3)
-    drilldown: ttv-queues#14     # panel or dashboard it opens into, or null
-    action: Ask the stage owner to clear the longest waits (Queues, "Longest waits").
+    drilldown: ttv-samurai#5     # panel or dashboard it opens into, or null
+    action: Ask Samurai to put work on the empty servers at the top of the table.
     fixture: tests/test_dashboards_sql.py             # fixture or test that exercises it
     expected: 6 idle GPUs for Redbull with the scenario fixture.
 ```

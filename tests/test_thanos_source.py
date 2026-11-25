@@ -15,7 +15,7 @@ import httpx
 import pytest
 from structlog.testing import capture_logs
 
-from ttv.config import ClusterConnection, CounterOfRecord, Policy
+from ttv.config import ClusterConnection, Policy
 from ttv.models import ThanosSnapshot
 from ttv.sources.http import SourceError, SourceErrorKind
 from ttv.sources.serverscan import UnsafeRequestError
@@ -47,11 +47,11 @@ Q_UTIL = (
     "max by (exported_namespace, exported_pod) "
     '(max_over_time(DCGM_FI_DEV_GPU_UTIL{exported_pod!=""}[21600s])) / 100'
 )
-Q_EPP = "sum by (namespace, pod) (increase(llm_d_epp_request_total[86400s]))"
-Q_OBJECTIVE = "sum by (namespace, pod) (increase(inference_objective_request_total[86400s]))"
-Q_MODEL = "sum by (namespace, pod) (increase(inference_model_request_total[86400s]))"
-Q_VLLM = "sum by (namespace, pod) (increase(vllm:request_success_total[86400s]))"
-DEFAULT_QUERIES = [Q_GPUS, Q_XID, Q_PROF, Q_UTIL, Q_EPP, Q_OBJECTIVE, Q_MODEL, Q_VLLM]
+PER_GPU = "Hostname, UUID, exported_namespace, exported_pod, modelName"
+Q_POWER_PEAK = f"max by ({PER_GPU}) (max_over_time(DCGM_FI_DEV_POWER_USAGE[21600s]))"
+Q_POWER_AVG = f"max by ({PER_GPU}) (avg_over_time(DCGM_FI_DEV_POWER_USAGE[86400s]))"
+Q_POWER_LIMIT = "max by (Hostname, UUID) (DCGM_FI_DEV_POWER_MGMT_LIMIT)"
+DEFAULT_QUERIES = [Q_GPUS, Q_XID, Q_PROF, Q_UTIL, Q_POWER_PEAK, Q_POWER_AVG, Q_POWER_LIMIT]
 
 Reply = Callable[[], httpx.Response]
 
@@ -115,17 +115,23 @@ def make_source(
     conn: ClusterConnection,
     policy: Policy,
     *,
-    counters: list[CounterOfRecord] | None = None,
     timeout: float = 30.0,
 ) -> ThanosSource:
     return ThanosSource(
         conn,
-        counters=policy.counters() if counters is None else counters,
-        demand_window=policy.serving.demand_window,
         activity_window=policy.allocated_idle.window,
         timeout_seconds=timeout,
+        power_window=policy.serving.demand_window,
+        rated_watts=policy.power.rated_watts,
         transport=httpx.MockTransport(fake.handler),
     )
+
+
+def vector(*series: tuple[dict[str, str], float]) -> Reply:
+    """A successful instant-query reply holding these (labels, value) samples."""
+    result = [{"metric": labels, "value": [NOW.timestamp(), str(v)]} for labels, v in series]
+    body = {"status": "success", "data": {"resultType": "vector", "result": result}}
+    return lambda: httpx.Response(200, json=body)
 
 
 async def test_fetch_sends_the_documented_promql_in_order(policy: Policy, tmp_path: Path) -> None:
@@ -145,21 +151,18 @@ async def test_fetch_sends_the_documented_promql_in_order(policy: Policy, tmp_pa
     assert snapshot == ThanosSnapshot(cluster="ocp4-prod-gpu-site1", fetched_at=NOW)
 
 
-async def test_lab_cluster_shape_is_all_empty_and_every_counter_absent(
-    policy: Policy, tmp_path: Path
-) -> None:
+async def test_lab_cluster_shape_is_all_empty(policy: Policy, tmp_path: Path) -> None:
     fake = FakeThanos()
     with capture_logs() as events:
         async with make_source(fake, make_conn(tmp_path), policy) as source:
             snapshot = await source.fetch(NOW)
-    assert snapshot.counters == {}
     assert snapshot.activity_metric is None
     [event] = [e for e in events if e["event"] == "thanos_fetch"]
     assert event["log_level"] == "info"
     assert event["cluster"] == "ocp4-prod-gpu-site1"
+    assert event["queries"] == len(DEFAULT_QUERIES)
     assert event["nodes_with_dcgm"] == event["pods_with_activity"] == 0
-    assert event["counters_with_series"] == []
-    assert event["counters_absent"] == [c.selector for c in policy.counters()]
+    assert not any(key.startswith("counters") for key in event)
     assert event["duration_s"] >= 0
 
 
@@ -224,127 +227,128 @@ def test_merge_activity_names_the_field_used(
     assert activity == {**util, **prof}
 
 
-async def test_counters_keep_zero_and_leave_missing_selectors_absent(
+async def test_power_is_a_share_of_rated_power_per_pod_and_for_gpus_with_no_pod(
     policy: Policy, tmp_path: Path
 ) -> None:
+    """ADR-0009: the power limit wins over the model table; unrated GPUs and bad values drop."""
+
+    def gpu(i: int, pod: str = "", model: str = "NVIDIA H100 80GB HBM3") -> dict[str, str]:
+        labels = {"Hostname": "gpu-a", "UUID": f"GPU-{i}", "modelName": model}
+        if pod:
+            labels |= {"exported_namespace": "team-a", "exported_pod": pod}
+        return labels
+
     fake = FakeThanos(
         {
-            Q_EPP: fixture("synthetic/counter-epp.json"),
-            Q_VLLM: fixture("synthetic/counter-vllm-zero.json"),
-            Q_MODEL: fixture("synthetic/counter-all-nan.json"),
+            Q_POWER_PEAK: vector(
+                (gpu(0, "train-0"), 560.0),
+                (gpu(1, "train-0"), 70.0),
+                (gpu(2), 350.0),
+                (gpu(3), 60.0),
+                (gpu(4, "odd", model="Some Future GPU"), 900.0),
+                (gpu(5, "bad"), 9000.0),
+                (gpu(6, "pcie", model="NVIDIA H100 PCIe"), 100.0),
+            ),
+            Q_POWER_AVG: vector((gpu(0, "train-0"), 350.0), (gpu(1, "train-0"), 140.0)),
+            Q_POWER_LIMIT: vector(({"Hostname": "gpu-a", "UUID": "GPU-1"}, 350.0)),
         }
     )
-    with capture_logs() as events:
-        async with make_source(fake, make_conn(tmp_path), policy) as source:
-            snapshot = await source.fetch(NOW)
-    assert snapshot.counters == {
-        "llm_d_epp_request_total": {
-            ("llm", "qwen-kserve-router-scheduler-5d8f9c7b4-x2k9p"): 1234.0,
-            ("llm", "qwen-kserve-router-scheduler-5d8f9c7b4-q7w3z"): 5.0,
-        },
-        "vllm:request_success_total": {
-            ("llm", "qwen-kserve-7c9d6f5b8-h4j2k"): 0.0,
-            ("llm", "qwen-kserve-7c9d6f5b8-m8n3p"): 0.0,
-        },
-    }
-    [event] = [e for e in events if e["event"] == "thanos_fetch"]
-    assert event["counters_with_series"] == [
-        "llm_d_epp_request_total",
-        "vllm:request_success_total",
-    ]
-    assert event["counters_absent"] == [
-        "inference_objective_request_total",
-        "inference_model_request_total",
-    ]
-    assert event["rejected_samples"] == 3
+    async with make_source(fake, make_conn(tmp_path), policy) as source:
+        snapshot = await source.fetch(NOW)
+    train = snapshot.power_by_pod[("team-a", "train-0")]
+    assert (train.peak, train.gpus) == (pytest.approx(0.8), 2)
+    assert train.average == pytest.approx((350 / 700 + 140 / 350) / 2)
+    assert snapshot.power_by_pod[("team-a", "pcie")].peak == pytest.approx(100 / 350)
+    assert ("team-a", "odd") not in snapshot.power_by_pod
+    assert ("team-a", "bad") not in snapshot.power_by_pod
+    assert snapshot.free_gpu_power_by_node == {"gpu-a": (0.5, pytest.approx(60 / 700))}
 
 
-async def test_labels_windows_and_matchers_come_from_config(tmp_path: Path) -> None:
+async def test_labels_and_window_come_from_config(tmp_path: Path) -> None:
     conn = make_conn(
         tmp_path,
         dcgm_node_label="node",
         dcgm_uuid_label="gpu_uuid",
         dcgm_pod_label="pod",
         dcgm_namespace_label="namespace",
-        serving_pod_label="exported_pod",
-        serving_namespace_label="exported_namespace",
     )
-    epp = CounterOfRecord(
-        metric="llm_d_epp_request_total", pod_regex="^a$", matchers='fairness_id!="synthetic"'
-    )
-    counters = [epp, epp.model_copy(update={"pod_regex": "^b$"})]
-    q_epp = (
-        "sum by (exported_namespace, exported_pod) "
-        '(increase(llm_d_epp_request_total{fairness_id!="synthetic"}[3600s]))'
-    )
-    reply = httpx.Response(
-        200,
-        json={
-            "status": "success",
-            "data": {
-                "resultType": "vector",
-                "result": [
-                    {
-                        "metric": {"exported_namespace": "llm", "exported_pod": "epp-0"},
-                        "value": [0, "7"],
-                    }
-                ],
-            },
-        },
-    )
-    fake = FakeThanos({q_epp: lambda: reply})
+    fake = FakeThanos()
     source = ThanosSource(
         conn,
-        counters=counters,
-        demand_window=timedelta(hours=1),
         activity_window=timedelta(minutes=90),
         timeout_seconds=30,
         transport=httpx.MockTransport(fake.handler),
     )
     async with source:
-        snapshot = await source.fetch(NOW)
+        await source.fetch(NOW)
     assert fake.queries() == [
         "group by (node, gpu_uuid) (DCGM_FI_DEV_POWER_USAGE)",
         "max by (node, gpu_uuid) (DCGM_FI_DEV_XID_ERRORS) != 0",
         'max by (namespace, pod) (max_over_time(DCGM_FI_PROF_GR_ENGINE_ACTIVE{pod!=""}[5400s]))',
         'max by (namespace, pod) (max_over_time(DCGM_FI_DEV_GPU_UTIL{pod!=""}[5400s])) / 100',
-        q_epp,
+        "max by (node, gpu_uuid, namespace, pod, modelName)"
+        " (max_over_time(DCGM_FI_DEV_POWER_USAGE[5400s]))",
+        "max by (node, gpu_uuid, namespace, pod, modelName)"
+        " (avg_over_time(DCGM_FI_DEV_POWER_USAGE[5400s]))",
+        "max by (node, gpu_uuid) (DCGM_FI_DEV_POWER_MGMT_LIMIT)",
     ]
-    assert snapshot.counters == {epp.selector: {("llm", "epp-0"): 7.0}}
 
 
-async def test_real_lab_responses_parse_through_the_counter_path(
-    policy: Policy, tmp_path: Path
-) -> None:
-    counters = [
-        CounterOfRecord(metric="prometheus_http_requests_total", pod_regex="x"),
-        CounterOfRecord(metric="up", pod_regex="x"),
-        CounterOfRecord(metric="kubelet_running_pods", pod_regex="x"),
-    ]
-    fake = FakeThanos(
-        {
-            "sum by (namespace, pod) (increase(prometheus_http_requests_total[86400s]))": fixture(
-                "lab/increase-requests.json"
-            ),
-            "sum by (namespace, pod) (increase(up[86400s]))": fixture("lab/group-up.json"),
-            "sum by (namespace, pod) (increase(kubelet_running_pods[86400s]))": fixture(
-                "lab/promql-info-warning.json"
-            ),
-        }
+@pytest.mark.parametrize(
+    ("rel", "expected"),
+    [
+        (
+            "lab/increase-requests.json",
+            {
+                ("openshift-monitoring", "prometheus-k8s-0"): 2318.64406779661,
+                ("openshift-user-workload-monitoring", "prometheus-user-workload-0"): (
+                    2302.372881355932
+                ),
+            },
+        ),
+        (
+            "lab/group-up.json",
+            {
+                ("default", ""): 1.0,
+                ("openshift-apiserver", "apiserver-7dfc7df8d9-mt9xc"): 1.0,
+                ("openshift-oauth-apiserver", "apiserver-6744d9ffd7-gqt7g"): 1.0,
+                ("openshift-gitops", "openshift-gitops-application-controller-0"): 1.0,
+            },
+        ),
+    ],
+)
+def test_real_lab_responses_parse(rel: str, expected: dict[tuple[str, str], float]) -> None:
+    data = json.loads((FIXTURES / rel).read_text())
+    query = data.pop("_meta")["query"]
+    samples, dropped = parse_vector(data, source="thanos:lab", query=query)
+    assert dropped == 0
+    assert {(s.labels["namespace"], s.labels.get("pod", "")): s.value for s in samples} == expected
+
+
+async def test_lab_series_without_the_pod_label_are_skipped(policy: Policy, tmp_path: Path) -> None:
+    conn = make_conn(tmp_path, dcgm_namespace_label="namespace", dcgm_pod_label="pod")
+    q_prof = (
+        'max by (namespace, pod) (max_over_time(DCGM_FI_PROF_GR_ENGINE_ACTIVE{pod!=""}[21600s]))'
     )
-    async with make_source(fake, make_conn(tmp_path), policy, counters=counters) as source:
-        snapshot = await source.fetch(NOW)
-    assert snapshot.counters == {
-        "prometheus_http_requests_total": {
-            ("openshift-monitoring", "prometheus-k8s-0"): 2318.64406779661,
-            ("openshift-user-workload-monitoring", "prometheus-user-workload-0"): 2302.372881355932,
-        },
-        "up": {
-            ("openshift-apiserver", "apiserver-7dfc7df8d9-mt9xc"): 1.0,
-            ("openshift-oauth-apiserver", "apiserver-6744d9ffd7-gqt7g"): 1.0,
-            ("openshift-gitops", "openshift-gitops-application-controller-0"): 1.0,
-        },
+    fake = FakeThanos({q_prof: fixture("lab/group-up.json")})
+    with capture_logs() as events:
+        async with make_source(fake, conn, policy) as source:
+            snapshot = await source.fetch(NOW)
+    assert snapshot.activity_by_pod == {
+        ("openshift-apiserver", "apiserver-7dfc7df8d9-mt9xc"): 1.0,
+        ("openshift-oauth-apiserver", "apiserver-6744d9ffd7-gqt7g"): 1.0,
+        ("openshift-gitops", "openshift-gitops-application-controller-0"): 1.0,
     }
+    [event] = [e for e in events if e["event"] == "thanos_fetch"]
+    assert event["skipped_series"] == 1
+
+
+def test_lab_promql_info_annotation_is_not_a_failure() -> None:
+    data = json.loads((FIXTURES / "lab/promql-info-warning.json").read_text())
+    query = data.pop("_meta")["query"]
+    assert data["warnings"][0].startswith("PromQL info:")
+    samples, _ = parse_vector(data, source="thanos:lab", query=query)
+    assert samples
 
 
 @pytest.mark.parametrize(
@@ -380,7 +384,7 @@ async def test_real_lab_responses_parse_through_the_counter_path(
 async def test_any_failed_query_fails_the_whole_fetch(
     policy: Policy, tmp_path: Path, reply: Reply, kind: SourceErrorKind
 ) -> None:
-    fake = FakeThanos({Q_GPUS: fixture("synthetic/dcgm-gpus.json"), Q_VLLM: reply})
+    fake = FakeThanos({Q_GPUS: fixture("synthetic/dcgm-gpus.json"), Q_POWER_LIMIT: reply})
     async with make_source(fake, make_conn(tmp_path), policy) as source:
         with pytest.raises(SourceError) as excinfo:
             await source.fetch(NOW)
@@ -414,7 +418,7 @@ async def test_unavailable_is_retried_with_retry_after(policy: Policy, tmp_path:
 
 async def test_whole_fetch_deadline(policy: Policy, tmp_path: Path) -> None:
     fake = FakeThanos()
-    fake.delay = 0.03
+    fake.delay = 0.04
     async with make_source(fake, make_conn(tmp_path), policy, timeout=0.1) as source:
         started = time.monotonic()
         with pytest.raises(SourceError) as excinfo:
@@ -444,11 +448,14 @@ async def test_token_reread_each_fetch_and_never_logged(
         async with make_source(fake, conn, policy) as source:
             await source.fetch(NOW)
             conn.token_file.write_text("synthetic-rotated-token\n")
-            fake.replies[Q_VLLM] = [status(401)]
+            fake.replies[Q_UTIL] = [status(401)]
             with pytest.raises(SourceError) as excinfo:
                 await source.fetch(NOW)
     headers = [r.headers["authorization"] for r in fake.requests]
-    assert headers == [f"Bearer {TOKEN}"] * 8 + ["Bearer synthetic-rotated-token"] * 8
+    assert (
+        headers
+        == [f"Bearer {TOKEN}"] * len(DEFAULT_QUERIES) + ["Bearer synthetic-rotated-token"] * 4
+    )
     logged = repr(events) + caplog.text + str(excinfo.value)
     assert TOKEN not in logged
     assert "synthetic-rotated-token" not in logged
@@ -481,8 +488,8 @@ async def test_naive_now_is_refused(policy: Policy, tmp_path: Path) -> None:
     ("overrides", "kwargs"),
     [
         ({"dcgm_node_label": "Host name"}, {}),
-        ({"serving_pod_label": 'pod="x"'}, {}),
-        ({}, {"demand_window": timedelta(milliseconds=500)}),
+        ({"dcgm_pod_label": 'pod="x"'}, {}),
+        ({}, {"activity_window": timedelta(milliseconds=500)}),
         ({}, {"activity_window": timedelta(0)}),
         ({}, {"timeout_seconds": 0}),
         ({"thanos_insecure_skip_tls_verify": True, "thanos_ca_bundle": "/etc/pki/ttv/ca.pem"}, {}),
@@ -492,8 +499,6 @@ def test_invalid_configuration_is_refused(
     tmp_path: Path, overrides: dict[str, Any], kwargs: dict[str, Any]
 ) -> None:
     args: dict[str, Any] = {
-        "counters": [],
-        "demand_window": timedelta(hours=24),
         "activity_window": timedelta(hours=6),
         "timeout_seconds": 30.0,
         **kwargs,
@@ -514,8 +519,6 @@ def test_skipping_tls_verification_is_opt_in_and_warns(
 
     monkeypatch.setattr(httpx, "AsyncClient", spy)
     args: dict[str, Any] = {
-        "counters": [],
-        "demand_window": timedelta(hours=24),
         "activity_window": timedelta(hours=6),
         "timeout_seconds": 30.0,
     }

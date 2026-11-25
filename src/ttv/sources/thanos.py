@@ -1,8 +1,9 @@
 """
 Read-only async client for one target cluster's Thanos querier (AGENT.md §20.3, §8).
 
-Each fetch sends a fixed set of instant queries to `GET /api/v1/query`; the PromQL strings
-are the documented contract (docs/discovery.md "Target GPU clusters", D1-D4, D8, D11).
+Each fetch sends a fixed set of DCGM instant queries to `GET /api/v1/query`; the PromQL strings
+are the documented contract (docs/discovery.md "Target GPU clusters", D1-D4, D11). Serving
+requests are read from each vLLM pod instead (`ttv.sources.pod_metrics`, ADR-0009).
 """
 
 from __future__ import annotations
@@ -12,7 +13,7 @@ import dataclasses
 import math
 import re
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -20,8 +21,8 @@ from typing import Any
 import httpx
 import structlog
 
-from ttv.config import ClusterConnection, CounterOfRecord
-from ttv.models import ThanosSnapshot
+from ttv.config import ClusterConnection
+from ttv.models import PodPower, ThanosSnapshot
 from ttv.sources.http import (
     SourceError,
     SourceErrorKind,
@@ -34,6 +35,8 @@ log = structlog.get_logger(__name__)
 
 QUERY_PATH = "/api/v1/query"
 POWER_METRIC = "DCGM_FI_DEV_POWER_USAGE"
+POWER_LIMIT_METRIC = "DCGM_FI_DEV_POWER_MGMT_LIMIT"
+MAX_WATTS = 5000.0
 XID_METRIC = "DCGM_FI_DEV_XID_ERRORS"
 PROF_ACTIVITY = "DCGM_FI_PROF_GR_ENGINE_ACTIVE"
 UTIL_ACTIVITY = "DCGM_FI_DEV_GPU_UTIL"
@@ -111,14 +114,18 @@ class Queries:
         xid (str): Non-zero last XID per GPU.
         prof (str): Peak `GR_ENGINE_ACTIVE` per pod over the activity window (0-1).
         util (str): Peak `GPU_UTIL` per pod over the activity window, scaled to 0-1.
-        counters (tuple[tuple[str, str], ...]): `(selector, promql)` per distinct counter.
+        power_peak (str): Peak power per GPU and pod over the activity window, in watts.
+        power_avg (str): Average power per GPU and pod over the power window, in watts.
+        power_limit (str): Power-management limit per GPU, in watts (often not exported).
     """
 
     gpus: str
     xid: str
     prof: str
     util: str
-    counters: tuple[tuple[str, str], ...]
+    power_peak: str
+    power_avg: str
+    power_limit: str
 
     def all(self) -> list[str]:
         """
@@ -127,23 +134,28 @@ class Queries:
         Returns:
             list[str]: The PromQL strings.
         """
-        return [self.gpus, self.xid, self.prof, self.util, *(p for _, p in self.counters)]
+        return [
+            self.gpus,
+            self.xid,
+            self.prof,
+            self.util,
+            self.power_peak,
+            self.power_avg,
+            self.power_limit,
+        ]
 
 
 def build_queries(
-    conn: ClusterConnection,
-    counters: Sequence[CounterOfRecord],
-    demand_window: timedelta,
-    activity_window: timedelta,
+    conn: ClusterConnection, activity_window: timedelta, power_window: timedelta | None = None
 ) -> Queries:
     """
-    Build the fetch's PromQL from the connection's label names and the policy windows.
+    Build the fetch's PromQL from the connection's DCGM label names and the windows.
 
     Args:
-        conn (ClusterConnection): Supplies the DCGM and serving label names.
-        counters (Sequence[CounterOfRecord]): Serving counters; repeated selectors are dropped.
-        demand_window (timedelta): `increase()` range for serving counters.
-        activity_window (timedelta): `max_over_time()` range for GPU activity.
+        conn (ClusterConnection): Supplies the DCGM label names.
+        activity_window (timedelta): `max_over_time()` range for GPU activity and peak power.
+        power_window (timedelta | None): `avg_over_time()` range for average power (the
+            serving demand window); None uses `activity_window`.
 
     Returns:
         Queries: The queries.
@@ -156,8 +168,7 @@ def build_queries(
         conn.dcgm_uuid_label,
         conn.dcgm_pod_label,
         conn.dcgm_namespace_label,
-        conn.serving_pod_label,
-        conn.serving_namespace_label,
+        conn.dcgm_model_label,
     )
     bad = [name for name in labels if not _LABEL_NAME.fullmatch(name)]
     if bad:
@@ -165,8 +176,8 @@ def build_queries(
     node, uuid = conn.dcgm_node_label, conn.dcgm_uuid_label
     ns, pod = conn.dcgm_namespace_label, conn.dcgm_pod_label
     activity = format_window(activity_window)
-    demand = format_window(demand_window)
-    by_pod = f"{conn.serving_namespace_label}, {conn.serving_pod_label}"
+    average = format_window(power_window or activity_window)
+    per_gpu = f"{node}, {uuid}, {ns}, {pod}, {conn.dcgm_model_label}"
 
     def peak(metric: str) -> str:
         """
@@ -185,10 +196,9 @@ def build_queries(
         xid=f"max by ({node}, {uuid}) ({XID_METRIC}) != 0",
         prof=peak(PROF_ACTIVITY),
         util=f"{peak(UTIL_ACTIVITY)} / 100",
-        counters=tuple(
-            (sel, f"sum by ({by_pod}) (increase({sel}[{demand}]))")
-            for sel in dict.fromkeys(c.selector for c in counters)
-        ),
+        power_peak=f"max by ({per_gpu}) (max_over_time({POWER_METRIC}[{activity}]))",
+        power_avg=f"max by ({per_gpu}) (avg_over_time({POWER_METRIC}[{average}]))",
+        power_limit=f"max by ({node}, {uuid}) ({POWER_LIMIT_METRIC})",
     )
 
 
@@ -292,6 +302,79 @@ def _keyed(
     return out
 
 
+def gpu_power(
+    peak: Sequence[Sample],
+    average: Sequence[Sample],
+    limits: Mapping[tuple[str, str], float],
+    conn: ClusterConnection,
+    rated: Callable[[str], float | None],
+    tally: _Tally,
+) -> tuple[dict[tuple[str, str], PodPower], dict[str, tuple[float, ...]]]:
+    """
+    Turn per-GPU power into shares of rated power, per pod and for GPUs with no pod.
+
+    Args:
+        peak (Sequence[Sample]): Peak watts per GPU and pod.
+        average (Sequence[Sample]): Average watts per GPU and pod.
+        limits (Mapping[tuple[str, str], float]): `(node, uuid)` → power limit in watts.
+        conn (ClusterConnection): The DCGM label names.
+        rated (Callable[[str], float | None]): Rated watts by model name.
+        tally (_Tally): Counts what was skipped or rejected.
+
+    Returns:
+        tuple[dict[tuple[str, str], PodPower], dict[str, tuple[float, ...]]]: Power per
+        `(namespace, pod)`, and per node the peak shares of GPUs whose series has no pod.
+    """
+    node_l, uuid_l = conn.dcgm_node_label, conn.dcgm_uuid_label
+    ns_l, pod_l = conn.dcgm_namespace_label, conn.dcgm_pod_label
+
+    def shares(samples: Sequence[Sample]) -> dict[tuple[str, str, str, str], float]:
+        """
+        Share of rated power per (node, uuid, namespace, pod); unrated GPUs are left out.
+
+        Args:
+            samples (Sequence[Sample]): Watts per GPU and pod.
+
+        Returns:
+            dict[tuple[str, str, str, str], float]: The shares.
+        """
+        out: dict[tuple[str, str, str, str], float] = {}
+        for s in samples:
+            node, uuid = s.labels.get(node_l, ""), s.labels.get(uuid_l, "")
+            if not node or not uuid:
+                tally.skipped_series += 1
+                continue
+            if not 0 <= s.value <= MAX_WATTS:
+                tally.rejected_samples += 1
+                continue
+            watts = limits.get((node, uuid)) or rated(s.labels.get(conn.dcgm_model_label, ""))
+            if watts:
+                key = (node, uuid, s.labels.get(ns_l, ""), s.labels.get(pod_l, ""))
+                out[key] = s.value / watts
+        return out
+
+    peaks, averages = shares(peak), shares(average)
+    by_pod: dict[tuple[str, str], tuple[list[float], list[float]]] = {}
+    free: dict[str, list[float]] = {}
+    for (node, _uuid, ns, pod), share in peaks.items():
+        if pod:
+            by_pod.setdefault((ns, pod), ([], []))[0].append(share)
+        else:
+            free.setdefault(node, []).append(share)
+    for (_node, _uuid, ns, pod), share in averages.items():
+        if pod:
+            by_pod.setdefault((ns, pod), ([], []))[1].append(share)
+    power = {
+        key: PodPower(
+            peak=max(p) if p else None,
+            average=sum(a) / len(a) if a else None,
+            gpus=max(len(p), len(a)),
+        )
+        for key, (p, a) in by_pod.items()
+    }
+    return power, {node: tuple(sorted(v, reverse=True)) for node, v in free.items()}
+
+
 def merge_activity(
     prof: Mapping[tuple[str, str], float], util: Mapping[tuple[str, str], float]
 ) -> tuple[dict[tuple[str, str], float], str | None]:
@@ -325,21 +408,22 @@ class ThanosSource:
         self,
         conn: ClusterConnection,
         *,
-        counters: Sequence[CounterOfRecord],
-        demand_window: timedelta,
         activity_window: timedelta,
         timeout_seconds: float,
+        power_window: timedelta | None = None,
+        rated_watts: Callable[[str], float | None] = lambda _model: None,
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         """
         Create the client; TLS is verified unless `thanos_insecure_skip_tls_verify` is set.
 
         Args:
-            conn (ClusterConnection): Route, token file, CA bundle and label names.
-            counters (Sequence[CounterOfRecord]): Serving counters, e.g. `Policy.counters()`.
-            demand_window (timedelta): `ServingPolicy.demand_window`.
+            conn (ClusterConnection): Route, token file, CA bundle and DCGM label names.
             activity_window (timedelta): `AllocatedIdlePolicy.window`.
             timeout_seconds (float): Deadline for one whole fetch (and for each request).
+            power_window (timedelta | None): Average-power window (`ServingPolicy.demand_window`).
+            rated_watts (Callable[[str], float | None]): Rated watts by GPU model name, used
+                when DCGM exports no power limit (`PowerPolicy.rated_watts`).
             transport (httpx.AsyncBaseTransport | None): Test transport; None for the network.
 
         Raises:
@@ -352,7 +436,8 @@ class ThanosSource:
         self._base_url = httpx.URL(conn.thanos_url.rstrip("/"))
         if self._base_url.scheme != "https" or not self._base_url.host:
             raise ValueError(f"{conn.name}: thanos_url must be an absolute https URL")
-        self.queries = build_queries(conn, counters, demand_window, activity_window)
+        self.queries = build_queries(conn, activity_window, power_window)
+        self._rated = rated_watts
         self._timeout = timeout_seconds
         self._lock = asyncio.Lock()
         insecure = conn.thanos_insecure_skip_tls_verify
@@ -415,7 +500,7 @@ class ThanosSource:
             now (datetime): Evaluation time, timezone-aware; becomes `fetched_at`.
 
         Returns:
-            ThanosSnapshot: GPUs per node, XIDs, pod activity and serving counters.
+            ThanosSnapshot: GPUs per node, XIDs and pod activity.
 
         Raises:
             SourceError: The token is unreadable, a query failed, or the deadline passed.
@@ -450,9 +535,8 @@ class ThanosSource:
             gpus=sum(len(uuids) for uuids in snapshot.gpu_uuids_by_node.values()),
             nodes_with_xid=len(snapshot.last_xid_by_node),
             pods_with_activity=len(snapshot.activity_by_pod),
+            pods_with_power=len(snapshot.power_by_pod),
             activity_metric=snapshot.activity_metric,
-            counters_with_series=list(snapshot.counters),
-            counters_absent=[s for s, _ in self.queries.counters if s not in snapshot.counters],
             **dataclasses.asdict(tally),
             duration_s=round(time.monotonic() - started, 3),
         )
@@ -492,7 +576,6 @@ class ThanosSource:
 
         dcgm_gpu = (conn.dcgm_node_label, conn.dcgm_uuid_label)
         dcgm_pod = (conn.dcgm_namespace_label, conn.dcgm_pod_label)
-        serving_pod = (conn.serving_namespace_label, conn.serving_pod_label)
         gpus: dict[str, set[str]] = {}
         for node, uuid in _keyed(await run(q.gpus), dcgm_gpu, tally):
             gpus.setdefault(node, set()).add(uuid)
@@ -502,10 +585,9 @@ class ThanosSource:
         prof = _keyed(await run(q.prof), dcgm_pod, tally, low=0.0, high=1.0)
         util = _keyed(await run(q.util), dcgm_pod, tally, low=0.0, high=1.0)
         activity, activity_metric = merge_activity(prof, util)
-        counters: dict[str, dict[tuple[str, str], float]] = {}
-        for selector, promql in q.counters:
-            if values := _keyed(await run(promql), serving_pod, tally, low=0.0):
-                counters[selector] = values
+        power_peak, power_avg = await run(q.power_peak), await run(q.power_avg)
+        limits = _keyed(await run(q.power_limit), dcgm_gpu, tally, low=1.0, high=MAX_WATTS)
+        power, free_power = gpu_power(power_peak, power_avg, limits, conn, self._rated, tally)
         if tally.skipped_series or tally.rejected_samples:
             log.debug("thanos.series_dropped", source=self.source, **dataclasses.asdict(tally))
         snapshot = ThanosSnapshot(
@@ -515,7 +597,8 @@ class ThanosSource:
             last_xid_by_node=xids,
             activity_by_pod=activity,
             activity_metric=activity_metric,
-            counters=counters,
+            power_by_pod=power,
+            free_gpu_power_by_node=free_power,
         )
         return snapshot, tally
 
