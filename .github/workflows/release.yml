@@ -1,0 +1,102 @@
+# On a vX.Y.Z tag: the gate, then the gpu-ttv image on GHCR (linux/amd64, by digest), both Helm
+# charts pointing at that digest, and the offline bundle, all on one GitHub Release (ADR-0007).
+name: Release
+
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    uses: ./.github/workflows/ci.yml
+
+  publish:
+    needs: gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: write  # the GitHub Release
+      packages: write  # ghcr.io/<owner>/gpu-ttv
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
+        with:
+          version: "0.13.6"
+          python-version: "3.12"
+
+      - name: Tag, app and chart versions agree
+        run: |
+          version=${GITHUB_REF_NAME#v}
+          app=$(sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml | head -1)
+          chart=$(sed -n 's/^version: *//p' deploy/helm/gpu-ttv/Chart.yaml)
+          app_chart=$(sed -n 's/^appVersion: *"\{0,1\}\([^"]*\)"\{0,1\}$/\1/p' deploy/helm/gpu-ttv/Chart.yaml)
+          if [ "$version" != "$app" ] || [ "$version" != "$chart" ] || [ "$version" != "$app_chart" ]; then
+            echo "::error::tag $GITHUB_REF_NAME, pyproject $app, chart $chart and appVersion $app_chart must agree"
+            exit 1
+          fi
+          # The bundle holds every architecture of every locked image: use the large /mnt disk.
+          dist=/mnt/gpu-ttv-dist
+          if ! { sudo mkdir -p "$dist" && sudo chown "$USER" "$dist"; }; then dist=$RUNNER_TEMP/dist; fi
+          df -h / "$dist"
+          {
+            echo "VERSION=$version"
+            echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/gpu-ttv"
+            echo "DIST=$dist"
+          } >> "$GITHUB_ENV"
+
+      - name: Build the image
+        run: |
+          podman build --platform linux/amd64 \
+            --build-arg "VERSION=$VERSION" --build-arg "REVISION=$GITHUB_SHA" \
+            --label "org.opencontainers.image.source=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
+            -t "$IMAGE:$VERSION" .
+
+      - name: Push it to GHCR
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          printf '%s' "$TOKEN" | podman login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          podman push --digestfile "$RUNNER_TEMP/digest" "$IMAGE:$VERSION"
+          echo "DIGEST=$(cat "$RUNNER_TEMP/digest")" >> "$GITHUB_ENV"
+
+      - name: Point the chart at the pushed digest
+        run: offline/set-chart-image.sh deploy/helm/gpu-ttv/values.yaml ghcr.io "${IMAGE#ghcr.io/}" "$DIGEST"
+
+      - name: Build the offline bundle
+        run: offline/make-bundle.sh --out "$DIST/gpu-ttv-$VERSION" --arch x86_64 --image "$IMAGE@$DIGEST"
+
+      - name: Split the bundle into release assets
+        run: |
+          b=gpu-ttv-$VERSION
+          mkdir -p "$DIST/assets"
+          # GitHub limits each release asset to 2 GiB.
+          tar -C "$DIST" -cf - "$b" | split -b 1900M -d -a 2 - "$DIST/assets/$b-bundle.tar.part-"
+          cp "$DIST/$b/charts/"*.tgz "$DIST/$b/charts/values-image.yaml" "$DIST/assets/"
+          (cd "$DIST/assets" && sha256sum -- * > SHA256SUMS)
+          ls -l "$DIST/assets"
+          echo "BUNDLE_SUMS=$(sha256sum "$DIST/$b/SHA256SUMS" | cut -d' ' -f1)" >> "$GITHUB_ENV"
+
+      - name: Publish the GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          b=gpu-ttv-$VERSION
+          cat > "$RUNNER_TEMP/notes.md" <<EOF
+          **Image:** \`$IMAGE@$DIGEST\` (tag \`$VERSION\`, linux/amd64). The \`$b.tgz\` chart already points at it.
+
+          **Air-gapped install** (\`offline/README.md\` in the bundle has every step):
+          1. Download every asset, then check them: \`sha256sum -c SHA256SUMS\`.
+          2. Join and unpack the bundle: \`cat $b-bundle.tar.part-* | tar -xf -\`.
+          3. Check the bundle's own checksum file: \`sha256sum $b/SHA256SUMS\` must print \`$BUNDLE_SUMS\`.
+          4. Carry \`$b/\` in, run \`offline/import-images.sh --registry <internal registry> --bundle .\` from inside it, then
+             \`helm upgrade --install gpu-ttv charts/$b.tgz -n gpu-ttv -f charts/values-image.yaml --set image.registry=<internal registry> -f values-production.yaml\`.
+          EOF
+          gh release create "$GITHUB_REF_NAME" --title "gpu-ttv $VERSION" --notes-file "$RUNNER_TEMP/notes.md" \
+            "$DIST/assets/"*
