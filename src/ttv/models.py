@@ -21,7 +21,6 @@ class Category(enum.StrEnum):
 class Stage(enum.StrEnum):
     """Pipeline stages; each maps to a configurable owning team."""
 
-    PRE_PROVISIONING = "PRE_PROVISIONING"
     PROVISIONING = "PROVISIONING"
     GPU_PLATFORM = "GPU_PLATFORM"
     SERVING = "SERVING"
@@ -33,9 +32,6 @@ class Reason(enum.StrEnum):
     EXCLUDED = "EXCLUDED"
     SOURCE_STALE = "SOURCE_STALE"
     IDENTITY_CONFLICT = "IDENTITY_CONFLICT"
-    PROFILE_NONE = "PROFILE_NONE"
-    OTHER_INTENDED_USE = "OTHER_INTENDED_USE"
-    HANDOVER_PENDING = "HANDOVER_PENDING"
     MAINTENANCE = "MAINTENANCE"
     HARDWARE_CRITICAL = "HARDWARE_CRITICAL"
     BMC_UNREACHABLE = "BMC_UNREACHABLE"
@@ -70,7 +66,6 @@ class Flag(enum.StrEnum):
     ALLOCATED_IDLE = "allocated_idle"
     LOW_USE_UNVERIFIED = "low_use_unverified"
     USER_ATTRIBUTION_UNVERIFIED = "user_attribution_unverified"
-    HANDOVER_OVERDUE = "handover_overdue"
 
 
 @dataclass(frozen=True)
@@ -86,7 +81,7 @@ class ServerScanServer:
         system_uuid (str | None): `identity.system_uuid`.
         model (str | None): Server model.
         site_id (str | None): server-scan site.
-        source_provider (str): Collector that owns the record, e.g. `UCS_CENTRAL`.
+        source_provider (str): server-scan collector that owns the record, e.g. `UCS_CENTRAL`.
         gpu_models (tuple[str, ...] | None): One model per GPU ("" if unnamed); None when
             server-scan lists `hardware.gpus` in `unread_fields`.
         profile_template_name (str | None): `profile_template.name`.
@@ -151,73 +146,6 @@ class SourceStatus:
 
 
 @dataclass(frozen=True)
-class ManagerServer:
-    """
-    One server as the profile-less collector saw it in UCS Central or OpenManage (ADR-0002 3-5).
-
-    Attributes:
-        vendor (str): `cisco` or `dell` (server-scan's `identity.vendor` values).
-        serial_normalized (str): `identity.normalize_serial` of the hardware serial (Cisco
-            `serial`, Dell `DeviceServiceTag`); "" when the manager has none.
-        manager (str): Manager it came from, e.g. `ucs-central:<name>`, `openmanage:<name>`.
-        source_id (str): The manager's id for it: the compute DN (Cisco), the device Id (Dell).
-        name (str | None): Hardware name (DN, `DeviceName`).
-        model (str | None): Server model.
-        profile_name (str | None): Name of the profile bound to it in any state; None when no
-            profile is bound (the simplified rule of 2026-10-30).
-        gpu_models (tuple[str, ...] | None): One entry per GPU ("" if unnamed); () when the
-            manager reports none; None when GPU inventory could not be read.
-        domain (str | None): UCS domain name or id; OME group, when known.
-        evidence (Mapping[str, Any]): Raw facts kept for `/explain` (profile DN or id, states,
-            GPU source, domain freshness).
-        profile_unresolved (str | None): Why the bound profile could not be determined (e.g. a
-            target name shared by several servers); when set, `profile_name` means nothing and
-            the server is an identity conflict, never PROFILE_NONE (ADR-0004).
-    """
-
-    vendor: str
-    serial_normalized: str
-    manager: str
-    source_id: str
-    name: str | None
-    model: str | None
-    profile_name: str | None
-    gpu_models: tuple[str, ...] | None
-    domain: str | None = None
-    evidence: Mapping[str, Any] = field(default_factory=dict)
-    profile_unresolved: str | None = None
-
-
-@dataclass(frozen=True)
-class CollectorRead:
-    """
-    One profile-less collector read of one manager.
-
-    Attributes:
-        manager (str): Manager name, as in `ManagerServer.manager`.
-        kind (str): `ucs_central` or `openmanage`.
-        started_at (datetime): Read start.
-        finished_at (datetime): Read end.
-        complete (bool): The server and profile listings were read in full, so a server
-            missing from the read is absent. Per-server gaps (GPUs unread, profile unresolved)
-            stay on the server and do not make a read incomplete. The engine ignores the servers
-            of an incomplete read and never retires a server because of one (§4, ADR-0004).
-        servers (tuple[ManagerServer, ...]): Every server read, with or without GPUs.
-        errors (tuple[str, ...]): Error summaries without secrets.
-        coverage (Mapping[str, Any]): Counts: domains read/skipped, devices, GPU inventory unread.
-    """
-
-    manager: str
-    kind: str
-    started_at: datetime
-    finished_at: datetime
-    complete: bool
-    servers: tuple[ManagerServer, ...]
-    errors: tuple[str, ...] = ()
-    coverage: Mapping[str, Any] = field(default_factory=dict)
-
-
-@dataclass(frozen=True)
 class AssetInput:
     """
     Everything the classifier knows about one asset in one snapshot.
@@ -226,19 +154,11 @@ class AssetInput:
         asset_id (str): `<vendor>:<serial_normalized>`, or a fallback key (see identity.py).
         serverscan (ServerScanServer | None): The server-scan record, if any.
         conflict (str | None): Why the identity is ambiguous, if it is.
-        collector (ManagerServer | None): The collector's record, for an asset server-scan does
-            not have (rows 3-5).
-        collector_first_seen (datetime | None): When the collector first saw it (a lower bound).
-        collector_profile_since (datetime | None): When the collector first saw its current
-            profile name bound (the handover clock of row 5).
     """
 
     asset_id: str
     serverscan: ServerScanServer | None
     conflict: str | None = None
-    collector: ManagerServer | None = None
-    collector_first_seen: datetime | None = None
-    collector_profile_since: datetime | None = None
 
 
 @dataclass(frozen=True)

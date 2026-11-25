@@ -16,7 +16,8 @@ from typing import Any
 import pytest
 import yaml
 
-from ttv.config import ClustersFile, ManagersFile, Policy, Settings
+from ttv.config import ClustersFile, Policy, Settings
+from ttv.models import Stage
 
 ROOT = Path(__file__).resolve().parents[1]
 CHART = ROOT / "deploy/helm/gpu-ttv"
@@ -29,8 +30,8 @@ DIGEST_REF = re.compile(r"^[a-z0-9.-]+(?::[0-9]+)?/[a-z0-9._/-]+@sha256:[0-9a-f]
 # Set by the chart itself (or fixed by the image), so never accepted under `settings`.
 CHART_MANAGED = {
     "TTV_DRY_RUN", "TTV_SERVERSCAN_URL", "TTV_SERVERSCAN_TOKEN_FILE", "TTV_CA_BUNDLE",
-    "TTV_DATABASE_URL", "TTV_POLICY_FILE", "TTV_CLUSTERS_FILE", "TTV_MANAGERS_FILE",
-    "TTV_PRICING_DIR", "TTV_API_HOST", "TTV_API_PORT",
+    "TTV_DATABASE_URL", "TTV_POLICY_FILE", "TTV_CLUSTERS_FILE", "TTV_PRICING_DIR",
+    "TTV_API_HOST", "TTV_API_PORT",
 }  # fmt: skip
 
 pytestmark = [
@@ -137,7 +138,7 @@ def test_every_image_is_pinned_by_digest(
     default_docs: list[dict[str, Any]], full_docs: list[dict[str, Any]]
 ) -> None:
     images = [c["image"] for docs in (default_docs, full_docs) for _, c in containers(docs)]
-    assert len(images) == 3  # engine (default) + engine and collector (full)
+    assert len(images) == 2  # the engine, in each render
     assert all(DIGEST_REF.match(i) for i in images), images
     assert helm_template(CHART, "--set", "image.digest=latest").returncode != 0
 
@@ -227,7 +228,7 @@ def test_every_ttv_variable_the_chart_sets_is_a_setting(full_docs: list[dict[str
     fields = {f"TTV_{name.upper()}" for name in Settings.model_fields}
     names = {n for _, c in containers(full_docs) for n in env(c) if n.startswith("TTV_")}
     assert names <= fields, names - fields
-    assert {"TTV_DRY_RUN", "TTV_DATABASE_URL", "TTV_MANAGERS_FILE", "TTV_CLUSTERS_FILE"} <= names
+    assert {"TTV_DRY_RUN", "TTV_DATABASE_URL", "TTV_POLICY_FILE", "TTV_CLUSTERS_FILE"} <= names
 
 
 def test_settings_schema_covers_exactly_the_settings_the_chart_leaves_open() -> None:
@@ -239,22 +240,22 @@ def test_settings_schema_covers_exactly_the_settings_the_chart_leaves_open() -> 
     assert helm_template(CHART, "--set", "settings.TTV_SCAN_INTERVL_SECONDS=60").returncode != 0
 
 
-def test_generated_config_files_load_in_the_engine_and_collector(
+def test_generated_config_files_load_in_the_engine(
     default_docs: list[dict[str, Any]], full_docs: list[dict[str, Any]]
 ) -> None:
     example = (ROOT / "config/policy.example.yaml").read_text()
     assert config_map_file(default_docs, "-policy", "policy.yaml") == example
-    policy = Policy.model_validate(
-        yaml.safe_load(config_map_file(full_docs, "-policy", "policy.yaml"))
-    )
+    policies = [
+        Policy.model_validate(yaml.safe_load(config_map_file(docs, "-policy", "policy.yaml")))
+        for docs in (default_docs, full_docs)
+    ]
+    stages = {Stage.PROVISIONING, Stage.GPU_PLATFORM, Stage.SERVING}
+    for policy in policies:
+        assert set(policy.teams) == set(policy.stage_objectives) == stages
     clusters = ClustersFile.model_validate(
         yaml.safe_load(config_map_file(full_docs, "-clusters", "clusters.yaml"))
     ).clusters
-    assert {c.name for c in clusters} <= policy.target_clusters
-    managers = ManagersFile.model_validate(
-        yaml.safe_load(config_map_file(full_docs, "-managers", "managers.yaml"))
-    )
-    assert [m.name for m in managers.ucs_central + managers.openmanage] == ["central-1", "ome-1"]
+    assert {c.name for c in clusters} <= policies[1].target_clusters
 
 
 def test_every_configured_file_is_mounted(full_docs: list[dict[str, Any]]) -> None:
@@ -271,14 +272,29 @@ def test_every_configured_file_is_mounted(full_docs: list[dict[str, Any]]) -> No
     assert site1["ca_bundle"] == "/var/run/secrets/ttv/clusters/ocp4-prod-gpu-site1/ca.crt"
 
 
-def test_collector_runs_only_with_managers_and_a_database(
+def test_only_the_engine_runs(
     default_docs: list[dict[str, Any]], full_docs: list[dict[str, Any]]
 ) -> None:
-    assert [n for n in by_kind(default_docs, "Deployment") if n.endswith("-collector")] == []
-    assert [n for n in by_kind(full_docs, "Deployment") if n.endswith("-collector")]
-    result = helm_template(CHART, "--set", "collector.managers.openmanage[0].name=ome-1")
+    for docs in (default_docs, full_docs):
+        assert list(by_kind(docs, "Deployment")) == ["ttv-gpu-ttv-engine"]
+        assert list(by_kind(docs, "NetworkPolicy")) == ["ttv-gpu-ttv-engine"]
+
+
+@pytest.mark.parametrize(
+    ("args", "message"),
+    [
+        (["--set", "collector.managers.openmanage[0].name=ome-1"], "collector was removed"),
+        (["--set", "settings.TTV_COLLECTOR_STALE_AFTER=1h"], "TTV_COLLECTOR_STALE_AFTER"),
+        (["--set", "policy.teams.PRE_PROVISIONING=DC"], "PRE_PROVISIONING) was removed"),
+        (["--set", "policy.stage_objectives.PRE_PROVISIONING=3d"], "PRE_PROVISIONING) was removed"),
+    ],
+)
+def test_values_for_the_removed_collector_and_dc_stage_are_refused(
+    args: list[str], message: str
+) -> None:
+    result = helm_template(CHART, "-f", str(FULL_VALUES), *args)
     assert result.returncode != 0
-    assert "database.existingSecret is required" in result.stderr
+    assert message in result.stderr
 
 
 def test_a_cluster_outside_the_policy_targets_is_refused() -> None:
@@ -315,6 +331,3 @@ def test_engine_probes_and_metrics(full_docs: list[dict[str, Any]]) -> None:
     assert eng["readinessProbe"]["httpGet"]["path"] == "/readyz"
     monitor = next(iter(by_kind(full_docs, "ServiceMonitor").values()))
     assert monitor["spec"]["endpoints"][0]["path"] == "/metrics/"
-    policies = by_kind(full_docs, "NetworkPolicy")
-    collector = next(p for n, p in policies.items() if n.endswith("-collector"))
-    assert collector["spec"]["ingress"] == []

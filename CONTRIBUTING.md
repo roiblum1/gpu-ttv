@@ -2,7 +2,7 @@
 
 ## Ground rules
 
-- **Read-only toward every source.** server-scan, managers and clusters are read, never written. Each client has an allow-list guard; extend it only with a test proving what is still refused.
+- **Read-only toward every source.** server-scan and the target clusters are read, never written. Each client has an allow-list guard; extend it only with a test proving what is still refused.
 - **Unknown is never zero.** Missing telemetry, stale sources, unpriced models and time before first observation stay visible as UNKNOWN or as a lower bound (`≥ X`).
 - **Label evidence honestly:** `documented`, `fixture-tested`, `lab-tested`, `production-verified`. Fixtures and labs are never production evidence.
 - **Rules live in one place.** Classification is the pure function in `src/ttv/classify.py` and `gpu_rows.py`, described row by row in `docs/adr/0002-classification-rules.md`. Change both together.

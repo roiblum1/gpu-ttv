@@ -26,7 +26,7 @@ Mount `provisioning/datasources/` and `provisioning/dashboards/` under Grafana's
 | `TTV_PG_SSLROOTCERT` | path to the CA bundle inside the Grafana container for `verify-ca`/`verify-full`; may be empty otherwise |
 | `TTV_PROM_URL` | Prometheus/Thanos URL for the engine's `/metrics` (no slice-1 panel uses it yet) |
 
-The Grafana database user needs only `SELECT` on the ledger tables, including `gpu_model_aliases`, `pricing_snapshots`, `pricing_rates` and `pricing_selection` from `migrations/0002_pricing.sql`, and `collector_reads`, `collector_servers` and `collector_managers` from migrations 0003 and 0005 (validated with a SELECT-only role for slice 1). Dashboards are read-only in the UI (`allowUiUpdates: false`). To change one, edit the JSON and keep its `uid` and panel `id`s stable. For air-gapped Grafana, also set `GF_ANALYTICS_REPORTING_ENABLED=false`, `GF_ANALYTICS_CHECK_FOR_UPDATES=false`, `GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES=false`, `GF_NEWS_NEWS_FEED_ENABLED=false` and `GF_SECURITY_DISABLE_GRAVATAR=true`.
+The Grafana database user needs only `SELECT` on the ledger tables, including `gpu_model_aliases`, `pricing_snapshots`, `pricing_rates` and `pricing_selection` from `migrations/0002_pricing.sql` (validated with a SELECT-only role for slice 1). Dashboards are read-only in the UI (`allowUiUpdates: false`). To change one, edit the JSON and keep its `uid` and panel `id`s stable. For air-gapped Grafana, also set `GF_ANALYTICS_REPORTING_ENABLED=false`, `GF_ANALYTICS_CHECK_FOR_UPDATES=false`, `GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES=false`, `GF_NEWS_NEWS_FEED_ENABLED=false` and `GF_SECURITY_DISABLE_GRAVATAR=true`.
 
 ## Design conventions (every page)
 
@@ -60,7 +60,7 @@ The links bar titles are the short names (Home, Queues, Delivery, GPU use, Asset
 | UNKNOWN / not measured / unpriced | `purple` |
 | Neutral counts (inventory, totals) | `text` |
 
-**Ordering.** Stage owners always appear in pipeline order DC, Redbull, POPAI, Serving: `ORDER BY array_position(ARRAY['DC','Redbull','POPAI','Serving'], stage_owner)`. Categories: PRODUCTIVE, IDLE, NOT_CHARGED, UNKNOWN.
+**Ordering.** Stage owners always appear in pipeline order, sorted by stage, never by a list of team names: `ORDER BY array_position(ARRAY['PROVISIONING','GPU_PLATFORM','SERVING'], stage)` (today Redbull, POPAI, Serving). Owner names come from `capacity_intervals.stage_owner` (the policy's `teams`), so renaming a team never empties a panel. Over-time panels return one series per owner as `time`, `metric`, `value`. Categories: PRODUCTIVE, IDLE, NOT_CHARGED, UNKNOWN.
 
 **Variables.** Reuse Queues' definitions verbatim where a page needs them: `stage_owner` and `site` (multi, All = `'__all__'`, filter as `('__all__' IN ($site) OR coalesce(a.site, '(none)') IN ($site))`) and `snapshot`. Each panel's description lists the filters it honours.
 
@@ -88,10 +88,11 @@ The links bar titles are the short names (Home, Queues, Delivery, GPU use, Asset
 
 ## Reading the dashboards
 
-- **Home** answers the main story in a minute: five cards (idle GPUs, their AWS-equivalent value per hour, productive share of eligible GPUs with a label naming the eligible GPUs and those outside the target clusters, unknown GPUs, data age), the four stage queues in pipeline order with their oldest wait, every GPU by category, the ten longest waits, installed GPUs by model (E01, purchase dates "input missing"), idle/overdue time and value in the selected period with a trend, and Delivery's p50/p90 time to GPU-ready and to first genuine request (same queries, last 28 complete days). Set `GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/gpu-ttv/ttv-home.json` to open it first.
+- **Home** answers the main story in a minute: five cards (idle GPUs, their AWS-equivalent value per hour, productive share of eligible GPUs with a label naming the eligible GPUs and those outside the target clusters, unknown GPUs, data age), the three stage queues in pipeline order with their oldest wait, every GPU by category, the ten longest waits, installed GPUs by model (E01, purchase dates "input missing"), idle/overdue time and value in the selected period with a trend, and Delivery's p50/p90 time to GPU-ready and to first genuine request (same queries, last 28 complete days). Set `GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/gpu-ttv/ttv-home.json` to open it first.
 - **Value cards** show a number with a line above it: the snapshot's region and price date, and "at least (N GPUs unpriced)" when some GPUs have no rate, so the number is a lower bound.
 
 - **Now vs period.** "Now" panels read open intervals (`ended_at IS NULL`), i.e. the latest engine scan; "Data as of" and "Data age" show how old that is. Period panels clip every interval to the time range and end open intervals at `now()`.
+- **Stages and owners (ADR-0008).** Inventory comes from server-scan only. A GPU server waits in PROVISIONING (Redbull) from its first appearance in server-scan until it is a Ready node in a target cluster. MAINTENANCE, HARDWARE_CRITICAL and BMC_UNREACHABLE are Redbull's too: a server in maintenance, or one with critical hardware health or an unreachable BMC that is not a Ready node. Then GPU_PLATFORM (POPAI) and SERVING (Serving). Redbull's clock starts at server-scan's `claim_changed_at`, else at `created_at` as a lower bound (`≥`): time before a server appears in server-scan is unknown, never zero.
 - **Overdue** = the part of an IDLE interval after `stage_entered_at + objective`, joined on the interval's own `(stage, policy_version)` in `stage_objectives` (AGENT.md §20.5, §20.11). If an interval has no objective, its idle hours appear in "Idle GPU-h, no objective" and are never counted as 0 overdue.
 - **Lower bounds.** When `stage_entered_lower_bound` is true, times, days and GPU-hours display as `≥ X`.
 - **Unknown is never zero or green.** UNKNOWN GPUs are purple and kept separate. Panels with no evidence show "No data" or "never", not 0. Colours: green = productive/healthy, orange = idle/needs attention, red = overdue/problem, blue = NOT_CHARGED (approved exclusion), purple = unknown.
@@ -102,7 +103,7 @@ The links bar titles are the short names (Home, Queues, Delivery, GPU use, Asset
   - "Historical" columns value each interval at the snapshot in force when it started, so importing a newer snapshot never changes them. Intervals older than every snapshot are unpriced historically.
   - **Unpriced is never $0.** GPUs whose model has no rate are counted in "Unpriced idle GPUs now" (purple), listed with the reason in "Unpriced idle GPUs now, by model", and shown as unpriced GPU-h beside every USD column. A USD cell reading "unpriced" means nothing in that row could be priced. The value-per-hour stat excludes unpriced GPUs, so it is a lower bound whenever that count is above 0.
   - Dollars use the unit `prefix:$` so they are exact, not abbreviated to K/M.
-- **Delivery (E02).** Clocks stay separate: first record → GPU-ready → workload running → first genuine request, end-to-end per server from its own milestones, and one clock per stage episode (DC, Redbull, POPAI, Serving). The comparison is the last `$period` complete UTC days (default 28) against the period before. Percentiles use exact samples, whose ends the engine saw happen. With fewer than 5, they use exact plus lower-bound samples and show `≥`; with fewer still, "insufficient history (n = …)". Samples whose end was already true at first sight, rework and episodes that ended UNKNOWN are left out and counted as "excl.". "Quicker" is green only when nothing in the backlog is overdue. Cohort cells read "not matured" or `≥` rather than guess. Rules: `docs/adr/0005-delivery-clocks.md`. E07 (backlog flow) is Release 2.
+- **Delivery (E02).** Clocks stay separate: first record → GPU-ready → workload running → first genuine request, end-to-end per server from its own milestones, and one clock per stage episode (Redbull, POPAI, Serving). The comparison is the last `$period` complete UTC days (default 28) against the period before. Percentiles use exact samples, whose ends the engine saw happen. With fewer than 5, they use exact plus lower-bound samples and show `≥`; with fewer still, "insufficient history (n = …)". Samples whose end was already true at first sight, rework and episodes that ended UNKNOWN are left out and counted as "excl.". "Quicker" is green only when nothing in the backlog is overdue. Cohort cells read "not matured" or `≥` rather than guess. Rules: `docs/adr/0005-delivery-clocks.md`. E07 (backlog flow) is Release 2.
 - **GPU use (E12, `ttv-gpu-use`).** Each GPU falls in one use class, taken from its open interval:
   - *Useful work*: PRODUCTIVE, i.e. a Run:ai workload, or serving with genuine requests.
   - *Allocated, inactive*: PRODUCTIVE but flagged `allocated_idle`. The ledger still counts these GPUs as productive.
@@ -112,9 +113,9 @@ The links bar titles are the short names (Home, Queues, Delivery, GPU use, Asset
   - *Not measured* (purple): the GPU is not in a target cluster the engine reads. "Why GPUs are not measured" gives the reasons.
 
   The useful-work share is taken of measured GPUs. The not-measured share is taken of all GPUs, so the two are never added. "Allocation → useful work" shows that a held GPU or a loaded model is not delivered value. The `cluster` filter uses the interval's cluster, else the cluster named in its evidence or its `NODE_CLAIM` conflict. R1 has no source for per-GPU activity, memory pressure or SLO compliance, so those panels name the missing input instead of a number.
-- **Asset (`ttv-asset`).** Open it as `/d/ttv-asset?var-asset_id=<asset>`. Without that, it shows the asset with the most idle GPUs. The page shows identity, current buckets with their evidence in plain words, milestones (`≥` = lower bound), open identity conflicts, next-action annotations (display only), the latest collector record and a category timeline.
+- **Asset (`ttv-asset`).** Open it as `/d/ttv-asset?var-asset_id=<asset>`. Without that, it shows the asset with the most idle GPUs. The page shows identity, current buckets with their evidence in plain words, milestones (`≥` = lower bound), open identity conflicts, next-action annotations (display only) and a category timeline.
   - "Engine explanation" opens `${ttv_api}/explain/<asset>`. `ttv_api` is a hidden textbox, default `http://ttv-engine:8080`, and must be a URL the viewer's browser can reach, e.g. the engine's Route. To change it, edit its default in `ttv-asset.json` or add `&var-ttv_api=<url>` to the page URL.
-  - The panels on `milestones`, `identity_conflicts`, `next_action_annotations` and the collector tables run their query (through `query_to_xml`) only when the Grafana role can read the table. Otherwise they show a "Not available" row, not an error. Grant `SELECT` on `collector_reads`, `collector_servers` (migration 0003) and `collector_managers` (migration 0005) as well.
+  - The panels on `milestones`, `identity_conflicts` and `next_action_annotations` run their query (through `query_to_xml`) only when the Grafana role can read the table. Otherwise they show a "Not available" row, not an error.
 
 Assumptions the SQL makes about the engine:
 1. All intervals of one stage episode carry the same `stage_entered_at`.
@@ -143,7 +144,7 @@ R1 alerts for monitoring blindness and stage-objective breaches (AGENT.md §20, 
 
 ```
 grafana/provisioning/alerting/
-  ttv-rules.yaml           8 rules in folder "GPU Time-to-Value alerts":
+  ttv-rules.yaml           6 rules in folder "GPU Time-to-Value alerts":
                            group ttv-data-quality (1m), group ttv-stage-objectives (5m)
   ttv-notifications.yaml   inert contact point, always-on mute timing, policy tree
                            grouped by kind, owner, alertname
@@ -153,10 +154,8 @@ grafana/provisioning/alerting/
 | --- | --- | --- | --- |
 | TTV engine scans stale | data_quality | platform | No ok/partial engine scan for > 15 min (for 5m) |
 | TTV source failing past grace | data_quality | platform | A server-scan, kube or Thanos source failed ≥ 2 consecutive scans (for 5m) |
-| TTV collector manager stale | data_quality | platform | A manager has no complete collector read for > 60 min, or no collector read exists (for 15m) |
 | TTV UNKNOWN share high | data_quality | platform | > 10% of ledger GPUs UNKNOWN (for 30m) |
 | TTV UNKNOWN share growing | data_quality | platform | UNKNOWN share up > 5 points in 1 h (for 10m) |
-| TTV handover overdue | data_quality | platform | OCP-profile servers missing from server-scan past `handover_grace`, per manager (for 15m) |
 | TTV node not found | data_quality | platform | `NODE_NOT_FOUND` GPUs in an observed cluster (for 30m) |
 | TTV stage objective breached | stage_breach | the stage owner | Idle GPUs past their stage objective, one instance per owner (for 1h, keep firing 1h) |
 
@@ -165,11 +164,11 @@ grafana/provisioning/alerting/
 - **Mount** `provisioning/alerting/` at `/etc/grafana/provisioning/alerting/`, next to the datasource and dashboard mounts above.
   - A malformed alerting file stops Grafana from starting. `uv run pytest tests/test_alert_rules.py` checks both files.
   - Alerting provisions before dashboards, which is why the rules have their own folder: a shared title would create a second "GPU Time-to-Value" folder.
-- **Grants.** The Grafana database user also needs `SELECT` on `collector_reads` (`migrations/0003_collector.sql`) and `collector_managers` (`migrations/0005_collector_managers.sql`). The rules read `scan_runs`, `schema_migrations`, `source_state`, `capacity_intervals`, `stage_objectives`, `assets`, `next_action_annotations`, `collector_reads` and `collector_managers`. A missing grant shows as a `DatasourceError` or `DatasourceNoData` alert for the platform, never as a healthy rule.
+- **Grants.** The rules read `scan_runs`, `schema_migrations`, `source_state`, `capacity_intervals`, `stage_objectives`, `assets` and `next_action_annotations`, which the dashboard grants above already cover. A missing grant shows as a `DatasourceError` or `DatasourceNoData` alert for the platform, never as a healthy rule.
 - **Links.** `dashboard_url` and `asset_url` are built from Grafana's `root_url` (`GF_SERVER_ROOT_URL`); set it so links are absolute. `asset_url` opens the Asset page (`ttv-asset`) for the longest-waiting server.
 - **Runbooks.** `runbook_url` points at `https://github.com/roiblum1/gpu-ttv/blob/main/docs/runbooks.md#<rule uid>`. For the air-gapped install, rewrite that prefix to the internal Git mirror in `ttv-rules.yaml`, and change `RUNBOOK_BASE` in `tests/test_alert_rules.py` to match.
 - **Shared Grafana.** `ttv-notifications.yaml` replaces the organisation's whole notification policy tree. In a Grafana that other teams use, mount only `ttv-rules.yaml` and add the two routes to the existing tree by hand.
-- **Thresholds.** Thresholds copy engine settings: 300 s scans, `TTV_UNKNOWN_GRACE_SCANS=2`, `TTV_COLLECTOR_STALE_AFTER=1h`, `collector.handover_grace=6h`. Edit the rule when one of them changes. The UNKNOWN-share thresholds are provisional.
+- **Thresholds.** Thresholds copy engine settings: 300 s scans and `TTV_UNKNOWN_GRACE_SCANS=2`. Edit the rule when one of them changes. The UNKNOWN-share thresholds are provisional.
 
 ### Notification destinations (none configured)
 
@@ -188,7 +187,7 @@ To wire a real destination once one is supplied:
 
 ### Blindness never becomes a stage accusation
 
-- **The engine.** A stale source or manager, an unmatched node or a pending handover makes GPUs UNKNOWN. UNKNOWN GPUs have no stage owner, so they never count toward a stage breach.
+- **The engine.** A stale source, an unmatched node or an identity conflict makes GPUs UNKNOWN. UNKNOWN GPUs have no stage owner, so they never count toward a stage breach.
 - **The stage-breach rule.** It evaluates only while an ok or partial engine scan finished in the last 15 minutes and server-scan is within grace. Otherwise it returns no rows, and `KeepLast` holds each owner's instance: nothing new fires and nothing resolves.
 - **Who hears about it.** The blindness reaches the platform operators as data-quality alerts, grouped separately from stage breaches.
 
@@ -199,19 +198,18 @@ Details and the known limit (one failing cluster) are in `docs/runbooks.md`, "Bl
 2026-10-31, Grafana **12.4.14** (`docker.io/grafana/grafana@sha256:ae509d9ae8c1021ca32ec370a9ca975d40165eda9fccd1e1102d317ff8787cd7`), throwaway containers provisioned from these files:
 
 - **Provisioning (`lab-tested`).** Both files provisioned with no errors or template-expansion errors. The rules sit in their own folder, and the dashboards folder `gpu-ttv` is unchanged. Alertmanager groups by `kind`, `owner`, `alertname` into `ttv-unconfigured`.
-- **Lab ledger (`lab-tested`, read-only).** `ttv_lab2`, the lab ledger written by the running engine (sandbox server-scan plus cluster upi-tlv), was evaluated from 02:45 to 03:50 UTC. Every rule was healthy, and four fired exactly when their `for` elapsed:
+- **Lab ledger (`lab-tested`, read-only).** `ttv_lab2`, the lab ledger written by the running engine (sandbox server-scan plus cluster upi-tlv), was evaluated from 02:45 to 03:50 UTC. Every rule was healthy. Of the rules that remain, three fired exactly when their `for` elapsed (the run also covered two rules ADR-0008 removed since; their results are not repeated here):
   - **TTV UNKNOWN share high** at 03:16: 48.2% of GPUs UNKNOWN (2,299 of 4,768). By reason: CLUSTER_NOT_OBSERVED 1046, SOURCE_STALE 868 (records server-scan itself marks stale), IDENTITY_CONFLICT 266, NODE_NOT_FOUND 102, CONTESTED 16, TRAFFIC_UNOBSERVED 1; 229 servers have an unread GPU count.
   - **TTV node not found** (upi-tlv) at 03:16: 102 GPUs on 23 servers. The sandbox places servers in upi-tlv, and the lab cluster that stands in for it has no such nodes.
-  - **TTV collector manager stale**, as `(no collector reads)`, at 03:29: no collector runs in the lab, so DC's stage is unobserved.
   - **TTV stage objective breached** for Redbull at 03:49: 214 GPUs NOT_IN_CLUSTER past the 2-day objective, ≥ 973 overdue GPU-hours, with stage clocks that are lower bounds from server-scan `created_at`.
 
-  DC, POPAI and Serving stayed Normal, with nothing overdue. Engine, sources and UNKNOWN growth stayed Normal. Handover overdue held state (`NoData, KeepLast`), because there are no collector managers. All queries ran in under 2 ms on 1,112 intervals.
+  POPAI and Serving stayed Normal, with nothing overdue. Engine, sources and UNKNOWN growth stayed Normal. All queries ran in under 2 ms on 1,112 intervals.
 - **No sending.** Over the whole lab run, the mute meant zero delivery attempts: Grafana handed alerts to its local Alertmanager 90 times, and no notify line or error was logged. An unmuted experiment showed what an attempt does: it failed locally with "connection refused" on `127.0.0.1:1`.
 - **Simulation (`fixture-tested` in Grafana).** The real rule SQL ran against a synthetic ledger in a scratch database, with only `for`, `keepFiringFor` and group intervals shortened.
-  1. Redbull's 8 GPUs, 3 h into a 1 h objective, fired; DC within its objective stayed Normal.
+  1. Redbull's 8 GPUs, 3 h into a 1 h objective, fired; another owner within its objective stayed Normal.
   2. Server-scan failing past grace, with its GPUs UNKNOWN: the source alert fired (critical, `platform`), the UNKNOWN-share alerts fired, and both stage instances were held (`NoData, KeepLast`).
-  3. With the engine stopped and DC's clock past its objective, "engine scans stale" fired and DC stayed Normal (held).
-  4. After a fresh scan, DC's breach fired.
+  3. With the engine stopped and that other owner's clock past its objective, "engine scans stale" fired and the owner stayed Normal (held).
+  4. After a fresh scan, its breach fired.
   5. With `SELECT` on `capacity_intervals` revoked, the data-quality rules raised one `DatasourceError` group for the platform, and the stage instances were held (`Error, KeepLast`).
 
-  Two bugs were found and fixed this way: detail queries that returned no rows (Grafana then marks the whole rule NoData), and `noDataState: Alerting`, which raised a false "collector manager stale".
+  Two bugs were found and fixed this way: detail queries that returned no rows (Grafana then marks the whole rule NoData), and `noDataState: Alerting`, which raised a false alert on a rule ADR-0008 removed since.

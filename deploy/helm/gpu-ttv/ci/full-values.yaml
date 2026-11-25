@@ -1,5 +1,5 @@
 # Every optional part switched on, with synthetic names, for helm lint/template and
-# tests/test_helm_chart.py. Not a deployment example: no endpoint here exists.
+# tests/test_helm_charts.py. Not a deployment example: no endpoint here exists.
 image:
   digest: "sha256:1111111111111111111111111111111111111111111111111111111111111111"
 serverscan:
@@ -15,8 +15,8 @@ pricing:
   snapshotsConfigMap: ttv-pricing-snapshots
 policy:
   policy_version: "ci.1"
-  teams: {PRE_PROVISIONING: DC, PROVISIONING: Redbull, GPU_PLATFORM: POPAI, SERVING: Serving}
-  stage_objectives: {PRE_PROVISIONING: 3d, PROVISIONING: 2d, GPU_PLATFORM: 1d, SERVING: 7d}
+  teams: {PROVISIONING: Redbull, GPU_PLATFORM: POPAI, SERVING: Serving}
+  stage_objectives: {PROVISIONING: 2d, GPU_PLATFORM: 1d, SERVING: 7d}
   target_clusters: [ocp4-prod-gpu-site1, ocp4-prod-gpu-site2]
 clusters:
   - name: ocp4-prod-gpu-site1
@@ -34,27 +34,7 @@ clusters:
 settings:
   TTV_SCAN_INTERVAL_SECONDS: 300
   TTV_UNKNOWN_GRACE_SCANS: 2
-  TTV_COLLECTOR_STALE_AFTER: 1h
   TTV_PRICING_SNAPSHOT: ""
-collector:
-  managers:
-    ucs_central:
-      - name: central-1
-        host: ucs-central.example.internal
-        username: svc-gpu-ttv
-        password_file: /var/run/secrets/ttv/ucs-central/password
-        ca_bundle: /etc/pki/ttv/ca-bundle.pem
-    openmanage:
-      - name: ome-1
-        url: https://ome.example.internal
-        username: svc-gpu-ttv
-        password_file: /var/run/secrets/ttv/ome/password
-        ca_bundle: /etc/pki/ttv/ca-bundle.pem
-  secretMounts:
-    - secret: ttv-ucs-central
-      mountPath: /var/run/secrets/ttv/ucs-central
-    - secret: ttv-ome
-      mountPath: /var/run/secrets/ttv/ome
 serviceMonitor:
   enabled: true
 networkPolicy:

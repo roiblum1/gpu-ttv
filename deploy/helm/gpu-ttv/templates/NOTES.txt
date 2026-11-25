@@ -23,7 +23,7 @@ WARNING: serverscan.url is still the example placeholder.
 {{- end }}
 {{- if not .Values.database.existingSecret }}
 
-No database.existingSecret: the engine stores nothing (not even scan runs), and no collector runs.
+No database.existingSecret: the engine stores nothing (not even scan runs).
 {{- end }}
 
 Health:   oc -n {{ .Release.Namespace }} port-forward svc/{{ include "gpu-ttv.fullname" . }}-engine 8080 && curl localhost:8080/readyz

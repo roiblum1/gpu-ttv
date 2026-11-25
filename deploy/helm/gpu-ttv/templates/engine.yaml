@@ -59,7 +59,25 @@ spec:
             {{- end }}
             - name: TTV_API_PORT
               value: {{ .Values.engine.port | quote }}
-            {{- include "gpu-ttv.commonEnv" . | nindent 12 }}
+            {{- if .Values.database.existingSecret }}
+            - name: TTV_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.existingSecret }}
+                  key: {{ .Values.database.urlKey }}
+            {{- end }}
+            {{- if .Values.caBundle.configMap }}
+            - name: TTV_CA_BUNDLE
+              value: /etc/pki/ttv/{{ .Values.caBundle.key }}
+            {{- end }}
+            {{- if .Values.pricing.snapshotsConfigMap }}
+            - name: TTV_PRICING_DIR
+              value: /etc/ttv/pricing
+            {{- end }}
+            {{- range $name, $value := .Values.settings }}
+            - name: {{ $name }}
+              value: {{ $value | toString | quote }}
+            {{- end }}
             {{- with .Values.engine.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -101,7 +119,18 @@ spec:
               mountPath: {{ include "gpu-ttv.clusterDir" $c.name }}
               readOnly: true
             {{- end }}
-            {{- include "gpu-ttv.commonMounts" . | nindent 12 }}
+            - name: tmp
+              mountPath: /tmp
+            {{- if .Values.caBundle.configMap }}
+            - name: ca-bundle
+              mountPath: /etc/pki/ttv
+              readOnly: true
+            {{- end }}
+            {{- if .Values.pricing.snapshotsConfigMap }}
+            - name: pricing
+              mountPath: /etc/ttv/pricing
+              readOnly: true
+            {{- end }}
             {{- with .Values.engine.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -126,7 +155,19 @@ spec:
             secretName: {{ $c.tokenSecret }}
             defaultMode: 0440
         {{- end }}
-        {{- include "gpu-ttv.commonVolumes" . | nindent 8 }}
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+        {{- if .Values.caBundle.configMap }}
+        - name: ca-bundle
+          configMap:
+            name: {{ .Values.caBundle.configMap }}
+        {{- end }}
+        {{- if .Values.pricing.snapshotsConfigMap }}
+        - name: pricing
+          configMap:
+            name: {{ .Values.pricing.snapshotsConfigMap }}
+        {{- end }}
         {{- with .Values.engine.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}

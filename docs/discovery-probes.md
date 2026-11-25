@@ -2,7 +2,9 @@
 
 Read-only probes that answer the open items in `docs/discovery.md`. Run them from a bastion inside the network, sanitise with the redaction step of each part, and bring the sanitised output folders back (the user confirmed on 2026-10-28 that sanitised files may leave the network).
 
-Rules for every probe: read-only (GET, `get`, `list`, `api-resources`, `explain`, `whoami`); logging in and out of a manager is allowed. One exception, in Part B: B1 and B2 create a temporary Job in server-scan's namespace that runs server-scan's own collector in `--dry-run` mode (it reads managers and writes nothing) and delete it afterwards. Nothing else is created, changed or deleted. Never call server-scan's `GET /api/v1/servers/available` (it writes).
+Rules for every probe: read-only (GET, `get`, `list`, `api-resources`, `explain`, `whoami`). Nothing is created, changed or deleted. Never call server-scan's `GET /api/v1/servers/available` (it writes).
+
+Part B (the managers) is no longer needed and was removed on 2026-11-25; see its heading below.
 
 ## Part A: server-scan
 
@@ -158,123 +160,9 @@ grep -rEn '([0-9]{1,3}\.){3}[0-9]{1,3}' redacted/ || echo "no IPv4 left"; ls red
 ```
 Before pasting, read each file once for free text (`maintenance.reason`, `site_id`), then paste only `redacted/*`.
 
-## Part B: managers (UCS Central, OpenManage Enterprise)
+## Part B: managers (UCS Central, OpenManage Enterprise) — removed, do not run
 
-**Tested 2026-10-30** without a real appliance: the B5 parser against server-scan's own dry-run printer (`defe172`) over its fake provider, matching the true counts for both vendors and for a server with no profile; the generated Job accepted by an OpenShift 4.20 API server (server-side dry-run, nothing saved); the B3/B4 logic on small fixtures (which caught one bug, now fixed). Not yet run against a real UCS Central, OpenManage or iDRAC.
-
-**Question answered:** how many GPU servers sit in UCS Central and OpenManage with **no profile**, a **non-OCP profile**, or an **OCP profile** (the simplified collector rule, `docs/discovery.md` Inputs 2026-10-30).
-
-**Built from server-scan's own code** (`defe172`), because server-scan already reads these managers in production:
-- **Cisco.** The UCS Central collector logs in to every registered UCS Manager domain and reads each server, its bound service profile and its GPUs (`graphicsCard`). A server without a profile is named after its hardware object or DN, so only the `^ocp` name filter drops it (`backend/app/infrastructure/providers/ucs_manager/mapping.py:60-75,474`). Clearing the filter lists every server.
-- **Dell.** The OpenManage collector finds servers through their OME **profiles** (the printed name is the `ProfileName`, `openmanage/mapping.py:184`) and reads hardware, GPUs included, from each server's iDRAC over Redfish (ADR-0020). Clearing the filter lists every Dell server that has a profile; servers with **no** profile need B3 and B4.
-- **GPU rule** (B4 copies it from `redfish/mapping.py:556-870`): a Redfish `Processor` with `ProcessorType == "GPU"` that is not `Absent`; if none, a `PCIeDevice` whose `Manufacturer` starts with `10DE`, `1002` or `8086` and whose `Description` contains VGA, GPU, 3D or DISPLAY.
-
-**The one step that creates something.** B1 and B2 run server-scan's collector as a temporary Job copied from its own CronJob, adding `--dry-run` ("print what each manager reports and exit without writing anything", `tools/run_collector.py`) and clearing the name pattern. The Job reads the managers with server-scan's accounts, network policy and secrets, writes nothing, and is deleted at the end of the block. Everything else in Part B is GET-only (plus logging in and out of OpenManage).
-
-**Setup** (edit the first four lines; needs `oc` logged in to the cluster that runs server-scan, plus `curl`, `jq`, `python3`)
-```bash
-export NS=server-scan REL=server-scan NAME_PATTERN='^ocp'   # server-scan namespace and Helm release; pattern from P-SS-1
-export OME_HOST=ome.example.internal                          # OpenManage Enterprise host
-export OME_CRED=~/.ttv/ome.cred IDRAC_CRED=~/.ttv/idrac.curlrc  # server-scan's accounts; see below
-export CA_BUNDLE=                                             # PEM for OME/iDRAC certificates; empty = -k (note it in the paste)
-export OUT=$HOME/ttv-discovery/managers-$(date -u +%Y%m%d); mkdir -p "$OUT/raw"; umask 077
-[ -n "$CA_BUNDLE" ] && TLS=(--cacert "$CA_BUNDLE") || TLS=(-k)
-# ~/.ttv/ome.cred: line 1 user, line 2 password.  ~/.ttv/idrac.curlrc: one line, user = "name:password"
-dryrun() {  # $1 = CronJob suffix, $2 = Job name. Copies server-scan's collector CronJob, adds --dry-run, clears the name filter.
-  oc -n "$NS" get cronjob "$REL-$1" -o json | jq --arg n "$2" '{apiVersion:"batch/v1", kind:"Job",
-    metadata:{name:$n, labels:{"app.kubernetes.io/part-of":"ttv-discovery"}},
-    spec:{backoffLimit:0, ttlSecondsAfterFinished:86400, template:(.spec.jobTemplate.spec.template | .spec.restartPolicy="Never"
-      | .spec.containers[0].command += ["--dry-run"]
-      | .spec.containers[0].env = ([.spec.containers[0].env[]? | select(.name|test("NAME_PATTERN$")|not)]
-          + [{name:"INVENTORY_COLLECTOR_NAME_PATTERN", value:""}]))}}' > "$OUT/raw/$2.json"
-  oc -n "$NS" create -f "$OUT/raw/$2.json" || return 1
-  until s=$(oc -n "$NS" get job "$2" -o jsonpath='{.status.succeeded}{.status.failed}'); [ -n "$s" ]; do sleep 20; done
-  oc -n "$NS" logs "job/$2" > "$OUT/raw/$2.log"; echo "$2: $(grep -c '^\[[0-9]' "$OUT/raw/$2.log") servers printed"
-  oc -n "$NS" delete job "$2"
-}
-```
-
-**B1: Cisco, every server in UCS Central's domains** → `raw/ttv-dryrun-ucsc.log`
-```bash
-dryrun collector-ucs-central ttv-dryrun-ucsc
-```
-
-**B2: Dell, every server that has an OpenManage profile** → `raw/ttv-dryrun-ome.log`. Takes as long as server-scan's own OpenManage run, since it reads each iDRAC.
-```bash
-dryrun collector-openmanage ttv-dryrun-ome
-```
-
-**B3: Dell servers with no profile** (OpenManage devices that no profile targets) → `raw/ome-noprofile.tsv`, `B3-ome.json`
-```bash
-{ IFS= read -r U; IFS= read -r P; } < "$OME_CRED"
-printf '{"UserName":"%s","Password":"%s","SessionType":"API"}' "$U" "$P" | curl -sS -f "${TLS[@]}" -D "$OUT/raw/.h" -o "$OUT/raw/.s" \
-  -H 'Content-Type: application/json' --data-binary @- "https://$OME_HOST/api/SessionService/Sessions"; unset P
-printf 'X-Auth-Token: %s\n' "$(awk 'tolower($1)=="x-auth-token:"{print $2}' "$OUT/raw/.h" | tr -d '\r')" > "$OUT/raw/.hdr"; SID=$(jq -r .Id "$OUT/raw/.s"); rm -f "$OUT/raw/.h" "$OUT/raw/.s"
-ome_all() { local next=$1; : > "$2"; while [ -n "$next" ]; do curl -sS -f "${TLS[@]}" -H @"$OUT/raw/.hdr" "https://$OME_HOST$next" > "$2.p" || { echo "FAILED $next"; break; }
-  jq -c '.value[]' "$2.p" >> "$2"; next=$(jq -r '."@odata.nextLink" // empty' "$2.p"); next=${next#https://$OME_HOST}; done; rm -f "$2.p"; echo "$(wc -l < "$2") <- $1"; }
-ome_all "/api/DeviceService/Devices?\$filter=Type%20eq%201000&\$top=500" "$OUT/raw/ome-servers.jsonl"
-ome_all "/api/ProfileService/Profiles?\$top=500" "$OUT/raw/ome-profiles.jsonl" || ome_all "/api/TemplateService/Profiles?\$top=500" "$OUT/raw/ome-profiles.jsonl"  # OME 3.x path
-curl -sS "${TLS[@]}" -o /dev/null -w 'OME logout HTTP %{http_code}\n' -X DELETE -H @"$OUT/raw/.hdr" "https://$OME_HOST/api/SessionService/Sessions('$SID')"; rm -f "$OUT/raw/.hdr"
-jq -rs --slurpfile p "$OUT/raw/ome-profiles.jsonl" '($p|map(.TargetId|select(.!=null and .>0)|tostring)) as $ids | ($p|map(.TargetName//empty)) as $names
-  | .[] | (.DeviceManagement[0].NetworkAddress // "") as $ip | (.DeviceName // "") as $dn | (.Id|tostring) as $i
-  | select(($ids|index($i)) == null and ($names|index($ip)) == null and ($names|index($dn)) == null)
-  | [.Id, (.Model // "-"), $ip] | @tsv' "$OUT/raw/ome-servers.jsonl" > "$OUT/raw/ome-noprofile.tsv"
-jq -n --slurpfile s <(jq -s . "$OUT/raw/ome-servers.jsonl") --slurpfile p <(jq -s . "$OUT/raw/ome-profiles.jsonl") --rawfile np "$OUT/raw/ome-noprofile.tsv" \
-  '{servers:($s[0]|length), profiles:($p[0]|length), types:($s[0]|map(.Type)|unique), no_profile:($np|split("\n")|map(select(length>0))|length),
-    no_profile_by_model:($np|split("\n")|map(select(length>0)|split("\t")[1])|group_by(.)|map({(.[0]):length})|add)}' > "$OUT/B3-ome.json"; cat "$OUT/B3-ome.json"
-```
-`types` must be `[1000]` (servers only); anything else means the filter was ignored.
-
-**B4: GPUs on the no-profile Dell servers**, read from each iDRAC with server-scan's rule (GET only) → `B4-idrac-gpus.json`
-```bash
-rf() { curl -sS -f --max-time 30 "${TLS[@]}" -K "$IDRAC_CRED" -H 'Accept: application/json' "$1"; }
-idrac_gpus() { local h=$1 sys n
-  sys=$(rf "https://$h/redfish/v1/Systems" | jq -r '.Members[0]."@odata.id" // empty') || return; [ -n "$sys" ] || return
-  n=$(rf "https://$h$sys/Processors" | jq -r '.Members[]."@odata.id"' | while read -r p; do rf "https://$h$p"; done \
-      | jq -s '[.[] | select(.ProcessorType=="GPU" and .Status.State!="Absent")] | length')
-  [ "${n:-0}" -gt 0 ] || n=$(rf "https://$h$sys" | jq -r '.PCIeDevices[]?."@odata.id"' | while read -r p; do rf "https://$h$p"; done \
-      | jq -s '[.[] | select(.Status.State!="Absent" and (((.Manufacturer//"")|ascii_upcase|.[0:4]) as $v | ["10DE","1002","8086"]|index($v)) and ((.Description//"")|ascii_upcase|test("VGA|GPU|3D|DISPLAY")))] | length')
-  echo "$n"; }
-while IFS=$'\t' read -r id model ip; do printf '%s\t%s\n' "$model" "$( [ -n "$ip" ] && idrac_gpus "$ip" || echo)"; done < "$OUT/raw/ome-noprofile.tsv" > "$OUT/raw/idrac-gpus.tsv"
-jq -Rn '[inputs|split("\t")|{m:.[0], g:.[1]}] | group_by(.m) | map({(.[0].m): {checked:length, with_gpu:map(select((.g|tonumber? // 0)>0))|length,
-  unread:map(select(.g==""))|length}}) | add' "$OUT/raw/idrac-gpus.tsv" > "$OUT/B4-idrac-gpus.json"; cat "$OUT/B4-idrac-gpus.json"
-```
-
-**B5: counts from the dry-runs** → `B5-dryrun.json` (counts and GPU models only; no names, serials or addresses)
-```bash
-cat > ~/.ttv/dryrun_summary.py <<'PY'
-import collections, json, re, sys
-pat, out = re.compile(sys.argv[1]), {}
-for path in sys.argv[2:]:
-    dell = "ome" in path
-    buckets, models, managers, errors, cur = collections.Counter(), collections.Counter(), 0, 0, None
-    def close(c):
-        if c is None: return
-        b = "NO_PROFILE" if not (c["profile"] or dell) else ("OCP_PROFILE" if pat.search(c["name"]) else "NON_OCP_PROFILE")
-        buckets[b + "/" + ("gpu_unread" if c["gpus"] is None else "gpu" if c["gpus"] else "no_gpu")] += 1
-        for m in c["models"]: models[b + "/" + m] += 1
-    for line in open(path, errors="replace"):
-        line = line.rstrip("\n")
-        if line.startswith("=== "): managers += 1; continue
-        if (m := re.match(r"^\[\d+\] (.*)$", line)): close(cur); cur = {"name": m[1], "profile": False, "gpus": None, "models": []}; continue
-        if re.search(r"(?i)traceback|\berror\b", line) and not line.startswith("     "): errors += 1
-        if cur is None: continue
-        if re.match(r"^\s+profile\s+:", line): cur["profile"] = True
-        elif (m := re.match(r"^\s+gpus\s+:\s+(\d+)", line)): cur["gpus"] = int(m[1])
-        elif (m := re.match(r"^\s+gpu (.+?)  vendor=", line)): cur["models"].append(m[1])
-    close(cur)
-    out["OPENMANAGE" if dell else "UCS_CENTRAL"] = {"managers": managers, "servers": sum(buckets.values()),
-        "buckets": dict(sorted(buckets.items())), "gpu_models": dict(sorted(models.items())), "error_lines": errors}
-print(json.dumps(out, indent=1))
-PY
-python3 -I ~/.ttv/dryrun_summary.py "$NAME_PATTERN" "$OUT"/raw/ttv-dryrun-*.log > "$OUT/B5-dryrun.json"; cat "$OUT/B5-dryrun.json"
-```
-**Bring back:** `B3-ome.json`, `B4-idrac-gpus.json`, `B5-dryrun.json`. They hold counts and models only, so they need no redaction; read them once anyway. `raw/` stays inside the network.
-
-**What to look for**
-- `UCS_CENTRAL` `NO_PROFILE/gpu`: Cisco GPU servers for DC's queue. `NON_OCP_PROFILE/gpu`: "other intended use". `OCP_PROFILE/gpu` should be close to server-scan's Cisco GPU count (P-SS-2).
-- `OPENMANAGE` `NON_OCP_PROFILE/gpu` and `OCP_PROFILE/gpu` from B5, and `with_gpu` per model from B4 (no-profile Dell GPU servers for DC's queue).
-- `gpu_unread` or `unread` above 0: the collector could not read GPUs for those servers. `error_lines` above 0: read the end of the raw log.
+Removed 2026-11-25 with the profile-less collector and the DC stage (`docs/adr/0008-drop-dc-stage-and-collector.md`). Part B counted GPU servers in UCS Central and OpenManage with no profile, a non-OCP profile or an OCP profile, and checked the collector's validation gates (ADR-0004). The platform no longer reads any manager, and servers server-scan does not list are out of scope, so none of its output has a consumer. It was never run against production. Its commands (B1–B5, including the one step that created a temporary Job) are in git history, to be revived only if ADR-0008 is reopened.
 
 ## Part C: target GPU clusters
 

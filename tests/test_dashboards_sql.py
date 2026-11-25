@@ -46,8 +46,7 @@ SNAPSHOT = "fixture-aws-us-east-1-synthetic"
 H100_RAW, H100 = "NVIDIA H100 80GB HBM3", "NVIDIA H100 80GB"
 A16_RAW, A16 = "NVIDIA A16", "NVIDIA A16 16GB"
 CLUSTER = "ocp4-prod-gpu-site1"
-COLLECTOR = "collector:ucs-central-fixture"
-DC = "cisco:fxdc0001"  # DC episode that began before observation (lower bound)
+HW = "cisco:fxhw0001"  # Redbull episode held by critical hardware, begun before observation
 RB = "cisco:fxrb0002"  # the §17 asset: 8 GPUs idle 3 h at Redbull, then productive
 SV = "dell:fxsv0003"  # §17 partial idle: 6 idle beside 2 productive; now NO_REAL_DEMAND
 DGX = "nvidia:fxdgx0004"  # standalone DGX at Redbull with a next-action annotation
@@ -148,14 +147,14 @@ def _seed(conn: Conn) -> Seed:
     now = datetime.now(UTC).replace(microsecond=0)
     p0 = (now - 30 * D).replace(minute=0, second=0)
     ss = "serverscan"
-    _asset(conn, DC, "fixture-dc-01", "site-a", (H100_RAW, 8), COLLECTOR, now - 5 * D)
+    _asset(conn, HW, "fixture-hw-01", "site-a", (H100_RAW, 8), ss, now - 5 * D)
     _asset(conn, RB, "ocp4-fixture-gpu-02", "site-a", (H100_RAW, 8), ss, p0 - 2 * D)
     _asset(conn, SV, "ocp4-fixture-gpu-03", "site-b", (H100_RAW, 8), ss, p0 - 2 * D)
     _asset(conn, DGX, "dgx-fixture-04", "site-b", (H100_RAW, 8), ss, now - 3 * D)
     _asset(conn, "dell:fxuk0005", "ocp4-fixture-gpu-05", "site-a", (H100_RAW, 4), ss, now - 10 * D)
     _asset(conn, "cisco:fxnc0006", "lab-fixture-06", None, (A16_RAW, 2), ss, now - 10 * D)
     _asset(conn, "dell:fxpp0007", "ocp4-fixture-gpu-07", "site-b", (A16_RAW, 2), ss, now - D)
-    _asset(conn, "cisco:fxun0008", "fixture-unread-08", "site-a", (None, None), COLLECTOR, now - H)
+    _asset(conn, "cisco:fxun0008", "fixture-unread-08", "site-a", (None, None), ss, now - H)
 
     # §17: 8 GPUs idle 3 h with a 1 h objective; 6 of 8 idle for 2 h beside 2 productive.
     _interval(conn, RB, "IDLE", "NOT_IN_CLUSTER", 8, p0, p0 + 3 * H,
@@ -164,9 +163,9 @@ def _seed(conn: Conn) -> Seed:
     _interval(conn, SV, "IDLE", "NO_WORKLOAD", 6, p0 + H, p0 + 3 * H,
               stage="SERVING", owner="Serving", entered=p0 + H)  # fmt: skip
     _interval(conn, SV, "PRODUCTIVE", "RUNAI_WORKLOAD", 2, p0 + H, p0 + 3 * H, holder="team-b/I/c")
-    # Now: one open episode per owner (DC's began before observation), plus other categories.
-    _interval(conn, DC, "IDLE", "PROFILE_NONE", 8, now - 5 * D,
-              stage="PRE_PROVISIONING", owner="DC", entered=now - 5 * D, lb=True)  # fmt: skip
+    # Now: open episodes for every owner; Redbull's hardware one predates observation (ADR-0008).
+    _interval(conn, HW, "IDLE", "HARDWARE_CRITICAL", 8, now - 5 * D,
+              stage="PROVISIONING", owner="Redbull", entered=now - 5 * D, lb=True)  # fmt: skip
     _interval(conn, DGX, "IDLE", "NOT_IN_CLUSTER", 8, now - 3 * D,
               stage="PROVISIONING", owner="Redbull", entered=now - 3 * D)  # fmt: skip
     _interval(conn, "dell:fxpp0007", "IDLE", "GPU_PLATFORM_NOT_READY", 2, now - D,
@@ -175,19 +174,15 @@ def _seed(conn: Conn) -> Seed:
               stage="SERVING", owner="Serving", entered=now - 2 * D, holder="llm/idle")  # fmt: skip
     _interval(conn, SV, "PRODUCTIVE", "SERVING_IN_USE", 2, now - 2 * D, holder="llm/LLMIS/chat")
     _interval(conn, "dell:fxuk0005", "UNKNOWN", "SOURCE_STALE", 4, now - 6 * H)
-    _interval(conn, "cisco:fxnc0006", "NOT_CHARGED", "OTHER_INTENDED_USE", 2, now - 10 * D,
-              model=A16_RAW)  # fmt: skip
+    _interval(conn, "cisco:fxnc0006", "NOT_CHARGED", "EXCLUDED", 2, now - 10 * D, model=A16_RAW)
 
-    for stage, objective in (
-        ("PRE_PROVISIONING", 3 * D), ("PROVISIONING", H), ("GPU_PLATFORM", D), ("SERVING", 7 * D),
-    ):  # fmt: skip
+    for stage, objective in (("PROVISIONING", H), ("GPU_PLATFORM", D), ("SERVING", 7 * D)):
         conn.execute(
             "INSERT INTO stage_objectives (policy_version, stage, objective) VALUES (%s, %s, %s)",
             (POLICY, stage, objective),
         )
     for kind, started, status, errors in (
         ("engine", now - 70 * M, "partial", [{"source": CLUSTER, "error": "timeout"}]),
-        ("collector", now - 20 * M, "ok", []),
         ("engine", now - 10 * M, "ok", []),
     ):
         conn.execute(
@@ -204,13 +199,13 @@ def _seed(conn: Conn) -> Seed:
     )
     conn.execute(
         "INSERT INTO identity_conflicts (kind, key, candidates, first_seen, last_seen)"
-        " VALUES ('serial', 'cisco:fxdup0009', %s, %s, %s)",
-        (Jsonb([{"source": "ucs-central"}, {"source": "intersight"}]), now - 2 * D, now - H),
+        " VALUES ('DUPLICATE_SERIAL', 'cisco:fxdup0009', %s, %s, %s)",
+        (Jsonb([{"serverscan_id": "srv-9a"}, {"serverscan_id": "srv-9b"}]), now - 2 * D, now - H),
     )
     for name, failed, ok_at, err in (
         ("serverscan", 0, now - 9 * M, None),
-        (f"cluster:{CLUSTER}", 1, now - H, "timeout (fixture)"),
-        (COLLECTOR, 3, None, "permission denied (fixture)"),
+        (f"kube:{CLUSTER}", 1, now - H, "timeout (fixture)"),
+        (f"thanos:{CLUSTER}", 3, None, "permission denied (fixture)"),
     ):
         conn.execute(
             "INSERT INTO source_state (name, failed_scans, last_success_at, last_attempt_at,"
@@ -218,7 +213,6 @@ def _seed(conn: Conn) -> Seed:
             (name, failed, ok_at, now - 9 * M, err),
         )
     _seed_pricing(conn, now, p0)
-    _seed_collector(conn, now)
     return Seed(now=now, p0=p0)
 
 
@@ -232,7 +226,8 @@ def _seed_milestones(conn: Conn, now: datetime, p0: datetime) -> None:
         p0 (datetime): The §17 episode start.
     """
     milestones = [
-        (DC, "first_seen", now - 5 * D, True),
+        (HW, "first_seen", now - 5 * D, True),
+        (HW, "in_serverscan", now - 5 * D, True),
         (RB, "first_seen", p0 - 2 * D, True),
         (RB, "in_serverscan", p0 - 2 * D, False),
         (RB, "assigned_cluster", p0 + 2 * H, False),
@@ -294,34 +289,6 @@ def _seed_pricing(conn: Conn, now: datetime, p0: datetime) -> None:
         " VALUES (%s, %s, 'latest')",
         (SNAPSHOT, now - D),
     )
-
-
-def _seed_collector(conn: Conn, now: datetime) -> None:
-    """
-    Insert one complete profile-less collector read that sees the DC and the unread server.
-
-    Args:
-        conn (Conn): Connection.
-        now (datetime): Seed time.
-    """
-    row = conn.execute(
-        "INSERT INTO collector_reads (manager, kind, started_at, finished_at, complete)"
-        " VALUES ('ucs-central-fixture', 'ucs_central', %s, %s, true) RETURNING id",
-        (now - 20 * M, now - 19 * M),
-    ).fetchone()
-    assert row is not None
-    for serial, gpus in (("fxdc0001", [H100_RAW] * 8), ("fxun0008", None)):
-        gpu_json = None if gpus is None else Jsonb(gpus)  # SQL NULL = GPU inventory unread
-        conn.execute(
-            "INSERT INTO collector_servers (read_id, vendor, serial_normalized, source_id, name,"
-            " gpu_models) VALUES (%s, 'cisco', %s, %s, %s, %s)",
-            (row["id"], serial, f"sys/rack-unit-{serial}", f"fixture-{serial}", gpu_json),
-        )
-        conn.execute(
-            "INSERT INTO collector_first_seen (vendor, serial_normalized, first_seen_at)"
-            " VALUES ('cisco', %s, %s)",
-            (serial, now - 5 * D),
-        )
 
 
 @pytest.fixture(scope="module")
@@ -529,7 +496,8 @@ def test_queues_idle_and_overdue_match_agent_17(db: tuple[Conn, Seed]) -> None:
     assert rows["Redbull"]["Clock"] == "fully observed"
     assert _f(rows["Serving"]["Idle GPU-h"]) == pytest.approx(12)
     assert _f(rows["Serving"]["Overdue GPU-h"]) == pytest.approx(0)
-    assert _f(rows["DC"]["Idle GPU-h"]) == pytest.approx(0)
+    assert list(rows) == ["Redbull", "POPAI", "Serving"]  # pipeline order, names from the ledger
+    assert _f(rows["POPAI"]["Idle GPU-h"]) == pytest.approx(0)  # idle only outside this range
     # Synthetic $10 per GPU-hour ($80/h for an 8-GPU instance).
     assert _f(rows["Redbull"]["Idle value (USD)"]) == pytest.approx(240)
     assert _f(rows["Redbull"]["Overdue value (USD)"]) == pytest.approx(160)
@@ -557,8 +525,9 @@ def test_queues_idle_now_by_owner(db: tuple[Conn, Seed]) -> None:
     """Open IDLE intervals per stage owner (pipeline order), and every category on Home."""
     rows = _panel(db, "ttv-queues", 26)
     assert [(r["Stage owner"], _f(r["Idle GPUs"])) for r in rows] == [
-        ("DC", 8), ("Redbull", 8), ("POPAI", 2), ("Serving", 6),
+        ("Redbull", 16), ("POPAI", 2), ("Serving", 6),
     ]  # fmt: skip
+    assert rows[0]["Main reason"] == "HARDWARE_CRITICAL"  # broken hardware is Redbull's (ADR-0008)
     assert _f(_panel(db, "ttv-queues", 21)[0]["Idle GPUs"]) == 24
     partition = _panel(db, "ttv-home", 9)[0]
     assert {k: _f(v) for k, v in partition.items()} == {
@@ -566,10 +535,25 @@ def test_queues_idle_now_by_owner(db: tuple[Conn, Seed]) -> None:
     }  # fmt: skip
 
 
+def test_owner_series_come_from_the_ledger_in_pipeline_order(db: tuple[Conn, Seed]) -> None:
+    """Over-time panels draw one series per stage owner the ledger names, never a fixed list."""
+    rows = _panel(db, "ttv-queues", 28)
+    last = max(r["time"] for r in rows)
+    overdue = [(r["metric"], _f(r["value"])) for r in rows if r["time"] == last]
+    assert overdue == [("Redbull", 16), ("POPAI", 0), ("Serving", 0)]  # both Redbull episodes
+    popai = _panel(db, "ttv-queues", 28, stage_owner=["POPAI"])
+    assert {r["metric"] for r in popai} == {"POPAI"}
+    rows = _panel(db, "ttv-home", 25)
+    last = max(r["time"] for r in rows)
+    assert {r["metric"]: _f(r["value"]) for r in rows if r["time"] == last} == {
+        "Redbull": 16, "POPAI": 2, "Serving": 6, "Overdue (all owners)": 16,
+    }  # fmt: skip
+
+
 def test_queues_value_is_linear_and_unpriced_is_not_zero(db: tuple[Conn, Seed]) -> None:
-    """8 idle GPUs of an 8-GPU instance are worth one instance-hour; A16s stay unpriced."""
+    """16 idle H100s of 8-GPU instances are worth two instance-hours; A16s stay unpriced."""
     redbull = _panel(db, "ttv-queues", 17, stage_owner=["Redbull"])[0]
-    assert _f(redbull["usd"]) == pytest.approx(80)
+    assert _f(redbull["usd"]) == pytest.approx(160)
     everyone = _panel(db, "ttv-queues", 17)[0]
     assert _f(everyone["usd"]) == pytest.approx(220)
     assert "at least (2 GPUs unpriced)" in everyone["label"]
@@ -597,7 +581,7 @@ def test_queues_unknown_is_never_zero(db: tuple[Conn, Seed]) -> None:
 def test_queues_longest_waits_mark_lower_bounds(db: tuple[Conn, Seed]) -> None:
     """A stage that began before observation shows "≥"; the annotation shows its owner."""
     rows = _by(_panel(db, "ttv-queues", 14), "Asset")
-    assert rows["cisco:fxdc0001"]["Days in stage"].startswith("≥ ")
+    assert rows[HW]["Days in stage"].startswith("≥ ")
     assert rows["nvidia:fxdgx0004"]["Next-action owner"] == "Network"
     assert rows["nvidia:fxdgx0004"]["Stage owner"] == "Redbull"
 
@@ -608,5 +592,5 @@ def test_evidence_counts(db: tuple[Conn, Seed]) -> None:
     unknown = _by(_panel(db, "ttv-evidence", 25), "Reason")
     assert _f(unknown["SOURCE_STALE"]["UNKNOWN GPUs"]) == 4
     sources = _by(_panel(db, "ttv-evidence", 21), "Source")
-    assert sources["collector:ucs-central-fixture"]["State"] == "never succeeded"
+    assert sources[f"thanos:{CLUSTER}"]["State"] == "never succeeded"
     assert sources["serverscan"]["State"] == "ok"

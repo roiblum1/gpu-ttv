@@ -1,4 +1,4 @@
-# GPU Time-to-Value image: ttv-engine (default command), ttv-collector and ttv-pricing (ADR-0007).
+# GPU Time-to-Value image: ttv-engine (default command) and ttv-pricing (ADR-0007).
 #   podman build -t gpu-ttv:dev .
 # Air-gapped builds point PIP_INDEX_URL and the two base images at internal mirrors, or put a
 # wheelhouse in offline/wheelhouse/ (offline/README.md). Nothing is downloaded at runtime.
@@ -42,7 +42,7 @@ FROM ${PYTHON_IMAGE}
 ARG VERSION=0.1.0
 ARG REVISION=unknown
 LABEL org.opencontainers.image.title="gpu-ttv" \
-      org.opencontainers.image.description="GPU Time-to-Value: ttv-engine, ttv-collector, ttv-pricing" \
+      org.opencontainers.image.description="GPU Time-to-Value: ttv-engine, ttv-pricing" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${REVISION}" \
       org.opencontainers.image.licenses="Proprietary"

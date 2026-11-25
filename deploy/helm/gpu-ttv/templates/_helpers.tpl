@@ -1,4 +1,4 @@
-{{/* Names, labels and shared pieces of the engine and collector pod specs. */}}
+{{/* Names, labels, the policy and clusters files, and render-time checks. */}}
 
 {{- define "gpu-ttv.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
@@ -43,10 +43,6 @@ app.kubernetes.io/component: {{ .component }}
 {{- printf "%s/%s@%s" .Values.image.registry .Values.image.repository .Values.image.digest -}}
 {{- end -}}
 
-{{- define "gpu-ttv.collectorEnabled" -}}
-{{- if or .Values.collector.managers.ucs_central .Values.collector.managers.openmanage -}}true{{- end -}}
-{{- end -}}
-
 {{/* The policy file: inline values, else the repo's example (files/policy.example.yaml). */}}
 {{- define "gpu-ttv.policy" -}}
 {{- if .Values.policy -}}
@@ -89,85 +85,22 @@ app.kubernetes.io/component: {{ .component }}
 {{- fail (printf "clusters: %q is not in the policy's target_clusters %v" .name $targets) -}}
 {{- end -}}
 {{- end -}}
-{{- if and (include "gpu-ttv.collectorEnabled" .) (not .Values.database.existingSecret) -}}
-{{- fail "collector.managers is set, so database.existingSecret is required: the collector stores its reads in Postgres" -}}
+{{- range $k := list "teams" "stage_objectives" -}}
+{{- if hasKey (get $policy $k | default dict) "PRE_PROVISIONING" -}}
+{{- fail (printf "policy.%s: the DC stage (PRE_PROVISIONING) was removed (ADR-0008); delete it" $k) -}}
+{{- end -}}
+{{- end -}}
+{{- if hasKey .Values "collector" -}}
+{{- fail "collector: the collector was removed in chart 0.2.0 (ADR-0008); delete this section from your values" -}}
 {{- end -}}
 {{- end -}}
 
-{{/* Restart a workload when a file it reads only at startup changes. */}}
+{{/* Restart the engine when a file it reads only at startup changes. */}}
 {{- define "gpu-ttv.engineChecksum" -}}
 {{- list (include "gpu-ttv.policy" .) (include "gpu-ttv.clustersFile" .) | join "\n---\n" | sha256sum -}}
-{{- end -}}
-
-{{- define "gpu-ttv.collectorChecksum" -}}
-{{- toYaml .Values.collector.managers | sha256sum -}}
-{{- end -}}
-
-{{/* Environment shared by both workloads: the ledger DSN, the CA bundle and the TTV_* settings. */}}
-{{- define "gpu-ttv.commonEnv" -}}
-{{- if .Values.database.existingSecret }}
-- name: TTV_DATABASE_URL
-  valueFrom:
-    secretKeyRef:
-      name: {{ .Values.database.existingSecret }}
-      key: {{ .Values.database.urlKey }}
-{{- end }}
-{{- if .Values.caBundle.configMap }}
-- name: TTV_CA_BUNDLE
-  value: /etc/pki/ttv/{{ .Values.caBundle.key }}
-{{- end }}
-{{- if .Values.pricing.snapshotsConfigMap }}
-- name: TTV_PRICING_DIR
-  value: /etc/ttv/pricing
-{{- end }}
-{{- range $name, $value := .Values.settings }}
-- name: {{ $name }}
-  value: {{ $value | toString | quote }}
-{{- end }}
-{{- end -}}
-
-{{- define "gpu-ttv.commonMounts" -}}
-- name: tmp
-  mountPath: /tmp
-{{- if .Values.caBundle.configMap }}
-- name: ca-bundle
-  mountPath: /etc/pki/ttv
-  readOnly: true
-{{- end }}
-{{- if .Values.pricing.snapshotsConfigMap }}
-- name: pricing
-  mountPath: /etc/ttv/pricing
-  readOnly: true
-{{- end }}
-{{- end -}}
-
-{{- define "gpu-ttv.commonVolumes" -}}
-- name: tmp
-  emptyDir:
-    sizeLimit: 64Mi
-{{- if .Values.caBundle.configMap }}
-- name: ca-bundle
-  configMap:
-    name: {{ .Values.caBundle.configMap }}
-{{- end }}
-{{- if .Values.pricing.snapshotsConfigMap }}
-- name: pricing
-  configMap:
-    name: {{ .Values.pricing.snapshotsConfigMap }}
-{{- end }}
 {{- end -}}
 
 {{/* Grafana provisioning namespace: the sidecar's, else the release's. */}}
 {{- define "gpu-ttv.grafanaNamespace" -}}
 {{- .Values.grafana.namespace | default .Release.Namespace -}}
-{{- end -}}
-
-{{/* NetworkPolicy egress: DNS plus the configured rules. */}}
-{{- define "gpu-ttv.egressRules" -}}
-- ports:
-    - {port: 53, protocol: UDP}
-    - {port: 53, protocol: TCP}
-    - {port: 5353, protocol: UDP}
-    - {port: 5353, protocol: TCP}
-{{ toYaml .Values.networkPolicy.egress }}
 {{- end -}}

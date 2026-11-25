@@ -30,13 +30,13 @@ serverscan:
 
 database:
   # Existing Secret holding the full ledger DSN, e.g. postgresql://ttv:<password>@<host>:5432/ttv?sslmode=verify-full.
-  # Empty: the engine classifies without storing anything, and the collector cannot run.
+  # Empty: the engine classifies without storing anything.
   existingSecret: ""
   urlKey: url
 
 caBundle:
   # Existing ConfigMap with the internal CA bundle (PEM), mounted at /etc/pki/ttv and used as
-  # TTV_CA_BUNDLE for server-scan. Managers and clusters can point their ca_bundle at the same file.
+  # TTV_CA_BUNDLE for server-scan. Clusters can point their ca_bundle at the same file.
   configMap: ""
   key: ca-bundle.pem
 
@@ -63,9 +63,9 @@ clusters: []
 pricing:
   snapshotsConfigMap: ""
 
-# Scalar TTV_* settings for both workloads (.env.example explains each one). values.schema.json lists
+# Scalar TTV_* settings for the engine (.env.example explains each one). values.schema.json lists
 # the allowed names; the chart sets the rest itself. The Grafana alerts assume the defaults of
-# TTV_SCAN_INTERVAL_SECONDS, TTV_UNKNOWN_GRACE_SCANS and TTV_COLLECTOR_STALE_AFTER (docs/runbooks.md).
+# TTV_SCAN_INTERVAL_SECONDS and TTV_UNKNOWN_GRACE_SCANS (docs/runbooks.md).
 settings: {}
 #  TTV_SCAN_INTERVAL_SECONDS: 300
 #  TTV_DETAIL_MAX_PER_SCAN: 1000
@@ -104,31 +104,6 @@ engine:
   tolerations: []
   affinity: {}
 
-collector:
-  # Managers file (schema: config/managers.example.yaml). The collector Deployment exists only when
-  # at least one manager is listed, and then needs database.existingSecret. Passwords are files from
-  # secretMounts, never values here.
-  managers:
-    ucs_central: []
-    openmanage: []
-  # Existing Secrets mounted for the managers file's *_password_file and CA paths.
-  secretMounts: []
-  # - secret: ttv-ucs-central
-  #   mountPath: /var/run/secrets/ttv/ucs-central
-  resources:
-    requests:
-      cpu: 50m
-      memory: 192Mi
-    limits:
-      cpu: 500m
-      memory: 768Mi
-  extraEnv: []
-  extraVolumes: []
-  extraVolumeMounts: []
-  nodeSelector: {}
-  tolerations: []
-  affinity: {}
-
 serviceAccount:
   create: true
   name: ""
@@ -157,14 +132,14 @@ serviceMonitor:
 
 networkPolicy:
   enabled: true
-  # Who may reach the engine's port (API and /metrics). The collector accepts no ingress at all.
+  # Who may reach the engine's port (API and /metrics).
   ingressFrom:
     - namespaceSelector:
         matchLabels:
           kubernetes.io/metadata.name: openshift-user-workload-monitoring
     - podSelector: {}
-  # Egress rules for both workloads. Empty: egress is not restricted. When set, DNS is added and
-  # every source needs a rule: Postgres, server-scan, each kube API and Thanos route, each manager.
+  # Egress rules for the engine. Empty: egress is not restricted. When set, DNS is added and
+  # every source needs a rule: Postgres, server-scan, each kube API and Thanos route.
   # Resolve each name from a pod in this namespace: split-horizon DNS can give pods another address.
   egress: []
 

@@ -162,10 +162,10 @@ def test_row13_not_ready_node_is_redbull_with_a_lower_bound_clock(policy: Policy
     assert (clock.since, clock.lower_bound) == (since, True)
 
 
-def test_row13_not_ready_with_critical_hardware_is_dc(policy: Policy) -> None:
+def test_row13_not_ready_with_critical_hardware_is_redbull(policy: Policy) -> None:
     decision = decide(policy, view(n=node(ready=False)), health_overall="CRITICAL")
     bucket = only(decision, Reason.HARDWARE_CRITICAL)
-    assert (bucket.stage_owner, bucket.gpus) == ("DC", 8)
+    assert (bucket.stage_owner, bucket.gpus) == ("Redbull", 8)
 
 
 def test_c3_ready_node_with_critical_hardware_keeps_gpu_rows_and_flags(policy: Policy) -> None:

@@ -24,13 +24,8 @@ DAY0 = NOW.replace(hour=0, minute=0, second=0)  # end of the last complete UTC d
 LAST = DAY0 - timedelta(days=10)  # inside the last 28 complete days
 PRIOR = DAY0 - timedelta(days=40)  # inside the 28 days before that
 POLICY = "test-1"
-OBJECTIVES = {"PRE_PROVISIONING": 3, "PROVISIONING": 2, "GPU_PLATFORM": 1, "SERVING": 7}
-OWNERS = {
-    "PRE_PROVISIONING": "DC",
-    "PROVISIONING": "Redbull",
-    "GPU_PLATFORM": "POPAI",
-    "SERVING": "Serving",
-}
+OBJECTIVES = {"PROVISIONING": 2, "GPU_PLATFORM": 1, "SERVING": 7}
+OWNERS = {"PROVISIONING": "Redbull", "GPU_PLATFORM": "POPAI", "SERVING": "Serving"}
 
 
 def panel_sql(panel_id: int, **variables: str) -> LiteralString:
@@ -160,23 +155,31 @@ async def test_stage_p50_12_to_8_days_reads_4_days_shorter_33_percent(ledger: Le
         await ledger.episode(f"p{i}", "PROVISIONING", PRIOR, 12, to="GPU_PLATFORM")
         await ledger.episode(f"l{i}", "PROVISIONING", LAST, 8, to="SERVING")
     await ledger.episode("lb", "PROVISIONING", LAST, 30, lb=True, to="GPU_PLATFORM")
-    await ledger.episode("rework", "PROVISIONING", LAST, 1, to="PRE_PROVISIONING")
-    row = by_clock(await run(ledger.store, 14))["Redbull stage (provisioning)"]
+    await ledger.asset("lost")  # ended UNKNOWN, not forward: never a sample
+    await ledger.interval("lost", LAST - timedelta(days=1), LAST, stage="PROVISIONING")
+    await ledger.interval("lost", LAST, None, category="UNKNOWN")
+    clocks = by_clock(await run(ledger.store, 14))
+    assert list(clocks)[4:] == [  # stage clocks in pipeline order, named after the ledger's owners
+        "Redbull stage (provisioning)",
+        "POPAI stage (GPU platform)",
+        "Serving stage (until productive)",
+    ]
+    row = clocks["Redbull stage (provisioning)"]
     assert row["Owner"] == "Redbull"
     assert row["Target"] == "2.0 d"
     assert (row["p50 · last 28 d"], row["p90 · last 28 d"]) == ("8.0 d", "8.0 d")
-    assert row["n · last 28 d"] == "5 · 2 excl."  # the lower bound and the rework are not used
+    assert row["n · last 28 d"] == "5 · 2 excl."  # the lower bound and the UNKNOWN end are not used
     assert (row["p50 · prior 28 d"], row["n · prior 28 d"]) == ("12.0 d", "5")
     assert row["Change in p50"] == "4.0 d shorter / 33.3% shorter"
 
 
 async def test_lower_bounds_give_a_ge_percentile_and_no_change(ledger: Ledger) -> None:
-    # DC clocks start at first sighting (a lower bound): 2 exact + 4 "≥" samples give "≥ p50".
+    # Clocks that began before observation are lower bounds: 2 exact + 4 "≥" samples give "≥ p50".
     for i, days in enumerate((1, 2)):
-        await ledger.episode(f"x{i}", "PRE_PROVISIONING", LAST, days, to="PROVISIONING")
+        await ledger.episode(f"x{i}", "GPU_PLATFORM", LAST, days, to="SERVING")
     for i, days in enumerate((3, 4, 5, 6)):
-        await ledger.episode(f"b{i}", "PRE_PROVISIONING", LAST, days, lb=True, to="PROVISIONING")
-    row = by_clock(await run(ledger.store, 14))["DC stage (pre-provisioning)"]
+        await ledger.episode(f"b{i}", "GPU_PLATFORM", LAST, days, lb=True, to="SERVING")
+    row = by_clock(await run(ledger.store, 14))["POPAI stage (GPU platform)"]
     assert row["n · last 28 d"] == "2 + 4 ≥"
     assert row["p50 · last 28 d"] == "≥ 3.5 d"  # median of 1..6 days, all minimums or exact
     assert row["n · prior 28 d"] == "0 · needs 5"
@@ -235,17 +238,16 @@ async def test_backlog_keeps_lower_bounded_ages_apart(ledger: Ledger) -> None:
     await ledger.interval(
         "redbull-old", NOW - timedelta(days=10), None, stage="PROVISIONING", lb=True
     )
-    await ledger.asset("dc-new")  # began before observation, 1 h old: might be overdue
+    await ledger.asset("redbull-new")  # began before observation, 1 h old: might be overdue
     await ledger.interval(
-        "dc-new", NOW - timedelta(hours=1), None, stage="PRE_PROVISIONING", lb=True
+        "redbull-new", NOW - timedelta(hours=1), None, stage="PROVISIONING", lb=True
     )
     await ledger.asset("serving")  # exact clock, 2 days
     await ledger.interval("serving", NOW - timedelta(days=2), None, stage="SERVING", gpus=6)
     [overdue] = await run(ledger.store, 3)
     assert (overdue["metric"], overdue["value"]) == ("servers · +1 may be (start not observed)", 1)
     aging = {r["Owner"]: r for r in await run(ledger.store, 6)}
-    assert aging["Redbull"]["Age unknown (began before observation)"] == 1
-    assert aging["DC"]["Age unknown (began before observation)"] == 1
+    assert aging["Redbull"]["Age unknown (began before observation)"] == 2  # 10 d and 1 h, both ≥
     assert aging["Serving"]["1\N{EN DASH}3 d"] == 1  # the column label uses an en dash
     backlog = {r["Owner"]: r for r in await run(ledger.store, 7)}
     assert backlog["Redbull"]["Overdue servers"] == 1

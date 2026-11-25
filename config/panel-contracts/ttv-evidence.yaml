@@ -12,8 +12,7 @@ panels:
   unit: seconds
   numerator: now() − max(scan_runs.finished_at) of ok/partial scans
   denominator: null
-  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
-    knows.'
+  population: Every GPU asset in the ledger (server-scan is the only inventory source).
   window: now
   filters: []
   exclusions: null
@@ -45,8 +44,7 @@ panels:
   unit: percent
   numerator: GPUs not UNKNOWN now
   denominator: all GPUs now
-  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
-    knows.'
+  population: Every GPU asset in the ledger (server-scan is the only inventory source).
   window: now
   filters:
   - site
@@ -76,23 +74,17 @@ panels:
   audience: Operators, platform team
   decision: Whether any source is blind right now.
   definition: sources (server-scan, each cluster's kube API and Thanos) whose latest read failed or that
-    never succeeded, plus configured collector managers with no complete read within 1 h (TTV_COLLECTOR_STALE_AFTER
-    default; a manager removed from TTV_MANAGERS_FILE no longer counts). 0 = every source answered on
-    its latest attempt. The tables below name them.
+    never succeeded. 0 = every source answered on its latest attempt. The tables below name them.
   unit: sources
-  numerator: source_state rows failing or never successful + active collector managers (configured, or
-    read and not removed) with no complete read within 1 h
+  numerator: source_state rows failing or never successful
   denominator: null
-  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
-    knows.'
+  population: Every GPU asset in the ledger (server-scan is the only inventory source).
   window: now
   filters: []
   exclusions: null
   query: grafana/dashboards/ttv-evidence.json#43
   lineage:
   - source_state
-  - collector_reads
-  - collector_managers
   freshness: Latest engine scan (every 5 min); the Data age card shows its age.
   baseline: null
   direction: lower_is_better
@@ -101,7 +93,7 @@ panels:
   missing_data: '''no source read yet'' before the first scan.'
   value_kind: observed
   gate: core
-  privileges: SELECT on source_state, collector_reads, collector_managers
+  privileges: SELECT on source_state
   cardinality: 1 value
   drilldown: ttv-evidence#21
   action: null
@@ -113,14 +105,13 @@ panels:
   status: built
   audience: Operators, platform team
   decision: How many identity questions need a human.
-  definition: open rows in identity_conflicts (two records claiming one asset, two assets claiming one
-    node, ambiguous collector profiles). Their GPUs are UNKNOWN (IDENTITY_CONFLICT) until resolved; the
-    table below lists them.
+  definition: open rows in identity_conflicts (two server-scan records claiming one asset, two assets
+    claiming one node). Their GPUs are UNKNOWN (IDENTITY_CONFLICT) until resolved; the table below lists
+    them.
   unit: conflicts
   numerator: open identity_conflicts rows
   denominator: null
-  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
-    knows.'
+  population: Every GPU asset in the ledger (server-scan is the only inventory source).
   window: now
   filters: []
   exclusions: null
@@ -153,8 +144,7 @@ panels:
   unit: days
   numerator: now() − publication_date of the engine's selected snapshot
   denominator: null
-  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
-    knows.'
+  population: Every GPU asset in the ledger (server-scan is the only inventory source).
   window: now
   filters: []
   exclusions: null
@@ -182,13 +172,12 @@ panels:
   status: built
   audience: Operators, platform team
   decision: Which source is failing, since when, and with what error.
-  definition: 'engine-side health per source (server-scan, each target cluster, collector targets): consecutive
-    failed scans, last success, last attempt and last error.'
+  definition: 'engine-side health per source (server-scan, each target cluster''s kube API and Thanos):
+    consecutive failed scans, last success, last attempt and last error.'
   unit: scans, seconds
   numerator: null
   denominator: null
-  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
-    knows.'
+  population: Every GPU asset in the ledger (server-scan is the only inventory source).
   window: now
   filters: []
   exclusions: null
@@ -210,44 +199,6 @@ panels:
   action: Follow the runbook for the failing source (docs/runbooks.md).
   fixture: null
   expected: null
-- id: 30
-  title: 'Profile-less collector: managers'
-  question: E18
-  status: built
-  audience: Operators, platform team
-  decision: Whether the profile-less collector's managers are read and fresh.
-  definition: 'one row per UCS Central / OpenManage manager in TTV_MANAGERS_FILE, or read by the collector
-    and not since removed from it (ADR-0004). State: never read; ok; latest read incomplete (no server
-    can be retired); stale (no complete read within 1 h, the TTV_COLLECTOR_STALE_AFTER default: its collector-only
-    servers are UNKNOWN); never complete. Counts come from the latest complete read: servers listed, servers
-    with GPUs, servers whose GPU inventory could not be read, servers whose profile binding is ambiguous.'
-  unit: servers
-  numerator: null
-  denominator: null
-  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
-    knows.'
-  window: now
-  filters: []
-  exclusions: null
-  query: grafana/dashboards/ttv-evidence.json#30
-  lineage:
-  - collector_reads
-  - collector_servers
-  - collector_managers
-  freshness: Latest engine scan (every 5 min); the Data age card shows its age.
-  baseline: null
-  direction: neutral
-  thresholds: null
-  uncertainty: null
-  missing_data: A message names TTV_MANAGERS_FILE / ttv-collector when no manager has been read.
-  value_kind: observed
-  gate: core
-  privileges: SELECT on collector_reads, collector_servers, collector_managers
-  cardinality: one row per manager
-  drilldown: null
-  action: null
-  fixture: null
-  expected: null
 - id: 25
   title: Unknown GPUs now, by reason
   question: E18
@@ -259,8 +210,7 @@ panels:
   unit: GPUs, assets
   numerator: null
   denominator: null
-  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
-    knows.'
+  population: Every GPU asset in the ledger (server-scan is the only inventory source).
   window: now
   filters:
   - site
@@ -289,14 +239,13 @@ panels:
   status: built
   audience: Operators, platform team
   decision: What each inventory source contributes and whether it went quiet.
-  definition: 'assets in the ledger by the source that first registered them (server-scan, profile-less
-    collector, ...): asset count, GPUs per inventory (assets.gpu_count), assets whose GPU count is unread,
+  definition: 'assets in the ledger by server-scan''s source_provider (the server-scan collector that
+    reports them): asset count, GPUs per inventory (assets.gpu_count), assets whose GPU count is unread,
     newest observation and assets not observed in the last hour.'
   unit: assets, GPUs
   numerator: null
   denominator: null
-  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
-    knows.'
+  population: Every GPU asset in the ledger (server-scan is the only inventory source).
   window: now
   filters:
   - site
@@ -329,8 +278,7 @@ panels:
   unit: conflicts
   numerator: null
   denominator: null
-  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
-    knows.'
+  population: Every GPU asset in the ledger (server-scan is the only inventory source).
   window: now
   filters: []
   exclusions: null
@@ -363,8 +311,7 @@ panels:
   unit: scans per hour
   numerator: null
   denominator: null
-  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
-    knows.'
+  population: Every GPU asset in the ledger (server-scan is the only inventory source).
   window: selected range
   filters: []
   exclusions: null
@@ -397,8 +344,7 @@ panels:
   unit: GPUs
   numerator: null
   denominator: null
-  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
-    knows.'
+  population: Every GPU asset in the ledger (server-scan is the only inventory source).
   window: selected range
   filters:
   - site
@@ -433,8 +379,7 @@ panels:
   unit: scans
   numerator: null
   denominator: null
-  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
-    knows.'
+  population: Every GPU asset in the ledger (server-scan is the only inventory source).
   window: selected range
   filters: []
   exclusions: null

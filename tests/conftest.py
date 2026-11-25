@@ -74,13 +74,11 @@ def policy() -> Policy:
     return Policy(
         policy_version="test-1",
         teams={
-            Stage.PRE_PROVISIONING: "DC",
             Stage.PROVISIONING: "Redbull",
             Stage.GPU_PLATFORM: "POPAI",
             Stage.SERVING: "Serving",
         },
         stage_objectives={
-            Stage.PRE_PROVISIONING: timedelta(days=3),
             Stage.PROVISIONING: timedelta(hours=1),
             Stage.GPU_PLATFORM: timedelta(days=1),
             Stage.SERVING: timedelta(days=7),

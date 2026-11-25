@@ -1,18 +1,16 @@
 # Business policy for the GPU Time-to-Value engine. Validated at startup; an invalid file stops the engine.
 # Bump policy_version whenever anything below changes: every ledger interval records the version it used.
-policy_version: "2026-10-30.1"
+policy_version: "2026-11-25.1"
 
 # Team that owns each stage (AGENT.md §0.1). Names are free text and appear on dashboards.
 teams:
-  PRE_PROVISIONING: DC
   PROVISIONING: Redbull
   GPU_PLATFORM: POPAI
   SERVING: Serving
 
 # Idle time in a stage beyond its objective counts as overdue.
-# ASSUMPTION (AGENT.md I1, not yet approved): DC 3 d, Redbull 2 d, POPAI 1 d, Serving 7 d.
+# ASSUMPTION (AGENT.md I1, not yet approved): Redbull 2 d, POPAI 1 d, Serving 7 d.
 stage_objectives:
-  PRE_PROVISIONING: 3d
   PROVISIONING: 2d
   GPU_PLATFORM: 1d
   SERVING: 7d
@@ -80,8 +78,3 @@ team_map:
   workloads: {}     # "namespace/Kind/name": team
   namespaces: {}    # namespace: team
 
-# Profile-less collector (ADR-0002 rows 3-5). A bound profile whose name matches the pattern is an OCP
-# profile (case-sensitive re.search, the same rule server-scan's collectors use; verify with probe P-SS-1).
-# collector:
-#   ocp_profile_pattern: "^ocp"
-#   handover_grace: 6h          # an OCP-profile GPU server missing from server-scan longer than this is flagged

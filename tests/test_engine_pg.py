@@ -251,3 +251,22 @@ async def test_duplicate_serials_become_one_unknown_asset_and_a_conflict(
 
 async def test_migrations_are_idempotent(store: PostgresStore) -> None:
     assert await store.migrate(MIGRATIONS) == []
+
+
+async def test_upgrade_drops_the_removed_collector_tables(store: PostgresStore) -> None:
+    """A database that ran the old collector migrations loses those tables (ADR-0008)."""
+    await store.conn.execute("CREATE TABLE collector_reads (id bigserial PRIMARY KEY)")
+    await store.conn.execute(
+        "CREATE TABLE collector_servers (read_id bigint REFERENCES collector_reads (id))"
+    )
+    await store.conn.execute(
+        "INSERT INTO source_state (name) VALUES ('collector:ome-1'), ('serverscan')"
+    )
+    await store.conn.execute("DELETE FROM schema_migrations WHERE version = '0006_drop_collector'")
+    assert await store.migrate(MIGRATIONS) == ["0006_drop_collector"]
+    left = await rows(
+        store, "SELECT tablename FROM pg_tables WHERE starts_with(tablename, 'collector')"
+    )
+    assert left == []
+    sources = await rows(store, "SELECT name FROM source_state ORDER BY name")
+    assert sources == [{"name": "serverscan"}]

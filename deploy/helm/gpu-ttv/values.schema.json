@@ -1,9 +1,9 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "gpu-ttv values",
-  "description": "Checks the values that would otherwise fail only at runtime. tests/test_helm_chart.py keeps settings in step with ttv.config.Settings.",
+  "description": "Checks the values that would otherwise fail only at runtime. tests/test_helm_charts.py keeps settings in step with ttv.config.Settings.",
   "type": "object",
-  "required": ["image", "dryRun", "settings", "serverscan", "database", "engine", "collector"],
+  "required": ["image", "dryRun", "settings", "serverscan", "database", "engine"],
   "properties": {
     "dryRun": {
       "type": "boolean",
@@ -65,10 +65,7 @@
         "TTV_DETAIL_CONCURRENCY": {"type": ["integer", "string"]},
         "TTV_UNKNOWN_GRACE_SCANS": {"type": ["integer", "string"]},
         "TTV_TOMBSTONE_AFTER": {"type": ["number", "string"]},
-        "TTV_PRICING_SNAPSHOT": {"type": "string"},
-        "TTV_COLLECTOR_TIMEOUT_SECONDS": {"type": ["number", "string"]},
-        "TTV_COLLECTOR_INTERVAL_SECONDS": {"type": ["integer", "string"]},
-        "TTV_COLLECTOR_STALE_AFTER": {"type": ["number", "string"]}
+        "TTV_PRICING_SNAPSHOT": {"type": "string"}
       }
     },
     "engine": {
@@ -76,32 +73,6 @@
       "properties": {
         "replicaCount": {"type": "integer", "minimum": 0},
         "port": {"type": "integer", "minimum": 1024, "maximum": 65535}
-      }
-    },
-    "collector": {
-      "type": "object",
-      "required": ["managers"],
-      "properties": {
-        "managers": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "ucs_central": {"type": "array", "items": {"type": "object"}},
-            "openmanage": {"type": "array", "items": {"type": "object"}}
-          }
-        },
-        "secretMounts": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "required": ["secret", "mountPath"],
-            "additionalProperties": false,
-            "properties": {
-              "secret": {"type": "string", "minLength": 1},
-              "mountPath": {"type": "string", "pattern": "^/"}
-            }
-          }
-        }
       }
     },
     "networkPolicy": {

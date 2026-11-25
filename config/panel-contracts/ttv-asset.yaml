@@ -284,8 +284,8 @@ panels:
   status: built
   audience: Stage owners, CEO (E02 inputs)
   decision: How far the server got through the pipeline and when.
-  definition: milestones rows in pipeline order (first_seen, ocp_profile_seen, in_serverscan, assigned_cluster,
-    node_ready, gpu_ready, workload_running, first_genuine_request), others after; '≥' for lower bounds.
+  definition: milestones rows in pipeline order (first_seen, in_serverscan, assigned_cluster, node_ready,
+    gpu_ready, workload_running, first_genuine_request), others after; '≥' for lower bounds.
   unit: UTC time
   numerator: null
   denominator: null
@@ -384,47 +384,7 @@ panels:
   drilldown: null
   action: Follow up with the next-action owner.
   fixture: tests/test_dashboards_gpu_use_asset_pg.py
-  expected: active, Network for cisco:syn-a with the fixture.
-- id: 14
-  title: Latest collector record
-  question: support
-  status: built
-  audience: DC, engineers
-  decision: What the profile-less collector last saw for a collector-only server.
-  definition: 'Newest collector_servers row per manager and source id matching the asset''s vendor and
-    serial (or manager and source id when the serial is empty): manager, kind, profile, GPUs, profile_unresolved,
-    read time and completeness.'
-  unit: GPUs
-  numerator: null
-  denominator: null
-  population: One asset (collector-only assets; server-scan assets show 'Not collector-only').
-  window: now
-  filters:
-  - asset_id
-  exclusions: null
-  query: grafana/dashboards/ttv-asset.json#14
-  lineage:
-  - collector_servers.*
-  - collector_reads.manager
-  - collector_reads.kind
-  - collector_reads.finished_at
-  - collector_reads.complete
-  - assets.aliases
-  freshness: Collector cadence (15 min).
-  baseline: null
-  direction: neutral
-  thresholds: null
-  uncertainty: profile_unresolved = ambiguous binding (identity conflict).
-  missing_data: '''GPU inventory unread'' never 0; ''Not available'' row when the role cannot read the
-    collector tables.'
-  value_kind: observed
-  gate: core
-  privileges: SELECT on collector_servers, collector_reads (guarded), assets
-  cardinality: one row per manager record
-  drilldown: null
-  action: DC applies a profile (PROFILE_NONE).
-  fixture: tests/test_dashboards_gpu_use_asset_pg.py
-  expected: ucs-central-syn, none bound, 4 GPUs for hp:syn-e; 'Not available' after the tables are dropped.
+  expected: active, Network for cisco:syn-a with the fixture; 'Not available' after the table is dropped.
 - id: 16
   title: GPUs by category and reason over time
   question: support

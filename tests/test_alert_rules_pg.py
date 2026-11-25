@@ -167,17 +167,6 @@ async def interval(
     await store.conn.execute(insert, row)
 
 
-async def collector_read(
-    store: PostgresStore, manager: str, finished: datetime, *, complete: bool, error: str = ""
-) -> None:
-    """Record one collector read of a manager."""
-    await store.conn.execute(
-        "INSERT INTO collector_reads (manager, kind, started_at, finished_at, complete, errors)"
-        " VALUES (%s, 'openmanage', %s, %s, %s, %s)",
-        (manager, finished - 2 * MIN, finished, complete, Jsonb([error] if error else [])),
-    )
-
-
 async def age_migrations(store: PostgresStore, by_: timedelta) -> None:
     """Pretend the ledger schema was created `by_` ago."""
     await store.conn.execute("UPDATE schema_migrations SET applied_at = applied_at - %s", (by_,))
@@ -263,54 +252,6 @@ async def test_cluster_source_counts_its_unreachable_gpus(store: PostgresStore) 
     assert (b["kube:c1"]["value"], b["kube:c2"]["value"]) == (8, 4)
 
 
-async def test_collector_manager_stale_per_manager_and_never_read(store: PostgresStore) -> None:
-    uid = "ttv-collector-manager-stale"
-    [none] = await evaluate(store, uid)
-    assert none.labels["manager"] == "(no collector reads)"
-    assert not none.firing
-    await age_migrations(store, 3 * HOUR)
-    [none] = await evaluate(store, uid)
-    assert none.firing  # no read for 3 h: DC's stage is unobserved, not empty
-
-    now = await db_now(store)
-    await collector_read(store, "ucs-a", now - 10 * MIN, complete=True)
-    await collector_read(store, "ome-b", now - 2 * HOUR, complete=True)
-    await collector_read(store, "ome-b", now - 5 * MIN, complete=False, error="HTTP 401")
-    await collector_read(store, "ome-c", now - 90 * MIN, complete=False, error="timeout")
-    evidence = {"manager": "ome-b", "source_failed_scans": 2}
-    await interval(store, "d1", "UNKNOWN", "SOURCE_STALE", 8, now - HOUR, evidence=evidence)
-
-    got = await by(store, uid, "manager")
-    assert set(got) == {"ucs-a", "ome-b", "ome-c"}  # the "never read" row is gone
-    assert not got["ucs-a"].firing
-    assert got["ome-b"].firing and got["ome-b"].value == pytest.approx(120, abs=1)
-    assert got["ome-c"].firing and got["ome-c"].value == pytest.approx(92, abs=1)
-    b = await detail(store, uid, "manager")
-    assert b["ome-b"]["last_attempt"].endswith("(incomplete)")
-    assert "HTTP 401" in b["ome-b"]["last_errors"]
-    assert b["ome-b"]["value"] == 8
-    assert b["ome-c"]["last_complete_read"] == "never"
-
-
-async def test_collector_manager_stale_ignores_removed_and_counts_configured(
-    store: PostgresStore,
-) -> None:
-    uid = "ttv-collector-manager-stale"
-    now = await db_now(store)
-    await collector_read(store, "ome-old", now - 3 * HOUR, complete=True)
-    await collector_read(store, "ome-1", now - 5 * MIN, complete=True)
-    # The job's start: ome-old left the managers file; ucs-new is configured but not read yet.
-    await store.sync_collector_managers(
-        {"ome-1": "openmanage", "ucs-new": "ucs_central"}, now - 2 * HOUR
-    )
-    got = await by(store, uid, "manager")
-    assert {k: v.firing for k, v in got.items()} == {"ome-1": False, "ucs-new": True}
-    assert got["ucs-new"].value == pytest.approx(120, abs=1)  # since it was configured
-    b = await detail(store, uid, "manager")
-    assert set(b) == {"ome-1", "ucs-new"}
-    assert b["ucs-new"]["last_attempt"] == "never"
-
-
 async def test_unknown_share_high(store: PostgresStore) -> None:
     uid = "ttv-unknown-share-high"
     assert await evaluate(store, uid) == []  # empty ledger: Grafana raises DatasourceNoData
@@ -358,38 +299,6 @@ async def test_unknown_share_growing_needs_an_hour_of_history(store: PostgresSto
     assert RULES["ttv-unknown-share-growing"]["noDataState"] == "KeepLast"
 
 
-async def test_handover_overdue_per_manager_only_while_serverscan_is_read(
-    store: PostgresStore,
-) -> None:
-    uid = "ttv-handover-overdue"
-    now = await db_now(store)
-    await source(store, "serverscan", 0, now - MIN)
-    await collector_read(store, "ome-1", now - 5 * MIN, complete=True)
-    await collector_read(store, "ucs-2", now - 5 * MIN, complete=True)
-    since = (now - 9 * HOUR).isoformat()
-    overdue = {"manager": "ome-1", "profile_name": "ocp-gpu", "name": "xe9680-1"}
-    await interval(
-        store, "h1", "UNKNOWN", "HANDOVER_PENDING", 8, now - 2 * HOUR,
-        flags=["handover_overdue"], evidence=overdue | {"ocp_profile_since": since},
-    )  # fmt: skip
-    fresh = {"manager": "ucs-2", "profile_name": "ocp-gpu", "ocp_profile_since": since}
-    await interval(store, "h2", "UNKNOWN", "HANDOVER_PENDING", 4, now - HOUR, evidence=fresh)
-
-    got = await by(store, uid, "manager")
-    assert {k: (v.value, v.firing) for k, v in got.items()} == {
-        "ome-1": (8, True),
-        "ucs-2": (0, False),  # within handover_grace: not flagged yet
-    }
-    b = await detail(store, uid, "manager")
-    assert b["ome-1"]["first_asset"] == "h1"
-    assert "h1 (xe9680-1, 8 GPUs, profile ocp-gpu since " in b["ome-1"]["oldest_assets"]
-
-    # A server-scan read failure could make every collector server look unlisted: hold state.
-    await store.conn.execute("UPDATE source_state SET failed_scans = 1")
-    assert await evaluate(store, uid) == []
-    assert RULES[uid]["noDataState"] == "KeepLast"
-
-
 async def test_node_not_found_per_cluster(store: PostgresStore) -> None:
     uid = "ttv-node-not-found"
     now = await db_now(store)
@@ -411,7 +320,7 @@ async def test_node_not_found_per_cluster(store: PostgresStore) -> None:
 
 
 async def breach_ledger(store: PostgresStore, policy: Policy, now: datetime) -> None:
-    """Redbull: 8 GPUs idle for 3 h against a 1 h objective (§17); DC within its 3 d objective."""
+    """Redbull: 8 GPUs idle 3 h against a 1 h objective (§17); POPAI within its 1 d objective."""
     await store.sync_objectives(policy)
     await scan(store, now - 2 * MIN)
     await source(store, "serverscan", 0, now - 2 * MIN)
@@ -421,8 +330,8 @@ async def breach_ledger(store: PostgresStore, policy: Policy, now: datetime) -> 
         store, "rb", "IDLE", "NODE_NOT_READY", 8, entered, ended_at=now - 90 * MIN, **redbull
     )
     await interval(store, "rb", "IDLE", "NOT_IN_CLUSTER", 8, now - 90 * MIN, **redbull)
-    dc = {"stage": "PRE_PROVISIONING", "stage_owner": "DC", "stage_entered_at": now - HOUR}
-    await interval(store, "dc", "IDLE", "MAINTENANCE", 4, now - HOUR, **dc)
+    popai = {"stage": "GPU_PLATFORM", "stage_owner": "POPAI", "stage_entered_at": now - HOUR}
+    await interval(store, "pp", "IDLE", "GPU_PLATFORM_NOT_READY", 4, now - HOUR, **popai)
     await interval(store, "u", "UNKNOWN", "SOURCE_STALE", 8, now - 5 * HOUR)
 
 
@@ -435,7 +344,7 @@ async def test_stage_breach_one_instance_per_owner_with_overdue_gpu_hours(
     got = await by(store, uid, "stage_owner")
     assert {k: (v.value, v.firing) for k, v in got.items()} == {
         "Redbull": (8, True),
-        "DC": (0, False),
+        "POPAI": (0, False),
     }
     b = await detail(store, uid, "stage_owner")
     # §17: 24 idle GPU-h, of which 16 overdue, summed across both intervals of the episode.
@@ -446,7 +355,9 @@ async def test_stage_breach_one_instance_per_owner_with_overdue_gpu_hours(
         "rb (host-rb): 8 GPUs NOT_IN_CLUSTER, 0.1 d in stage vs 01:00:00 objective"
         in (b["Redbull"]["top_assets"])
     )
-    assert (b["DC"]["value"], b["DC"]["top_assets"], b["DC"]["first_asset"]) == (0, "none", "")
+    assert (b["POPAI"]["value"], b["POPAI"]["top_assets"], b["POPAI"]["first_asset"]) == (
+        0, "none", "",
+    )  # fmt: skip
 
 
 async def test_next_action_annotation_never_moves_the_breach(
