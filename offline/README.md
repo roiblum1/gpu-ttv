@@ -26,6 +26,8 @@ Not yet run: a full bundle, an import into a real registry, or the clean-room in
 | `import-images.sh` | air-gapped | Verifies `SHA256SUMS`, then pushes each archive to the internal registry with the same path, tag and digest |
 | `lib.sh` | both | Shared helpers |
 
+**Pins can go stale.** quay.io deletes the old digest when it rebuilds a tag (it did for `buildah` and `skopeo` in November 2026). If `mirror-images.sh` stops with `manifest unknown`, re-pin that line of `images.lock`, and the same digest in `.gitlab-ci.yml`, to the tag's current multi-arch index digest. Then rebuild the bundle.
+
 The registry host, the Python mirror URL and the namespace are parameters. The values used below (`registry.internal.example`, `pypi.internal.example`, `gpu-ttv`) are placeholders.
 
 ## 0. Easiest: take a GitHub release

@@ -79,7 +79,7 @@ charts:
 build-image:
   stage: build
   needs: [gate]
-  image: ${INTERNAL_REGISTRY}/buildah/stable@sha256:baaa8fe50d0e78687fa39ef90d5afcea07a6bec086dfdef99f792b555f98fbcd  # v1.43.5
+  image: ${INTERNAL_REGISTRY}/buildah/stable@sha256:a6f96bfffc47f36462985573d85e87f782bf2d8b37e02cb3dd307713bfa6cc13  # v1.43.5
   variables:
     STORAGE_DRIVER: vfs
     BUILDAH_ISOLATION: chroot
