@@ -11,7 +11,9 @@ Evidence, on 2026-10-31:
   - both SBOMs were generated.
 - `fixture-tested`: the import script, against a stub skopeo.
 
-Not yet run: a full bundle, an import into a real registry, or the clean-room install on site.
+On 2026-11-25, `lab-tested` with skopeo 1.24.1: the image archives became tars of skopeo's `dir:` layout, because an OCI archive cannot hold Grafana's Docker manifest list without changing its digest. A Docker manifest list (`registry.k8s.io/pause:3.9`) and the released gpu-ttv image were each archived with their digests unchanged.
+
+Not yet run: an import into a real registry, or the clean-room install on site. The first full bundle is the GitHub release's.
 
 ## What is where
 
@@ -63,7 +65,7 @@ podman build -t localhost/gpu-ttv:release . && offline/make-bundle.sh --out ... 
 The bundle holds:
 
 ```
-images/*.tar, images/index.txt    third-party images (OCI archives, digests preserved) [+ gpu-ttv.tar]
+images/*.tar, images/index.txt    third-party images (tars of skopeo dir: copies, digests preserved) [+ gpu-ttv.tar]
 wheelhouse/                       wheels + requirements.txt (hashes) + its own SHA256SUMS
 charts/                           gpu-ttv-<v>.tgz, gpu-ttv-cluster-reader-<v>.tgz [+ values-image.yaml]
 source/gpu-ttv-<rev>.tar.gz       the source tree (git archive)

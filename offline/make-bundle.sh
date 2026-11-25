@@ -50,18 +50,21 @@ podman save --quiet -o "$out/tools/skopeo.tar" localhost/gpu-ttv-tools/skopeo:la
 
 sbom_archives=()
 if [ -n "$image" ]; then
+  # An OCI archive first, which syft reads for the SBOM; the bundle keeps the dir: archive.
+  oci="$out/.sbom-input/gpu-ttv.tar"
+  mkdir -p "$out/.sbom-input"
   case "$image" in
     */*@sha256:*)
       base="${image%%/*}/$(ref_path "$image")"
-      run_skopeo copy --quiet --preserve-digests "docker://$image" \
-        "oci-archive:$out/images/gpu-ttv.tar:$(ref_path "$image"):$version"
+      run_skopeo copy --quiet --preserve-digests "docker://$image" "oci-archive:$oci"
       ;;
     *)
       base=local/gpu-ttv/gpu-ttv
-      podman save --quiet --format oci-archive -o "$out/images/gpu-ttv.tar" "$image"
+      podman save --quiet --format oci-archive -o "$oci" "$image"
       ;;
   esac
-  digest="sha256:$(run_skopeo inspect --raw "oci-archive:$out/images/gpu-ttv.tar" | sha256_stdin)"
+  archive_image "oci-archive:$oci" "$out/images/gpu-ttv.tar"
+  digest=$(archive_digest "$out/images/gpu-ttv.tar")
   case "$image" in
     *@sha256:*) [ "$digest" = "$(ref_digest "$image")" ] || {
       echo "bundle: $image archived as $digest" >&2; exit 1; } ;;
@@ -70,9 +73,10 @@ if [ -n "$image" ]; then
   printf '%s %s\n' "$ref" "images/gpu-ttv.tar" >> "$out/images/index.txt"
   printf '%s gpu-ttv release image, bundled by make-bundle.sh at %s\n' "$ref" "$revision" >> "$out/images.lock"
   printf 'image:\n  repository: %s\n  digest: "%s"\n' "$(ref_path "$ref")" "$digest" > "$out/charts/values-image.yaml"
-  sbom_archives+=("$out/images/gpu-ttv.tar")
+  sbom_archives+=("$oci")
 fi
 "$here/sbom.sh" --out "$out/sbom" --platform "$platform" "${sbom_archives[@]+"${sbom_archives[@]}"}"
+rm -rf "$out/.sbom-input"
 
 (cd "$out" && find . -type f ! -name SHA256SUMS | LC_ALL=C sort | sed 's|^\./||' \
   | while read -r f; do sha256_lines "$f"; done > SHA256SUMS)

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Connected side: copy every image of offline/images.lock, all architectures, into OCI archives that
-# keep the multi-arch index digest, so the internal registry serves the digests the repo pins.
+# Connected side: copy every image of offline/images.lock, all architectures, into tar archives of
+# skopeo's dir: layout that keep the index digest, so the internal registry serves the pinned digests.
 #
 #   offline/mirror-images.sh [--out DIR] [--only SUBSTRING]
 #
@@ -31,9 +31,8 @@ lock_refs "$here/images.lock" | while read -r ref; do
   archive="images/$(ref_file "$ref").tar"
   echo "mirror: $ref"
   rm -f "$out/$archive"
-  run_skopeo copy --quiet --all --preserve-digests \
-    "docker://$(ref_pinned "$ref")" "oci-archive:$out/$archive:$(ref_path "$ref"):$(ref_tag "$ref")"
-  got="sha256:$(run_skopeo inspect --raw "oci-archive:$out/$archive" | sha256_stdin)"
+  archive_image "docker://$(ref_pinned "$ref")" "$out/$archive"
+  got=$(archive_digest "$out/$archive")
   if [ "$got" != "$(ref_digest "$ref")" ]; then
     echo "mirror: $ref archived as $got, not the pinned digest" >&2
     exit 1

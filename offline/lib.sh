@@ -70,3 +70,20 @@ run_skopeo() {
   fi
   podman run --rm --network host "${mounts[@]}" "$image" "$@"
 }
+
+# Copy an image (every architecture, digests unchanged) into a tar of skopeo's `dir:` layout. OCI
+# archives cannot hold a Docker manifest list, which Grafana publishes, without changing its digest.
+archive_image() {
+  local tmp
+  tmp=$(mktemp -d "${SKOPEO_WORKDIR:?}/.image.XXXXXX")
+  run_skopeo copy --quiet --all --preserve-digests "$1" "dir:$tmp"
+  tar -C "$tmp" -cf "$2" .
+  rm -rf "$tmp"
+}
+
+# Digest of an archive's top-level manifest: the multi-arch index or list, byte for byte.
+archive_digest() {
+  local hex
+  hex=$(tar -xOf "$1" ./manifest.json | sha256_stdin) || return 1
+  printf 'sha256:%s\n' "$hex"
+}

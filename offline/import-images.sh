@@ -25,7 +25,10 @@ while [ $# -gt 0 ]; do
 done
 [ -n "$registry" ] || { echo "import: --registry is required" >&2; exit 2; }
 bundle=$(cd "$bundle" && pwd)
-export SKOPEO_WORKDIR=$bundle
+# Each archive is unpacked here in turn, so the bundle itself may sit on read-only media.
+work=$(mktemp -d "${TMPDIR:-/tmp}/gpu-ttv-import.XXXXXX")
+trap 'rm -rf "$work"' EXIT
+export SKOPEO_WORKDIR=$work
 
 (cd "$bundle" && sha256_check SHA256SUMS)
 echo "import: bundle checksums verified"
@@ -33,8 +36,10 @@ echo "import: bundle checksums verified"
 while read -r ref archive; do
   [ -n "$ref" ] || continue
   dest="$registry/$(ref_path "$ref")"
+  rm -rf "$work/image" && mkdir "$work/image"
+  tar -C "$work/image" -xf "$bundle/$archive"
   run_skopeo copy --quiet --all --preserve-digests "${tls[@]+"${tls[@]}"}" \
-    "oci-archive:$bundle/$archive" "docker://$dest:$(ref_tag "$ref")"
+    "dir:$work/image" "docker://$dest:$(ref_tag "$ref")"
   tls_inspect=()
   [ ${#tls[@]} -eq 0 ] || tls_inspect=("--tls-verify=${tls[0]#--dest-tls-verify=}")
   run_skopeo inspect --raw "${tls_inspect[@]+"${tls_inspect[@]}"}" "docker://$dest@$(ref_digest "$ref")" > /dev/null

@@ -7,10 +7,12 @@ digest; the offline scripts run against stub `skopeo`/`oc` binaries, so nothing 
 from __future__ import annotations
 
 import hashlib
+import io
 import os
 import re
 import shutil
 import subprocess
+import tarfile
 from pathlib import Path
 from typing import Any
 
@@ -141,12 +143,20 @@ def stub(directory: Path, name: str, body: str) -> None:
     path.chmod(0o755)
 
 
+def dir_archive(path: Path, manifest: bytes) -> None:
+    """A tar of skopeo's dir: layout holding only a top-level manifest, as archive_image writes."""
+    with tarfile.open(path, "w") as tar:
+        info = tarfile.TarInfo("./manifest.json")
+        info.size = len(manifest)
+        tar.addfile(info, io.BytesIO(manifest))
+
+
 def make_bundle(tmp_path: Path) -> tuple[Path, str]:
     """A one-image bundle with SHA256SUMS, as make-bundle.sh writes it."""
     bundle = tmp_path / "bundle"
     (bundle / "images").mkdir(parents=True)
     ref = next(m.group(0).split()[0] for m in lock_entries() if m["path"] == "astral-sh/uv")
-    (bundle / "images/uv.tar").write_bytes(b"synthetic archive")
+    dir_archive(bundle / "images/uv.tar", b'{"schemaVersion": 2}')
     (bundle / "images/index.txt").write_text(f"{ref} images/uv.tar\n")
     sums = [
         f"{hashlib.sha256((bundle / f).read_bytes()).hexdigest()}  {f}"
@@ -161,10 +171,12 @@ def run_import(tmp_path: Path, bundle: Path) -> tuple[subprocess.CompletedProces
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir(exist_ok=True)
     log = tmp_path / "skopeo.log"
-    stub(bin_dir, "skopeo", f'echo "$*" >> "{log}"')
+    keep = f'[ "$1" != copy ] || cp "${{5#dir:}}/manifest.json" "{tmp_path}/seen"'
+    stub(bin_dir, "skopeo", f'echo "$*" >> "{log}"; {keep}')
+    env = {**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}", "TMPDIR": str(tmp_path)}
     result = bash(
         str(ROOT / "offline/import-images.sh"), "--registry", "registry.internal.example",
-        "--bundle", str(bundle), env={**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}"},
+        "--bundle", str(bundle), env=env,
     )  # fmt: skip
     return result, log.read_text().splitlines() if log.exists() else []
 
@@ -174,11 +186,15 @@ def test_import_verifies_checksums_then_pushes_by_path_tag_and_digest(tmp_path: 
     result, calls = run_import(tmp_path, bundle)
     assert result.returncode == 0, result.stderr
     digest = ref.split("@")[1]
-    assert calls == [
-        f"copy --quiet --all --preserve-digests oci-archive:{bundle}/images/uv.tar "
-        "docker://registry.internal.example/astral-sh/uv:0.13.6",
-        f"inspect --raw docker://registry.internal.example/astral-sh/uv@{digest}",
-    ]
+    copy, inspect = calls
+    assert re.fullmatch(
+        rf"copy --quiet --all --preserve-digests dir:{tmp_path}/gpu-ttv-import\.\w+/image "
+        r"docker://registry\.internal\.example/astral-sh/uv:0\.13\.6",
+        copy,
+    ), copy
+    assert inspect == f"inspect --raw docker://registry.internal.example/astral-sh/uv@{digest}"
+    assert (tmp_path / "seen").read_bytes() == b'{"schemaVersion": 2}'
+    assert not list(tmp_path.glob("gpu-ttv-import.*"))  # the unpacked copy is removed
 
 
 @pytest.mark.skipif(shutil.which("bash") is None, reason="needs bash")
@@ -266,3 +282,15 @@ def test_set_chart_image_points_the_chart_at_a_digest_and_keeps_comments(tmp_pat
     assert bash(script, str(values), "ghcr.io", "a/b", "sha256:short").returncode == 2
     (tmp_path / "other.yaml").write_text("x: 1\n")
     assert bash(script, str(tmp_path / "other.yaml"), "ghcr.io", "a/b", digest).returncode == 1
+
+
+def test_mirror_stops_when_an_archive_does_not_keep_the_pinned_digest(tmp_path: Path) -> None:
+    """A stub skopeo writes a manifest whose hash cannot match the first locked digest."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    stub(bin_dir, "skopeo", 'd="${@: -1}"; printf "{}" > "${d#dir:}/manifest.json"')
+    env = {**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}"}
+    result = bash(str(ROOT / "offline/mirror-images.sh"), "--out", str(tmp_path / "out"), env=env)
+    assert result.returncode == 1
+    assert "not the pinned digest" in result.stderr
+    assert (tmp_path / "out/images/index.txt").read_text() == ""
