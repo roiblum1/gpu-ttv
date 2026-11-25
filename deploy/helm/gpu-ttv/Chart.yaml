@@ -6,7 +6,7 @@ description: >-
 type: application
 # 0.2.0 removed the collector and its values (ADR-0008); README.md, "Upgrading from 0.1.x".
 version: 0.2.0
-appVersion: "0.1.0"
+appVersion: "0.2.0"
 home: https://github.com/roiblum1/gpu-ttv
 sources:
   - https://github.com/roiblum1/gpu-ttv

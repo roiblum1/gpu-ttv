@@ -129,7 +129,16 @@ A small chart, installed once per target cluster by its owners (`helm install`, 
 - **`sbom`:** syft on the pushed digest.
 - **`chart-package`** (tags): the packaged charts and `values-image.yaml`.
 
-Every job image is an internal-registry reference by locked digest. `.github/workflows/ci.yml` (the public repo) is unchanged.
+Every job image is an internal-registry reference by locked digest.
+
+On GitHub, `.github/workflows/ci.yml` runs the same gate. `.github/workflows/release.yml` runs on a `vX.Y.Z` tag:
+- it first runs that gate as a reusable workflow, and refuses a tag that differs from the app, chart and `appVersion` versions (a test keeps them and the Containerfile's `VERSION` equal);
+- it builds with podman for linux/amd64 and pushes `ghcr.io/<owner>/gpu-ttv:<version>`, recording the digest from `podman push --digestfile`;
+- `offline/set-chart-image.sh` points the chart's `values.yaml` at `ghcr.io` and that digest;
+- `make-bundle.sh --image ghcr.io/…@<digest>` copies the image into the bundle with `skopeo --preserve-digests` and stops if the digest changed, so the internal registry serves the same digest GHCR does;
+- the bundle is attached to a GitHub Release in parts under 2 GiB, with both charts and `SHA256SUMS`, and the bundle's own `SHA256SUMS` hash goes in the release notes.
+
+Every action is pinned by commit (tested). The package is public, so pulling needs no token. Inside the air gap nothing comes from GHCR directly: the bundle is the only path in.
 
 ### `GET /decisions`
 

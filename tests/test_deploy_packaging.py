@@ -206,3 +206,63 @@ def test_discover_kinds_lists_readable_crd_kinds_and_leaves_out_credentials(tmp_
         {"apiGroup": "serving.kserve.io", "resources": ["llminferenceservices"]},
     ]
     assert "left out (credentials): accesssecrets" in result.stdout
+
+
+def test_app_chart_and_image_versions_agree() -> None:
+    """A release tag vX.Y.Z must match all of them (.github/workflows/release.yml checks it)."""
+    app = re.search(r'^version = "([^"]+)"', (ROOT / "pyproject.toml").read_text(), re.MULTILINE)
+    chart = yaml.safe_load((ROOT / "deploy/helm/gpu-ttv/Chart.yaml").read_text())
+    image = re.search(r"^ARG VERSION=(\S+)$", (ROOT / "Containerfile").read_text(), re.MULTILINE)
+    assert app and image
+    assert app[1] == chart["version"] == chart["appVersion"] == image[1]
+
+
+def test_github_actions_are_pinned_by_commit() -> None:
+    """A tag can be moved; a commit cannot. Local reusable workflows are fine."""
+    uses = [
+        u
+        for f in sorted((ROOT / ".github/workflows").glob("*.yml"))
+        for u in re.findall(r"^\s*(?:-\s+)?uses:\s*(\S+)", f.read_text(), re.MULTILINE)
+    ]
+    assert uses
+    for ref in uses:
+        assert ref.startswith("./") or re.fullmatch(r"[\w.-]+/[\w./-]+@[0-9a-f]{40}", ref), ref
+
+
+def test_release_runs_the_gate_then_publishes_by_digest() -> None:
+    flows = ROOT / ".github/workflows"
+    ci = yaml.safe_load((flows / "ci.yml").read_text())
+    release = yaml.safe_load((flows / "release.yml").read_text())
+    assert "workflow_call" in ci[True]  # PyYAML reads the key `on` as True
+    assert release[True] == {"push": {"tags": ["v[0-9]+.[0-9]+.[0-9]+"]}}
+    assert release["permissions"] == {"contents": "read"}
+    jobs = release["jobs"]
+    assert jobs["gate"] == {"uses": "./.github/workflows/ci.yml"}
+    publish = jobs["publish"]
+    assert publish["needs"] == "gate"
+    assert publish["permissions"] == {"contents": "write", "packages": "write"}
+    script = "\n".join(s.get("run", "") for s in publish["steps"])
+    assert "podman push --digestfile" in script
+    assert 'offline/make-bundle.sh --out "$DIST/gpu-ttv-$VERSION"' in script
+    assert '--image "$IMAGE@$DIGEST"' in script
+
+
+def test_set_chart_image_points_the_chart_at_a_digest_and_keeps_comments(tmp_path: Path) -> None:
+    values = tmp_path / "values.yaml"
+    shutil.copy(ROOT / "deploy/helm/gpu-ttv/values.yaml", values)
+    digest = "sha256:" + "ab" * 32
+    script = str(ROOT / "offline/set-chart-image.sh")
+    result = bash(script, str(values), "ghcr.io", "roiblum1/gpu-ttv", digest)
+    assert result.returncode == 0, result.stderr
+    image = yaml.safe_load(values.read_text())["image"]
+    assert (image["registry"], image["repository"], image["digest"]) == (
+        "ghcr.io",
+        "roiblum1/gpu-ttv",
+        digest,
+    )
+    assert values.read_text().count("\n#") == (
+        (ROOT / "deploy/helm/gpu-ttv/values.yaml").read_text().count("\n#")
+    )
+    assert bash(script, str(values), "ghcr.io", "a/b", "sha256:short").returncode == 2
+    (tmp_path / "other.yaml").write_text("x: 1\n")
+    assert bash(script, str(tmp_path / "other.yaml"), "ghcr.io", "a/b", digest).returncode == 1
