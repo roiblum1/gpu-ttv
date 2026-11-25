@@ -96,7 +96,7 @@ helm template gpu-ttv deploy/helm/gpu-ttv -f values.yaml          # review what 
 
 - [`deploy/helm/gpu-ttv/`](deploy/helm/gpu-ttv/README.md): the engine chart. It starts in dry run, and its values never hold a secret.
 - [`deploy/gpu-cluster-rbac/`](deploy/gpu-cluster-rbac/README.md): read-only access on each target cluster, with CRD kinds discovered per cluster.
-- [`offline/`](offline/README.md): the air-gapped bundle, from a GitHub release or your own build through import, install, upgrade and rollback, with the network flows.
+- [`offline/`](offline/README.md): installing from a GitHub release (image and charts), or an air-gapped bundle you build, through import, install, upgrade and rollback, with the network flows.
 - [`docs/dry-run-review.md`](docs/dry-run-review.md): the at-least-one-day dry run, the go/no-go criteria and the change that enables ledger writes.
 
 Installing into a cluster is always the user's step.

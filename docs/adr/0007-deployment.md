@@ -137,10 +137,11 @@ On GitHub, `.github/workflows/ci.yml` runs the same gate. `.github/workflows/rel
 - it first runs that gate as a reusable workflow, and refuses a tag that differs from the app, chart and `appVersion` versions (a test keeps them and the Containerfile's `VERSION` equal);
 - it builds with podman for linux/amd64 and pushes `ghcr.io/<owner>/gpu-ttv:<version>`, recording the digest from `podman push --digestfile`;
 - `offline/set-chart-image.sh` points the chart's `values.yaml` at `ghcr.io` and that digest;
-- `make-bundle.sh --image ghcr.io/…@<digest>` copies the image into the bundle with `skopeo --preserve-digests` and stops if the digest changed, so the internal registry serves the same digest GHCR does;
-- the bundle is attached to a GitHub Release in parts under 2 GiB, with both charts and `SHA256SUMS`, and the bundle's own `SHA256SUMS` hash goes in the release notes.
+- both charts, `values-image.yaml` and `SHA256SUMS` are attached to a GitHub Release.
 
-Every action is pinned by commit (tested). The package is public, so pulling needs no token. Inside the air gap nothing comes from GHCR directly: the bundle is the only path in.
+Until v0.3.0 the release also built the offline bundle (`make-bundle.sh --image ghcr.io/…@<digest>`, split into parts under 2 GiB). The user removed it on 2026-11-26 ("I only retrieve the gpu-ttv image"): it took most of the release's 30 minutes. `make-bundle.sh` still builds one by hand, with the same digest check.
+
+Every action is pinned by commit (tested). The package is public, so pulling needs no token. Inside an air gap nothing comes from GHCR directly: the image is copied in by digest, or a hand-built bundle carries everything.
 
 ### `GET /decisions`
 

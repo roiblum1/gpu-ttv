@@ -1,5 +1,5 @@
-# On a vX.Y.Z tag: the gate, then the gpu-ttv image on GHCR (linux/amd64, by digest), both Helm
-# charts pointing at that digest, and the offline bundle, all on one GitHub Release (ADR-0007).
+# On a vX.Y.Z tag: the gate, then the gpu-ttv image on GHCR (linux/amd64, by digest) and both Helm
+# charts pointing at that digest on one GitHub Release; no offline bundle (ADR-0007).
 name: Release
 
 on:
@@ -20,7 +20,7 @@ jobs:
   publish:
     needs: gate
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 30
     permissions:
       contents: write  # the GitHub Release
       packages: write  # ghcr.io/<owner>/gpu-ttv
@@ -41,14 +41,10 @@ jobs:
             echo "::error::tag $GITHUB_REF_NAME, pyproject $app, chart $chart and appVersion $app_chart must agree"
             exit 1
           fi
-          # The bundle holds every architecture of every locked image: use the large /mnt disk.
-          dist=/mnt/gpu-ttv-dist
-          if ! { sudo mkdir -p "$dist" && sudo chown "$USER" "$dist"; }; then dist=$RUNNER_TEMP/dist; fi
-          df -h / "$dist"
           {
             echo "VERSION=$version"
             echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/gpu-ttv"
-            echo "DIST=$dist"
+            echo "DIST=$RUNNER_TEMP/dist"
           } >> "$GITHUB_ENV"
 
       - name: Build the image
@@ -66,37 +62,27 @@ jobs:
           podman push --digestfile "$RUNNER_TEMP/digest" "$IMAGE:$VERSION"
           echo "DIGEST=$(cat "$RUNNER_TEMP/digest")" >> "$GITHUB_ENV"
 
-      - name: Point the chart at the pushed digest
-        run: offline/set-chart-image.sh deploy/helm/gpu-ttv/values.yaml ghcr.io "${IMAGE#ghcr.io/}" "$DIGEST"
-
-      - name: Build the offline bundle
-        run: offline/make-bundle.sh --out "$DIST/gpu-ttv-$VERSION" --arch x86_64 --image "$IMAGE@$DIGEST"
-
-      - name: Split the bundle into release assets
+      - name: Package the charts, pointed at the pushed digest
         run: |
-          b=gpu-ttv-$VERSION
-          mkdir -p "$DIST/assets"
-          # GitHub limits each release asset to 2 GiB.
-          tar -C "$DIST" -cf - "$b" | split -b 1900M -d -a 2 - "$DIST/assets/$b-bundle.tar.part-"
-          cp "$DIST/$b/charts/"*.tgz "$DIST/$b/charts/values-image.yaml" "$DIST/assets/"
-          (cd "$DIST/assets" && sha256sum -- * > SHA256SUMS)
-          ls -l "$DIST/assets"
-          echo "BUNDLE_SUMS=$(sha256sum "$DIST/$b/SHA256SUMS" | cut -d' ' -f1)" >> "$GITHUB_ENV"
+          offline/set-chart-image.sh deploy/helm/gpu-ttv/values.yaml ghcr.io "${IMAGE#ghcr.io/}" "$DIGEST"
+          mkdir -p "$DIST"
+          helm package deploy/helm/gpu-ttv -d "$DIST"
+          helm package deploy/gpu-cluster-rbac -d "$DIST"
+          printf 'image:\n  registry: ghcr.io\n  repository: %s\n  digest: "%s"\n' "${IMAGE#ghcr.io/}" "$DIGEST" \
+            > "$DIST/values-image.yaml"
+          (cd "$DIST" && sha256sum -- * > SHA256SUMS)
+          ls -l "$DIST"
 
       - name: Publish the GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          b=gpu-ttv-$VERSION
           cat > "$RUNNER_TEMP/notes.md" <<EOF
-          **Image:** \`$IMAGE@$DIGEST\` (tag \`$VERSION\`, linux/amd64). The \`$b.tgz\` chart already points at it.
+          **Image:** \`$IMAGE@$DIGEST\` (tag \`$VERSION\`, linux/amd64). The \`gpu-ttv-$VERSION.tgz\` chart already points at it.
 
-          **Air-gapped install** (\`offline/README.md\` in the bundle has every step):
-          1. Download every asset, then check them: \`sha256sum -c SHA256SUMS\`.
-          2. Join and unpack the bundle: \`cat $b-bundle.tar.part-* | tar -xf -\`.
-          3. Check the bundle's own checksum file: \`sha256sum $b/SHA256SUMS\` must print \`$BUNDLE_SUMS\`.
-          4. Carry \`$b/\` in, run \`offline/import-images.sh --registry <internal registry> --bundle .\` from inside it, then
-             \`helm upgrade --install gpu-ttv charts/$b.tgz -n gpu-ttv -f charts/values-image.yaml --set image.registry=<internal registry> -f values-production.yaml\`.
+          **Install:** \`helm upgrade --install gpu-ttv gpu-ttv-$VERSION.tgz -n gpu-ttv -f values-production.yaml\`.
+          From an internal registry, copy the image there by digest first and add \`--set image.registry=<internal registry>\`.
+          The release carries no offline bundle; \`offline/make-bundle.sh\` builds one when you need it (\`offline/README.md\`).
           EOF
           gh release create "$GITHUB_REF_NAME" --title "gpu-ttv $VERSION" --notes-file "$RUNNER_TEMP/notes.md" \
-            "$DIST/assets/"*
+            "$DIST/"*

@@ -259,8 +259,11 @@ def test_release_runs_the_gate_then_publishes_by_digest() -> None:
     assert publish["permissions"] == {"contents": "write", "packages": "write"}
     script = "\n".join(s.get("run", "") for s in publish["steps"])
     assert "podman push --digestfile" in script
-    assert 'offline/make-bundle.sh --out "$DIST/gpu-ttv-$VERSION"' in script
-    assert '--image "$IMAGE@$DIGEST"' in script
+    assert 'offline/set-chart-image.sh deploy/helm/gpu-ttv/values.yaml ghcr.io' in script
+    assert "helm package deploy/helm/gpu-ttv" in script
+    assert "helm package deploy/gpu-cluster-rbac" in script
+    assert 'gh release create "$GITHUB_REF_NAME"' in script
+    assert "make-bundle.sh --out" not in script  # the user needs only the image (2026-11-26)
 
 
 def test_set_chart_image_points_the_chart_at_a_digest_and_keeps_comments(tmp_path: Path) -> None:

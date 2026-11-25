@@ -13,7 +13,7 @@ Evidence, on 2026-10-31:
 
 On 2026-11-25, `lab-tested` with skopeo 1.24.1: the image archives became tars of skopeo's `dir:` layout, because an OCI archive cannot hold Grafana's Docker manifest list without changing its digest. A Docker manifest list (`registry.k8s.io/pause:3.9`) and the released gpu-ttv image were each archived with their digests unchanged.
 
-Not yet run: an import into a real registry, or the clean-room install on site. The first full bundle is the GitHub release's.
+Not yet run: an import into a real registry, or the clean-room install on site. GitHub releases v0.2.2 to v0.3.0 carried a full bundle; later releases carry only the image and charts (2026-11-26), so build the bundle with step 1.
 
 ## What is where
 
@@ -36,21 +36,9 @@ The registry host, the Python mirror URL and the namespace are parameters. The v
 
 Every `vX.Y.Z` tag of the public repository runs `.github/workflows/release.yml`. After the tests pass, it:
 - pushes the image to `ghcr.io/roiblum1/gpu-ttv:<version>`, for linux/amd64, and records its digest;
-- builds the whole bundle below with that image inside, keeping the same digest;
-- attaches the bundle, split into parts under 2 GiB, plus both charts, `values-image.yaml` and `SHA256SUMS`, to the release.
+- attaches both charts, `values-image.yaml` (that digest) and `SHA256SUMS` to the release. The chart's `values.yaml` already points at `ghcr.io` and the digest.
 
-On a connected machine:
-
-```bash
-gh release download v<version> --repo roiblum1/gpu-ttv --dir gpu-ttv-release
-cd gpu-ttv-release && sha256sum -c SHA256SUMS
-cat gpu-ttv-<version>-bundle.tar.part-* | tar -xf -
-sha256sum gpu-ttv-<version>/SHA256SUMS   # must equal the value in the release notes
-```
-
-Carry `gpu-ttv-<version>/` in, and continue at step 2. In the release, the chart's `values.yaml` already points at `ghcr.io` and the pushed digest. Inside the air gap, set `image.registry` to the internal registry; `import-images.sh` keeps the path `roiblum1/gpu-ttv` and the digest.
-
-To build a bundle yourself instead, follow step 1.
+It builds no offline bundle: the user takes only the image (2026-11-26), and the bundle made a release take about 30 minutes instead of about 5. With registry access, install straight from the release. Into an internal registry, copy the one image by digest (`skopeo copy --preserve-digests docker://ghcr.io/roiblum1/gpu-ttv@<digest> docker://<internal>/roiblum1/gpu-ttv:<version>`) and set `image.registry`. For a full air-gapped transfer with every third-party image, the wheels and the SBOMs, build the bundle yourself (step 1).
 
 ## 1. Connected side: build the bundle
 
