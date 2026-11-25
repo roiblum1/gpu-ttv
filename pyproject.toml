@@ -1,6 +1,6 @@
 [project]
 name = "gpu-ttv"
-version = "0.2.0"
+version = "0.2.1"
 description = "GPU Time-to-Value platform: stage ownership, idle GPU-hours and AWS-equivalent value per GPU server"
 readme = "README.md"
 requires-python = ">=3.12,<3.14"
