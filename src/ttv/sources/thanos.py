@@ -332,7 +332,7 @@ class ThanosSource:
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         """
-        Create the client; TLS verification is always on.
+        Create the client; TLS is verified unless `thanos_insecure_skip_tls_verify` is set.
 
         Args:
             conn (ClusterConnection): Route, token file, CA bundle and label names.
@@ -355,11 +355,19 @@ class ThanosSource:
         self.queries = build_queries(conn, counters, demand_window, activity_window)
         self._timeout = timeout_seconds
         self._lock = asyncio.Lock()
+        insecure = conn.thanos_insecure_skip_tls_verify
+        if insecure:
+            log.warning(
+                "thanos.tls_verification_disabled",
+                source=self.source,
+                url=str(self._base_url),
+                effect="route certificate not checked; the reader token can be intercepted",
+            )
         self._client = httpx.AsyncClient(
             base_url=self._base_url,
             headers={"Accept": "application/json", "User-Agent": "gpu-ttv"},
             timeout=httpx.Timeout(timeout_seconds),
-            verify=tls_verify(conn.thanos_ca_bundle),
+            verify=tls_verify(conn.thanos_ca_bundle, insecure=insecure),
             transport=transport,
             follow_redirects=False,
             event_hooks={"request": [self._guard]},

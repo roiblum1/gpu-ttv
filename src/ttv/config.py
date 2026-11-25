@@ -382,6 +382,8 @@ class ClusterConnection(BaseModel):
         token_file (Path): Service-account token (cluster reader + `cluster-monitoring-view`).
         ca_bundle (Path | None): CA bundle for the kube API; None uses the default trust store.
         thanos_ca_bundle (Path | None): CA bundle for the Thanos route.
+        thanos_insecure_skip_tls_verify (bool): Skip TLS verification for the Thanos route only,
+            e.g. while its certificate is expired. Off by default; the engine logs a warning.
         cluster_id (str | None): Expected `clusterversion` `spec.clusterID`; a mismatch fails
             the read, so a wrong URL never charges another cluster's nodes.
         gpu_resource (str): Extended resource of whole GPUs.
@@ -402,6 +404,7 @@ class ClusterConnection(BaseModel):
     token_file: Path
     ca_bundle: Path | None = None
     thanos_ca_bundle: Path | None = None
+    thanos_insecure_skip_tls_verify: bool = False
     cluster_id: str | None = None
     gpu_resource: str = "nvidia.com/gpu"
     reservation_namespaces: frozenset[str] = frozenset({"runai-reservation"})
@@ -411,6 +414,23 @@ class ClusterConnection(BaseModel):
     dcgm_namespace_label: str = "exported_namespace"
     serving_pod_label: str = "pod"
     serving_namespace_label: str = "namespace"
+
+    @model_validator(mode="after")
+    def _one_thanos_trust(self) -> ClusterConnection:
+        """
+        Refuse a Thanos CA bundle together with skipping verification, which would ignore it.
+
+        Returns:
+            ClusterConnection: This connection.
+
+        Raises:
+            ValueError: If both are set.
+        """
+        if self.thanos_insecure_skip_tls_verify and self.thanos_ca_bundle:
+            raise ValueError(
+                f"{self.name}: set thanos_ca_bundle or thanos_insecure_skip_tls_verify, not both"
+            )
+        return self
 
     def token(self) -> str:
         """

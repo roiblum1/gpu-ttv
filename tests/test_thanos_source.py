@@ -485,10 +485,11 @@ async def test_naive_now_is_refused(policy: Policy, tmp_path: Path) -> None:
         ({}, {"demand_window": timedelta(milliseconds=500)}),
         ({}, {"activity_window": timedelta(0)}),
         ({}, {"timeout_seconds": 0}),
+        ({"thanos_insecure_skip_tls_verify": True, "thanos_ca_bundle": "/etc/pki/ttv/ca.pem"}, {}),
     ],
 )
 def test_invalid_configuration_is_refused(
-    tmp_path: Path, overrides: dict[str, str], kwargs: dict[str, Any]
+    tmp_path: Path, overrides: dict[str, Any], kwargs: dict[str, Any]
 ) -> None:
     args: dict[str, Any] = {
         "counters": [],
@@ -499,6 +500,33 @@ def test_invalid_configuration_is_refused(
     }
     with pytest.raises(ValueError):
         ThanosSource(make_conn(tmp_path, **overrides), **args)
+
+
+def test_skipping_tls_verification_is_opt_in_and_warns(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    verify: list[object] = []
+    real_client = httpx.AsyncClient
+
+    def spy(*args: Any, **kwargs: Any) -> httpx.AsyncClient:
+        verify.append(kwargs["verify"])
+        return real_client(*args, **kwargs)
+
+    monkeypatch.setattr(httpx, "AsyncClient", spy)
+    args: dict[str, Any] = {
+        "counters": [],
+        "demand_window": timedelta(hours=24),
+        "activity_window": timedelta(hours=6),
+        "timeout_seconds": 30.0,
+    }
+    with capture_logs() as events:
+        ThanosSource(make_conn(tmp_path), **args)
+        ThanosSource(make_conn(tmp_path, thanos_insecure_skip_tls_verify=True), **args)
+    assert verify == [True, False]
+    warnings = [e for e in events if e["log_level"] == "warning"]
+    assert [e["event"] for e in warnings] == ["thanos.tls_verification_disabled"]
+    assert warnings[0]["source"] == "thanos:ocp4-prod-gpu-site1"
+    assert TOKEN not in repr(events)
 
 
 @pytest.mark.parametrize(

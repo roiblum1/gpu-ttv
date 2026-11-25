@@ -56,6 +56,7 @@ clusters: []
 #   tokenKey: token                  # default
 #   caKey: ca.crt                    # API server CA from the same Secret; "" uses ca_bundle or the trust store
 #   thanos_ca_bundle: /etc/pki/ttv/ca-bundle.pem   # ingress CA of *.apps; default: caBundle when set
+#   thanos_insecure_skip_tls_verify: false   # true skips the Thanos route's TLS check (e.g. expired cert); logs a warning
 #   # Any other clusters.yaml field (dcgm_node_label, gpu_resource, ...) is passed through unchanged.
 
 # Optional ConfigMap of pricing snapshot files (*.json from ttv-pricing capture) to import at startup

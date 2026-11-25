@@ -272,6 +272,27 @@ def test_every_configured_file_is_mounted(full_docs: list[dict[str, Any]]) -> No
     assert site1["ca_bundle"] == "/var/run/secrets/ttv/clusters/ocp4-prod-gpu-site1/ca.crt"
 
 
+def test_skipping_thanos_tls_verification_drops_the_default_thanos_ca() -> None:
+    docs = render(
+        CHART, "-f", str(FULL_VALUES), "--set", "clusters[0].thanos_insecure_skip_tls_verify=true"
+    )
+    clusters = yaml.safe_load(config_map_file(docs, "-clusters", "clusters.yaml"))["clusters"]
+    site1, site2 = clusters
+    assert site1["thanos_insecure_skip_tls_verify"] is True
+    assert "thanos_ca_bundle" not in site1
+    assert site1["ca_bundle"] == "/var/run/secrets/ttv/clusters/ocp4-prod-gpu-site1/ca.crt"
+    assert site2["thanos_ca_bundle"].endswith("/thanos-ca.crt")
+    ClustersFile.model_validate({"clusters": clusters})
+
+
+def test_skipping_thanos_tls_verification_with_a_thanos_ca_is_refused() -> None:
+    result = helm_template(
+        CHART, "-f", str(FULL_VALUES), "--set", "clusters[1].thanos_insecure_skip_tls_verify=true"
+    )
+    assert result.returncode != 0
+    assert "sets thanos_insecure_skip_tls_verify with a Thanos CA" in result.stderr
+
+
 def test_only_the_engine_runs(
     default_docs: list[dict[str, Any]], full_docs: list[dict[str, Any]]
 ) -> None:

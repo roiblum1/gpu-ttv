@@ -69,16 +69,19 @@ def kind_for_status(status: int) -> SourceErrorKind:
     return SourceErrorKind.INVALID
 
 
-def tls_verify(ca_bundle: Path | None) -> ssl.SSLContext | bool:
+def tls_verify(ca_bundle: Path | None, *, insecure: bool = False) -> ssl.SSLContext | bool:
     """
-    TLS verification for a client: the given CA bundle, else the default trust store. Never off.
+    TLS verification for a client: the given CA bundle, else the default trust store.
 
     Args:
         ca_bundle (Path | None): PEM bundle.
+        insecure (bool): Turn verification off (only the Thanos route offers this opt-in).
 
     Returns:
         ssl.SSLContext | bool: Value for `httpx.AsyncClient(verify=...)`.
     """
+    if insecure:
+        return False
     return ssl.create_default_context(cafile=str(ca_bundle)) if ca_bundle else True
 
 

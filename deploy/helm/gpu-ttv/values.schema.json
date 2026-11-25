@@ -47,7 +47,8 @@
           "tokenSecret": {"type": "string", "minLength": 1},
           "tokenKey": {"type": "string", "minLength": 1},
           "caKey": {"type": "string"},
-          "thanosCaKey": {"type": "string"}
+          "thanosCaKey": {"type": "string"},
+          "thanos_insecure_skip_tls_verify": {"type": "boolean"}
         }
       }
     },

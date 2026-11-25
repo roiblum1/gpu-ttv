@@ -66,7 +66,8 @@ app.kubernetes.io/component: {{ .component }}
 {{- if $caKey -}}
 {{- $_ := set $gen "ca_bundle" (printf "%s/%s" $dir $caKey) -}}
 {{- end -}}
-{{- if .thanosCaKey -}}
+{{- if .thanos_insecure_skip_tls_verify -}}
+{{- else if .thanosCaKey -}}
 {{- $_ := set $gen "thanos_ca_bundle" (printf "%s/%s" $dir .thanosCaKey) -}}
 {{- else if $.Values.caBundle.configMap -}}
 {{- $_ := set $gen "thanos_ca_bundle" (printf "/etc/pki/ttv/%s" $.Values.caBundle.key) -}}
@@ -83,6 +84,9 @@ app.kubernetes.io/component: {{ .component }}
 {{- range .Values.clusters -}}
 {{- if not (has .name $targets) -}}
 {{- fail (printf "clusters: %q is not in the policy's target_clusters %v" .name $targets) -}}
+{{- end -}}
+{{- if and .thanos_insecure_skip_tls_verify (or .thanosCaKey .thanos_ca_bundle) -}}
+{{- fail (printf "clusters: %q sets thanos_insecure_skip_tls_verify with a Thanos CA; keep one" .name) -}}
 {{- end -}}
 {{- end -}}
 {{- range $k := list "teams" "stage_objectives" -}}

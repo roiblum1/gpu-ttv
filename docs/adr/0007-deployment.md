@@ -66,6 +66,7 @@
 - The policy and clusters files are ConfigMaps. A checksum annotation restarts the engine when one changes, because it reads them only at startup.
 - The policy defaults to `config/policy.example.yaml`, and `NOTES.txt` warns when it is used.
 - `clusters` entries get `token_file` and `ca_bundle` from the Secret each one names (`tokenSecret`, keys `token` and `ca.crt`), which matches the RBAC chart's token Secret.
+- `thanos_insecure_skip_tls_verify: true` on a `clusters` entry skips TLS verification of that cluster's Thanos route only, for a route certificate that has expired (added 2026-11-25 at the user's request). It is off by default, as AGENT.md §15 asks: disabled verification is never a default convenience. The chart then adds no Thanos CA and refuses `thanosCaKey` or `thanos_ca_bundle` with it, and the engine logs `thanos.tls_verification_disabled` at start. The reader token is sent to an unverified endpoint while it is on, so renew the route certificate and turn it off again.
 - The chart fails at render time when a cluster is not in the policy's `target_clusters`, when the digest is not `sha256:<64 hex>`, when the policy still names `PRE_PROVISIONING` (the engine refuses such a policy too), or when the values still have a `collector:` section (chart 0.2.0, ADR-0008).
 
 **Secrets are referenced by name only:** `database.existingSecret` (the DSN), `serverscan.tokenSecret` and `clusters[].tokenSecret`. They are mounted read-only with mode 0440. The chart contains no Secret object, and no manager credentials exist any more.

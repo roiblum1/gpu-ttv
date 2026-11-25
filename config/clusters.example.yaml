@@ -15,6 +15,8 @@ clusters:
     token_file: /var/run/secrets/ttv/clusters/ocp4-prod-gpu-site1/token
     ca_bundle: /etc/pki/ttv/ocp4-prod-gpu-site1-api-ca.pem          # API server CA (often the cluster's own signer)
     thanos_ca_bundle: /etc/pki/ttv/ca-bundle.pem                     # ingress CA for *.apps routes
+    # thanos_insecure_skip_tls_verify: false   # true skips TLS verification of the Thanos route only (e.g. an expired
+    #                                          # certificate); not with thanos_ca_bundle. The engine logs a warning.
     # cluster_id: <clusterversion spec.clusterID>                    # recommended: a wrong URL then fails instead of charging another cluster
     # Defaults below; change only if Discovery (probes R8/R9) shows otherwise.
     # gpu_resource: nvidia.com/gpu

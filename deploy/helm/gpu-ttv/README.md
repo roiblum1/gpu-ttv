@@ -30,6 +30,7 @@ The chart contains no Secret: every credential is an existing Secret you create,
 | `caBundle.configMap` / `key` | internal CA bundle, mounted at `/etc/pki/ttv` |
 | `policy` | the business policy (schema: `config/policy.example.yaml`); empty uses the example |
 | `clusters[]` | `config/clusters.yaml` entries plus `tokenSecret` (keys `token`, `ca.crt`); names must be policy targets |
+| `clusters[].thanos_insecure_skip_tls_verify` | `true` skips TLS verification of that cluster's Thanos route only, e.g. while its certificate is expired; off by default, not with `thanosCaKey` or `thanos_ca_bundle`, and the engine logs `thanos.tls_verification_disabled` |
 | `settings` | other `TTV_*` scalars; `values.schema.json` lists the allowed names (see `.env.example`) |
 | `pricing.snapshotsConfigMap` | price snapshots to import instead of the image's (`TTV_PRICING_DIR`) |
 | `grafana.*` | sidecar provisioning; set `grafana.alerting.notifications: false` in a shared Grafana (ADR-0006) |
