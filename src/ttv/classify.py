@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import dataclasses
-import re
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -20,7 +19,6 @@ from ttv.models import (
     ClusterNode,
     Decision,
     Flag,
-    ManagerServer,
     MilestoneFact,
     Reason,
     ServerScanServer,
@@ -30,7 +28,6 @@ from ttv.models import (
 )
 
 SERVERSCAN_SOURCE = "serverscan"
-COLLECTOR_SOURCE_PREFIX = "collector:"
 _NO_CLOCK = StageClock(since=None, lower_bound=True, source="none")
 
 
@@ -79,11 +76,9 @@ def classify(asset: AssetInput, ctx: ClassifyContext) -> Decision:
         Decision: Buckets whose GPU counts sum to the asset's GPU count, with the rule trace.
 
     Raises:
-        ValueError: If the asset has no GPUs, or neither a server-scan nor a collector record.
+        ValueError: If the asset has no server-scan record or no GPUs.
     """
     server = asset.serverscan
-    if server is None and asset.collector is not None and asset.collector.gpu_models:
-        return _CollectorRules(asset, asset.collector, ctx).decide()
     if server is None or not server.gpu_models:
         raise ValueError(f"{asset.asset_id}: classify() needs a server-scan record with GPUs")
     return _Rules(asset, server, ctx).decide()
@@ -180,22 +175,24 @@ class _Rules:
 
     def _maintenance(self) -> Decision | None:
         """
-        Row 6a: maintenance in server-scan is DC's time.
+        Row 6a: maintenance in server-scan is Redbull's time (I8).
 
         Returns:
             Decision | None: A match, or None.
         """
         if self._note("6a MAINTENANCE", self.s.maintenance_enabled):
-            clock = _clock(self.s.maintenance_since, "maintenance.created_at")
+            clock = self._redbull_clock()
+            if self.s.lifecycle_state == "INSTALLED":
+                clock = _clock(self.s.maintenance_since, "maintenance.created_at")
             evidence = {"maintenance_reason": self.s.maintenance_reason}
             return self._server_level(
-                Category.IDLE, Reason.MAINTENANCE, Stage.PRE_PROVISIONING, clock, evidence
+                Category.IDLE, Reason.MAINTENANCE, Stage.PROVISIONING, clock, evidence
             )
         return None
 
     def _hardware(self) -> Decision | None:
         """
-        Row 6b: critical health or an unreachable BMC is DC's time unless the server is INSTALLED.
+        Row 6b: critical health or an unreachable BMC outside a cluster is Redbull's time (I8).
 
         Returns:
             Decision | None: A match, or None.
@@ -213,13 +210,9 @@ class _Rules:
         ):
             return None
         evidence = {"health_overall": self.s.health_overall, "reachable": self.s.reachable}
-        if critical:
-            return self._server_level(
-                Category.IDLE, Reason.HARDWARE_CRITICAL, Stage.PRE_PROVISIONING, _NO_CLOCK, evidence
-            )
-        clock = _clock(self.s.unreachable_since, "unreachable_since")
+        reason = Reason.HARDWARE_CRITICAL if critical else Reason.BMC_UNREACHABLE
         return self._server_level(
-            Category.IDLE, Reason.BMC_UNREACHABLE, Stage.PRE_PROVISIONING, clock, evidence
+            Category.IDLE, reason, Stage.PROVISIONING, self._redbull_clock(), evidence
         )
 
     def _contested(self) -> Decision | None:
@@ -356,22 +349,18 @@ class _Rules:
             evidence (dict[str, Any]): Node evidence.
 
         Returns:
-            Decision: DC's time when the hardware explains it, else Redbull's.
+            Decision: Redbull's time, with the hardware reason when the hardware explains it.
         """
-        hardware = self.critical or self.bmc_down
         evidence |= {"health_overall": self.s.health_overall, "reachable": self.s.reachable}
-        if self._note("13 NODE_NOT_READY + 6b hardware", hardware):
+        reason = Reason.NODE_NOT_READY
+        if self._note("13 NODE_NOT_READY + 6b hardware", self.critical or self.bmc_down):
             reason = Reason.HARDWARE_CRITICAL if self.critical else Reason.BMC_UNREACHABLE
-            return self._server_level(
-                Category.IDLE, reason, Stage.PRE_PROVISIONING, _NO_CLOCK, evidence
-            )
-        self._note("13 NODE_NOT_READY", True)
+        else:
+            self._note("13 NODE_NOT_READY", True)
         clock = StageClock(node.ready_changed_at, lower_bound=True, source="node.ready")
         if node.ready_changed_at is None:
             clock = _NO_CLOCK
-        return self._server_level(
-            Category.IDLE, Reason.NODE_NOT_READY, Stage.PROVISIONING, clock, evidence
-        )
+        return self._server_level(Category.IDLE, reason, Stage.PROVISIONING, clock, evidence)
 
     def _redbull_clock(self) -> StageClock:
         """
@@ -481,84 +470,6 @@ class _Rules:
             policy_version=self.policy.policy_version,
             milestones=tuple(self.milestones),
         )
-
-
-class _CollectorRules(_Rules):
-    """Rows 1-5 for a GPU server only the profile-less collector knows (ADR-0002, ADR-0004)."""
-
-    def __init__(self, asset: AssetInput, record: ManagerServer, ctx: ClassifyContext) -> None:
-        """
-        Prepare the evaluation.
-
-        Args:
-            asset (AssetInput): The asset.
-            record (ManagerServer): Its collector record.
-            ctx (ClassifyContext): Policy and source health.
-        """
-        self.asset = asset
-        self.m = record
-        self.ctx = ctx
-        self.policy = ctx.policy
-        self.trace = []
-        self.flags = []
-        self.critical = False
-        self.bmc_down = False
-        self.milestones = []
-        self.cluster = None
-        self.node_uid = None
-        self.pool = None
-        self.models = record.gpu_models or ()
-
-    def decide(self) -> Decision:
-        """
-        Walk rows 1, 2, 2b, 3, 4 and 5 in order; row 5 always matches what is left.
-
-        Returns:
-            Decision: The classification.
-        """
-        m, rules = self.m, self.policy.collector
-        evidence: dict[str, Any] = {
-            "manager": m.manager,
-            "source_id": m.source_id,
-            "name": m.name,
-            "profile_name": m.profile_name,
-            "domain": m.domain,
-        }
-        if self._note("1 EXCLUDED", self.asset.asset_id in self.policy.exclusions.asset_ids):
-            return self._server_level(Category.NOT_CHARGED, Reason.EXCLUDED, evidence=evidence)
-        status = self.ctx.sources.get(COLLECTOR_SOURCE_PREFIX + m.manager)
-        failing = status is None or status.failed_scans >= self.ctx.unknown_grace_scans
-        if self._note("2 SOURCE_STALE (collector)", failing):
-            evidence["source_failed_scans"] = status.failed_scans if status else None
-            return self._server_level(Category.UNKNOWN, Reason.SOURCE_STALE, evidence=evidence)
-        conflict = self.asset.conflict or (
-            f"profile binding unresolved: {m.profile_unresolved}" if m.profile_unresolved else None
-        )
-        if self._note("2b IDENTITY_CONFLICT", conflict is not None):
-            evidence["conflict"] = conflict
-            return self._server_level(Category.UNKNOWN, Reason.IDENTITY_CONFLICT, evidence=evidence)
-        seen = self.asset.collector_first_seen
-        if self._note("3 PROFILE_NONE", m.profile_name is None):
-            clock = _NO_CLOCK if seen is None else StageClock(seen, True, "collector.first_seen")
-            return self._server_level(
-                Category.IDLE, Reason.PROFILE_NONE, Stage.PRE_PROVISIONING, clock, evidence
-            )
-        ocp = re.search(rules.ocp_profile_pattern, m.profile_name or "") is not None
-        if self._note("4 OTHER_INTENDED_USE", not ocp):
-            return self._server_level(
-                Category.NOT_CHARGED, Reason.OTHER_INTENDED_USE, evidence=evidence
-            )
-        self._note("5 HANDOVER_PENDING", True)
-        since = self.asset.collector_profile_since or seen
-        now = self.ctx.now
-        overdue = since is not None and now is not None and now - since > rules.handover_grace
-        if overdue:
-            self.flags.append(Flag.HANDOVER_OVERDUE)
-        evidence |= {"ocp_profile_since": since.isoformat() if since else None}
-        self.milestones.append(
-            MilestoneFact("ocp_profile_seen", since, True, {"profile": m.profile_name})
-        )
-        return self._server_level(Category.UNKNOWN, Reason.HANDOVER_PENDING, evidence=evidence)
 
 
 def _pool(node: ClusterNode, policy: Policy) -> str | None:

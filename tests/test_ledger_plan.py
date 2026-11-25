@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import dataclasses
 from datetime import timedelta
 
 from conftest import T0, server
 from ttv.classify import ClassifyContext, classify
 from ttv.config import Policy
 from ttv.ledger import LastStage, LedgerPlan, NewInterval, OpenInterval, key_of, plan
-from ttv.models import AssetInput, Decision
+from ttv.models import AssetInput, Decision, Reason, Stage
 
 A = "cisco:cis0001"
 
@@ -76,11 +77,36 @@ def test_reason_change_within_a_stage_keeps_the_episode_start(policy: Policy) ->
 def test_stage_change_starts_a_new_episode_at_scan_time(policy: Policy) -> None:
     opened = [as_open(run_plan(decide(policy), []).opens[0], 1)]
     later = T0 + timedelta(hours=3)
-    (new,) = run_plan(decide(policy, maintenance_enabled=True), opened, now=later).opens
+    base = decide(policy)
+    popai = dataclasses.replace(
+        base,
+        buckets=tuple(
+            dataclasses.replace(
+                b,
+                reason=Reason.GPU_PLATFORM_NOT_READY,
+                stage=Stage.GPU_PLATFORM,
+                stage_owner="POPAI",
+            )
+            for b in base.buckets
+        ),
+    )
+    (new,) = run_plan(popai, opened, now=later).opens
     assert (new.bucket.stage_owner, new.stage_entered_at, new.stage_entered_lower_bound) == (
-        "DC",
+        "POPAI",
         later,
         False,
+    )
+
+
+def test_maintenance_stays_in_redbulls_episode(policy: Policy) -> None:
+    first = run_plan(decide(policy), []).opens[0]
+    opened = [as_open(first, 1)]
+    later = T0 + timedelta(hours=3)
+    (new,) = run_plan(decide(policy, maintenance_enabled=True), opened, now=later).opens
+    assert (new.bucket.reason, new.bucket.stage_owner) == ("MAINTENANCE", "Redbull")
+    assert (new.stage_entered_at, new.stage_entered_lower_bound) == (
+        first.stage_entered_at,
+        first.stage_entered_lower_bound,
     )
 
 

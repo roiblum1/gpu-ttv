@@ -1,7 +1,7 @@
 {
   "uid": "ttv-asset",
   "title": "Asset: one server's GPUs and evidence",
-  "description": "Drill-down for one asset ($asset_id): identity, current GPU buckets with their evidence, milestones, identity conflicts, next-action annotations, the collector record and the category timeline, with a link to the engine's /explain. Other pages link asset cells here with /d/ttv-asset?var-asset_id=<asset>.",
+  "description": "Drill-down for one asset ($asset_id): identity, current GPU buckets with their evidence, milestones, identity conflicts, next-action annotations and the category timeline, with a link to the engine's /explain. Other pages link asset cells here with /d/ttv-asset?var-asset_id=<asset>.",
   "tags": [
     "gpu-ttv",
     "asset",
@@ -211,7 +211,7 @@
       "type": "stat",
       "id": 2,
       "title": "GPUs",
-      "description": "Definition: assets.gpu_count, the GPUs inventory reports for this server (`E`: server-scan hardware.gpus, or the collector's GPU evidence). Every open bucket of the asset sums to it.\nUnits: physical GPUs.\nFilters: asset_id.\nUnknown vs zero: 'unread' = the source did not read the GPU inventory, never 0 GPUs.",
+      "description": "Definition: assets.gpu_count, the GPUs inventory reports for this server (`E`: server-scan hardware.gpus). Every open bucket of the asset sums to it.\nUnits: physical GPUs.\nFilters: asset_id.\nUnknown vs zero: 'unread' = the source did not read the GPU inventory, never 0 GPUs.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "ttv-postgres"
@@ -537,7 +537,7 @@
       "type": "table",
       "id": 8,
       "title": "Identity",
-      "description": "Definition: the assets row: asset_id = <vendor>:<serial_normalized> (server-scan's normalisation), the server name, model and site, which source reported it (server-scan provider, or the collector's manager for collector-only assets), inventory GPUs, and when the engine first and last observed it.\nUnits: times in the dashboard timezone (stored UTC).\nFilters: asset_id.\nUnknown vs zero: GPUs 'unread' = inventory not read, never 0; first observed is the engine's first sighting, not the delivery date.",
+      "description": "Definition: the assets row: asset_id = <vendor>:<serial_normalized> (server-scan's normalisation), the server name, model and site, which server-scan provider reported it (server-scan's source_provider), inventory GPUs, and when the engine first and last observed it.\nUnits: times in the dashboard timezone (stored UTC).\nFilters: asset_id.\nUnknown vs zero: GPUs 'unread' = inventory not read, never 0; first observed is the engine's first sighting, not the delivery date.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "ttv-postgres"
@@ -791,7 +791,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT i.category AS \"Category\",\n       i.reason_code AS \"Reason\",\n       coalesce(i.stage_owner, '—') AS \"Owner\",\n       i.gpus AS \"GPUs\",\n       i.gpu_model AS \"GPU model\",\n       i.cluster AS \"Cluster\",\n       coalesce(i.holder_ref || coalesce(' · team ' || i.team, ''), 'team ' || i.team) AS \"Held by\",\n       nullif(array_to_string(ARRAY(\n  SELECT CASE f\n    WHEN 'allocated_idle' THEN 'allocated, inactive (activity under the policy threshold)'\n    WHEN 'low_use_unverified' THEN 'useful-use threshold (I2) not approved'\n    WHEN 'user_attribution_unverified' THEN 'synthetic traffic not excluded'\n    WHEN 'hardware_critical' THEN 'hardware critical'\n    WHEN 'bmc_unreachable' THEN 'BMC unreachable'\n    WHEN 'handover_overdue' THEN 'handover overdue'\n    ELSE f END\n  FROM unnest(i.flags) AS f), '; '), '') AS \"Flags\",\n       CASE i.reason_code\n  WHEN 'SERVING_IN_USE' THEN format('%s genuine requests in %s h = %s per GPU-hour (counter %s)',\n       trim_scale(round((i.evidence->>'requests')::numeric, 1)), trim_scale((i.evidence->>'window_hours')::numeric),\n       trim_scale(round((i.evidence->>'requests_per_gpu_hour')::numeric, 1)), i.evidence->>'counter')\n  WHEN 'LOW_USE' THEN format('%s requests per GPU-hour, below the approved threshold %s (counter %s)',\n       trim_scale(round((i.evidence->>'requests_per_gpu_hour')::numeric, 1)), i.evidence->>'threshold', i.evidence->>'counter')\n  WHEN 'NO_REAL_DEMAND' THEN format('Loaded and Ready, 0 genuine requests in %s h (counter %s)',\n       trim_scale((i.evidence->>'window_hours')::numeric), i.evidence->>'counter')\n  WHEN 'TRAFFIC_UNOBSERVED' THEN 'Serving workload with no series for its request counter ('\n       || coalesce(translate((i.evidence->'tried')::text, '[]\"', ''), 'none') || '): demand unknown'\n  WHEN 'RUNAI_WORKLOAD' THEN 'Run:ai ' || coalesce(i.evidence->>'runai_kind', '') || ' workload: productive by presence'\n  WHEN 'WORKLOAD_NOT_READY' THEN 'Pod not Ready beyond warm-up'\n       || coalesce(': ' || translate((i.evidence->'waiting')::text, '[]\"', ''), '')\n  WHEN 'OTHER_WORKLOAD' THEN 'Held by a pod that is neither Run:ai nor serving (notebook, benchmark, debug ...)'\n  WHEN 'NO_WORKLOAD' THEN 'Healthy GPUs that no pod holds'\n  WHEN 'HOLDER_UNRESOLVED' THEN 'Held by a pod whose owner chain could not be read'\n  WHEN 'GPU_MISSING' THEN format('Inventory %s GPUs, allocatable %s, reporting DCGM %s', i.evidence->>'E', i.evidence->>'A', i.evidence->>'R')\n       || coalesce('; last XID ' || nullif(replace(translate((i.evidence->'last_xid')::text, '{}\"', ''), '.0', ''), ''), '')\n  WHEN 'GPU_PLATFORM_NOT_READY' THEN format('Node %s: allocatable %s, reporting DCGM %s', i.evidence->>'node', i.evidence->>'A', i.evidence->>'R')\n  WHEN 'NODE_NOT_READY' THEN 'Node ' || coalesce(i.evidence->>'node', '?') || ' is not Ready'\n  WHEN 'NODE_UNSCHEDULABLE' THEN 'Node ' || coalesce(i.evidence->>'node', '?') || ' is cordoned (unschedulable)'\n  WHEN 'NODE_NOT_FOUND' THEN format('No node named %s in cluster %s', i.evidence->>'node_name', i.evidence->>'cluster')\n  WHEN 'CLUSTER_UNREACHABLE' THEN 'Cluster ' || coalesce(i.evidence->>'cluster_name', '?') || ': kube API or Thanos unreachable beyond grace'\n  WHEN 'CLUSTER_NOT_OBSERVED' THEN 'Target cluster ' || coalesce(i.evidence->>'cluster_name', '?') || ' is not configured for reading'\n  WHEN 'OUTSIDE_TARGET_CLUSTERS' THEN 'Installed in ' || coalesce(i.evidence->>'cluster_name', '?') || ', not a target cluster'\n  WHEN 'NOT_IN_CLUSTER' THEN 'Not installed in a cluster yet (server-scan lifecycle AVAILABLE)'\n  WHEN 'IN_MCE_INVENTORY' THEN 'In MCE inventory ' || coalesce(i.evidence->>'mce_name', '') || ', not installed yet'\n  WHEN 'MEMBERSHIP_UNKNOWN' THEN 'OpenShift membership unknown (lifecycle ' || coalesce(i.evidence->>'lifecycle_state', 'missing') || ')'\n  WHEN 'IDENTITY_CONFLICT' THEN coalesce(i.evidence->>'conflict', 'Identity conflict')\n  WHEN 'CONTESTED' THEN 'Cluster claim contested with ' || coalesce(i.evidence->>'contested_with', '?')\n  WHEN 'SOURCE_STALE' THEN 'Inventory source stale or failing'\n       || CASE WHEN (i.evidence->>'record_stale')::boolean THEN ' (server-scan marks the record stale)' ELSE '' END\n  WHEN 'HARDWARE_CRITICAL' THEN 'Hardware health ' || coalesce(i.evidence->>'health_overall', '?')\n       || CASE WHEN i.evidence->>'reachable' = 'false' THEN ', BMC unreachable' ELSE '' END\n  WHEN 'BMC_UNREACHABLE' THEN 'BMC unreachable'\n  WHEN 'MAINTENANCE' THEN 'In maintenance' || coalesce(': ' || (i.evidence->>'maintenance_reason'), '')\n  WHEN 'PROFILE_NONE' THEN 'No server profile bound (manager ' || coalesce(i.evidence->>'manager', '?') || ')'\n  WHEN 'OTHER_INTENDED_USE' THEN 'Profile ' || coalesce(i.evidence->>'profile_name', '?') || ' is not an OCP profile'\n  WHEN 'HANDOVER_PENDING' THEN 'OCP profile ' || coalesce(i.evidence->>'profile_name', '?') || ' applied, not in server-scan yet'\n  WHEN 'EXCLUDED' THEN 'Excluded by configuration'\n  ELSE i.reason_code\nEND AS \"Evidence\",\n       i.started_at AS \"In this bucket since\",\n       CASE WHEN i.category = 'IDLE' THEN\n         coalesce(CASE WHEN i.stage_entered_lower_bound THEN '≥ ' ELSE '' END\n                  || to_char(i.stage_entered_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI'), 'unknown')\n       END AS \"Stage clock since (UTC)\"\nFROM capacity_intervals i\nWHERE i.ended_at IS NULL AND i.asset_id = '$asset_id'\nORDER BY array_position(ARRAY['PRODUCTIVE', 'IDLE', 'NOT_CHARGED', 'UNKNOWN'], i.category), array_position(ARRAY['DC', 'Redbull', 'POPAI', 'Serving'], i.stage_owner),\n         i.gpus DESC, i.reason_code, i.holder_ref"
+          "rawSql": "SELECT i.category AS \"Category\",\n       i.reason_code AS \"Reason\",\n       coalesce(i.stage_owner, '—') AS \"Owner\",\n       i.gpus AS \"GPUs\",\n       i.gpu_model AS \"GPU model\",\n       i.cluster AS \"Cluster\",\n       coalesce(i.holder_ref || coalesce(' · team ' || i.team, ''), 'team ' || i.team) AS \"Held by\",\n       nullif(array_to_string(ARRAY(\n  SELECT CASE f\n    WHEN 'allocated_idle' THEN 'allocated, inactive (activity under the policy threshold)'\n    WHEN 'low_use_unverified' THEN 'useful-use threshold (I2) not approved'\n    WHEN 'user_attribution_unverified' THEN 'synthetic traffic not excluded'\n    WHEN 'hardware_critical' THEN 'hardware critical'\n    WHEN 'bmc_unreachable' THEN 'BMC unreachable'\n    ELSE f END\n  FROM unnest(i.flags) AS f), '; '), '') AS \"Flags\",\n       CASE i.reason_code\n  WHEN 'SERVING_IN_USE' THEN format('%s genuine requests in %s h = %s per GPU-hour (counter %s)',\n       trim_scale(round((i.evidence->>'requests')::numeric, 1)), trim_scale((i.evidence->>'window_hours')::numeric),\n       trim_scale(round((i.evidence->>'requests_per_gpu_hour')::numeric, 1)), i.evidence->>'counter')\n  WHEN 'LOW_USE' THEN format('%s requests per GPU-hour, below the approved threshold %s (counter %s)',\n       trim_scale(round((i.evidence->>'requests_per_gpu_hour')::numeric, 1)), i.evidence->>'threshold', i.evidence->>'counter')\n  WHEN 'NO_REAL_DEMAND' THEN format('Loaded and Ready, 0 genuine requests in %s h (counter %s)',\n       trim_scale((i.evidence->>'window_hours')::numeric), i.evidence->>'counter')\n  WHEN 'TRAFFIC_UNOBSERVED' THEN 'Serving workload with no series for its request counter ('\n       || coalesce(translate((i.evidence->'tried')::text, '[]\"', ''), 'none') || '): demand unknown'\n  WHEN 'RUNAI_WORKLOAD' THEN 'Run:ai ' || coalesce(i.evidence->>'runai_kind', '') || ' workload: productive by presence'\n  WHEN 'WORKLOAD_NOT_READY' THEN 'Pod not Ready beyond warm-up'\n       || coalesce(': ' || translate((i.evidence->'waiting')::text, '[]\"', ''), '')\n  WHEN 'OTHER_WORKLOAD' THEN 'Held by a pod that is neither Run:ai nor serving (notebook, benchmark, debug ...)'\n  WHEN 'NO_WORKLOAD' THEN 'Healthy GPUs that no pod holds'\n  WHEN 'HOLDER_UNRESOLVED' THEN 'Held by a pod whose owner chain could not be read'\n  WHEN 'GPU_MISSING' THEN format('Inventory %s GPUs, allocatable %s, reporting DCGM %s', i.evidence->>'E', i.evidence->>'A', i.evidence->>'R')\n       || coalesce('; last XID ' || nullif(replace(translate((i.evidence->'last_xid')::text, '{}\"', ''), '.0', ''), ''), '')\n  WHEN 'GPU_PLATFORM_NOT_READY' THEN format('Node %s: allocatable %s, reporting DCGM %s', i.evidence->>'node', i.evidence->>'A', i.evidence->>'R')\n  WHEN 'NODE_NOT_READY' THEN 'Node ' || coalesce(i.evidence->>'node', '?') || ' is not Ready'\n  WHEN 'NODE_UNSCHEDULABLE' THEN 'Node ' || coalesce(i.evidence->>'node', '?') || ' is cordoned (unschedulable)'\n  WHEN 'NODE_NOT_FOUND' THEN format('No node named %s in cluster %s', i.evidence->>'node_name', i.evidence->>'cluster')\n  WHEN 'CLUSTER_UNREACHABLE' THEN 'Cluster ' || coalesce(i.evidence->>'cluster_name', '?') || ': kube API or Thanos unreachable beyond grace'\n  WHEN 'CLUSTER_NOT_OBSERVED' THEN 'Target cluster ' || coalesce(i.evidence->>'cluster_name', '?') || ' is not configured for reading'\n  WHEN 'OUTSIDE_TARGET_CLUSTERS' THEN 'Installed in ' || coalesce(i.evidence->>'cluster_name', '?') || ', not a target cluster'\n  WHEN 'NOT_IN_CLUSTER' THEN 'Not installed in a cluster yet (server-scan lifecycle AVAILABLE)'\n  WHEN 'IN_MCE_INVENTORY' THEN 'In MCE inventory ' || coalesce(i.evidence->>'mce_name', '') || ', not installed yet'\n  WHEN 'MEMBERSHIP_UNKNOWN' THEN 'OpenShift membership unknown (lifecycle ' || coalesce(i.evidence->>'lifecycle_state', 'missing') || ')'\n  WHEN 'IDENTITY_CONFLICT' THEN coalesce(i.evidence->>'conflict', 'Identity conflict')\n  WHEN 'CONTESTED' THEN 'Cluster claim contested with ' || coalesce(i.evidence->>'contested_with', '?')\n  WHEN 'SOURCE_STALE' THEN 'Inventory source stale or failing'\n       || CASE WHEN (i.evidence->>'record_stale')::boolean THEN ' (server-scan marks the record stale)' ELSE '' END\n  WHEN 'HARDWARE_CRITICAL' THEN 'Hardware health ' || coalesce(i.evidence->>'health_overall', '?')\n       || CASE WHEN i.evidence->>'reachable' = 'false' THEN ', BMC unreachable' ELSE '' END\n  WHEN 'BMC_UNREACHABLE' THEN 'BMC unreachable'\n  WHEN 'MAINTENANCE' THEN 'In maintenance' || coalesce(': ' || (i.evidence->>'maintenance_reason'), '')\n  WHEN 'EXCLUDED' THEN 'Excluded by configuration'\n  ELSE i.reason_code\nEND AS \"Evidence\",\n       i.started_at AS \"In this bucket since\",\n       CASE WHEN i.category = 'IDLE' THEN\n         coalesce(CASE WHEN i.stage_entered_lower_bound THEN '≥ ' ELSE '' END\n                  || to_char(i.stage_entered_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI'), 'unknown')\n       END AS \"Stage clock since (UTC)\"\nFROM capacity_intervals i\nWHERE i.ended_at IS NULL AND i.asset_id = '$asset_id'\nORDER BY array_position(ARRAY['PRODUCTIVE', 'IDLE', 'NOT_CHARGED', 'UNKNOWN'], i.category), array_position(ARRAY['PROVISIONING', 'GPU_PLATFORM', 'SERVING'], i.stage),\n         i.gpus DESC, i.reason_code, i.holder_ref"
         }
       ],
       "fieldConfig": {
@@ -1089,7 +1089,7 @@
       "type": "table",
       "id": 11,
       "title": "Milestones (first-time facts)",
-      "description": "Definition: the asset's milestones in pipeline order (first_seen, ocp_profile_seen, in_serverscan, assigned_cluster, node_ready, gpu_ready, workload_running, first_genuine_request; any other milestone name the engine writes is listed after them). Milestones are first-time facts that survive regressions; current condition is in 'Current GPU buckets'. A server can have reached every milestone and still be idle now (§13).\nUnits: UTC times.\nFilters: asset_id.\nUnknown vs zero: '≥' = lower bound (it happened at or before that time, e.g. before the engine first observed it); 'not observed yet' = no evidence, not 'never'. If the Grafana role cannot read the table (missing, or no SELECT grant) the panel shows one 'Not available' row instead of an error (the query runs through query_to_xml only when has_table_privilege allows it).",
+      "description": "Definition: the asset's milestones in pipeline order (first_seen, in_serverscan, assigned_cluster, node_ready, gpu_ready, workload_running, first_genuine_request; any other milestone name the engine writes is listed after them). Milestones are first-time facts that survive regressions; current condition is in 'Current GPU buckets'. A server can have reached every milestone and still be idle now (§13).\nUnits: UTC times.\nFilters: asset_id.\nUnknown vs zero: '≥' = lower bound (it happened at or before that time, e.g. before the engine first observed it); 'not observed yet' = no evidence, not 'never'. If the Grafana role cannot read the table (missing, or no SELECT grant) the panel shows one 'Not available' row instead of an error (the query runs through query_to_xml only when has_table_privilege allows it).",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "ttv-postgres"
@@ -1110,7 +1110,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "WITH src AS (\n  SELECT CASE WHEN coalesce(has_table_privilege(to_regclass('milestones')::oid, 'SELECT'), false)\n              THEN query_to_xml(format('SELECT encode(convert_to(row_to_json(q)::text, ''UTF8''), ''base64'') AS j FROM (SELECT milestone, observed_at, lower_bound, evidence FROM milestones WHERE asset_id = %L) AS q', '$asset_id'), true, false, '')\n         END AS x\n), rows AS (\n  SELECT convert_from(decode((xpath('/row/j/text()', r))[1]::text, 'base64'), 'UTF8')::jsonb AS j\n  FROM src, unnest(xpath('/table/row', src.x)) AS r\n), steps(ord, milestone, label) AS (\n  VALUES (1, 'first_seen', 'First seen by the engine'),\n         (2, 'ocp_profile_seen', 'OCP profile seen by the collector'),\n         (3, 'in_serverscan', 'In server-scan'),\n         (4, 'assigned_cluster', 'Assigned to a cluster'),\n         (5, 'node_ready', 'Node Ready'),\n         (6, 'gpu_ready', 'GPU platform ready'),\n         (7, 'workload_running', 'Workload running'),\n         (8, 'first_genuine_request', 'First genuine request')\n), m AS (\n  SELECT j->>'milestone' AS milestone,\n         (j->>'observed_at')::timestamptz AS observed_at,\n         (j->>'lower_bound')::boolean AS lower_bound,\n         j->'evidence' AS evidence\n  FROM rows\n), u AS (\n  SELECT coalesce(s.ord, 99) AS ord,\n         coalesce(s.label, m.milestone) AS milestone,\n         CASE WHEN m.milestone IS NULL THEN 'not observed yet'\n              ELSE CASE WHEN m.lower_bound THEN '≥ ' ELSE '' END\n                   || to_char(m.observed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI') END AS observed,\n         CASE WHEN m.milestone IS NULL THEN NULL\n              WHEN m.lower_bound THEN 'lower bound: may be earlier'\n              ELSE 'exact' END AS precision,\n         nullif(concat_ws(', ',\n           'source ' || (m.evidence->>'source'),\n           'cluster ' || (m.evidence->>'cluster'),\n           'node ' || (m.evidence->>'node'),\n           'workload ' || (m.evidence->>'holder'),\n           'profile ' || (m.evidence->>'profile'),\n           'allocatable GPUs ' || (m.evidence->>'A')), '') AS evidence\n  FROM steps s\n  FULL JOIN m ON m.milestone = s.milestone\n  WHERE (SELECT x FROM src) IS NOT NULL\n  UNION ALL\n  SELECT 0, 'Not available', 'no access', NULL, 'No access: the Grafana role cannot read milestones (table missing or no SELECT grant; see grafana/README.md).'\n  WHERE (SELECT x FROM src) IS NULL\n)\nSELECT milestone AS \"Milestone\",\n       observed AS \"Observed at (UTC)\",\n       precision AS \"Precision\",\n       evidence AS \"Evidence\"\nFROM u\nORDER BY ord, milestone"
+          "rawSql": "WITH src AS (\n  SELECT CASE WHEN coalesce(has_table_privilege(to_regclass('milestones')::oid, 'SELECT'), false)\n              THEN query_to_xml(format('SELECT encode(convert_to(row_to_json(q)::text, ''UTF8''), ''base64'') AS j FROM (SELECT milestone, observed_at, lower_bound, evidence FROM milestones WHERE asset_id = %L) AS q', '$asset_id'), true, false, '')\n         END AS x\n), rows AS (\n  SELECT convert_from(decode((xpath('/row/j/text()', r))[1]::text, 'base64'), 'UTF8')::jsonb AS j\n  FROM src, unnest(xpath('/table/row', src.x)) AS r\n), steps(ord, milestone, label) AS (\n  VALUES (1, 'first_seen', 'First seen by the engine'),\n         (2, 'in_serverscan', 'In server-scan'),\n         (3, 'assigned_cluster', 'Assigned to a cluster'),\n         (4, 'node_ready', 'Node Ready'),\n         (5, 'gpu_ready', 'GPU platform ready'),\n         (6, 'workload_running', 'Workload running'),\n         (7, 'first_genuine_request', 'First genuine request')\n), m AS (\n  SELECT j->>'milestone' AS milestone,\n         (j->>'observed_at')::timestamptz AS observed_at,\n         (j->>'lower_bound')::boolean AS lower_bound,\n         j->'evidence' AS evidence\n  FROM rows\n), u AS (\n  SELECT coalesce(s.ord, 99) AS ord,\n         coalesce(s.label, m.milestone) AS milestone,\n         CASE WHEN m.milestone IS NULL THEN 'not observed yet'\n              ELSE CASE WHEN m.lower_bound THEN '≥ ' ELSE '' END\n                   || to_char(m.observed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI') END AS observed,\n         CASE WHEN m.milestone IS NULL THEN NULL\n              WHEN m.lower_bound THEN 'lower bound: may be earlier'\n              ELSE 'exact' END AS precision,\n         nullif(concat_ws(', ',\n           'source ' || (m.evidence->>'source'),\n           'cluster ' || (m.evidence->>'cluster'),\n           'node ' || (m.evidence->>'node'),\n           'workload ' || (m.evidence->>'holder'),\n           'allocatable GPUs ' || (m.evidence->>'A')), '') AS evidence\n  FROM steps s\n  FULL JOIN m ON m.milestone = s.milestone\n  WHERE (SELECT x FROM src) IS NOT NULL\n  UNION ALL\n  SELECT 0, 'Not available', 'no access', NULL, 'No access: the Grafana role cannot read milestones (table missing or no SELECT grant; see grafana/README.md).'\n  WHERE (SELECT x FROM src) IS NULL\n)\nSELECT milestone AS \"Milestone\",\n       observed AS \"Observed at (UTC)\",\n       precision AS \"Precision\",\n       evidence AS \"Evidence\"\nFROM u\nORDER BY ord, milestone"
         }
       ],
       "fieldConfig": {
@@ -1237,7 +1237,7 @@
       "type": "table",
       "id": 12,
       "title": "Open identity conflicts naming this asset",
-      "description": "Definition: unresolved identity_conflicts rows whose key is this asset or whose candidates list it: several assets claiming one node (NODE_CLAIM), several server-scan or manager records sharing this serial, or an ambiguous profile binding. While open, the affected GPUs are UNKNOWN (IDENTITY_CONFLICT), never silently merged.\nUnits: times in the dashboard timezone.\nFilters: asset_id.\nUnknown vs zero: an empty table = no open conflict names this asset. If the Grafana role cannot read the table (missing, or no SELECT grant) the panel shows one 'Not available' row instead of an error (the query runs through query_to_xml only when has_table_privilege allows it).",
+      "description": "Definition: unresolved identity_conflicts rows whose key is this asset or whose candidates list it: several assets claiming one node (NODE_CLAIM), or several server-scan records sharing this serial. While open, the affected GPUs are UNKNOWN (IDENTITY_CONFLICT), never silently merged.\nUnits: times in the dashboard timezone.\nFilters: asset_id.\nUnknown vs zero: an empty table = no open conflict names this asset. If the Grafana role cannot read the table (missing, or no SELECT grant) the panel shows one 'Not available' row instead of an error (the query runs through query_to_xml only when has_table_privilege allows it).",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "ttv-postgres"
@@ -1258,7 +1258,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "WITH src AS (\n  SELECT CASE WHEN coalesce(has_table_privilege(to_regclass('identity_conflicts')::oid, 'SELECT'), false)\n              THEN query_to_xml(format('SELECT encode(convert_to(row_to_json(q)::text, ''UTF8''), ''base64'') AS j FROM (SELECT kind, key, candidates, first_seen, last_seen FROM identity_conflicts WHERE resolved_at IS NULL AND (key = %L OR candidates @> jsonb_build_array(%L::text))) AS q', '$asset_id', '$asset_id'), true, false, '')\n         END AS x\n), rows AS (\n  SELECT convert_from(decode((xpath('/row/j/text()', r))[1]::text, 'base64'), 'UTF8')::jsonb AS j\n  FROM src, unnest(xpath('/table/row', src.x)) AS r\n), c AS (\n  SELECT j->>'kind' AS kind,\n         j->>'key' AS key,\n         j->'candidates' AS candidates,\n         (j->>'first_seen')::timestamptz AS first_seen,\n         (j->>'last_seen')::timestamptz AS last_seen\n  FROM rows\n)\nSELECT kind AS \"Kind\",\n       CASE kind\n         WHEN 'NODE_CLAIM' THEN 'Several assets claim one cluster node'\n         WHEN 'DUPLICATE_SERIAL' THEN 'Several server-scan records share this serial'\n         WHEN 'COLLECTOR_DUPLICATE' THEN 'Several manager records share this serial'\n         WHEN 'COLLECTOR_PROFILE_AMBIGUOUS' THEN 'The bound profile could not be determined'\n         ELSE kind END AS \"What it means\",\n       key AS \"Key\",\n       (SELECT string_agg(v, ', ' ORDER BY v) FROM jsonb_array_elements_text(candidates) AS v\n         WHERE v <> '$asset_id') AS \"Other parties\",\n       first_seen AS \"First seen\",\n       last_seen AS \"Last seen\"\nFROM c\nUNION ALL\nSELECT 'Not available', 'No access: the Grafana role cannot read identity_conflicts (table missing or no SELECT grant; see grafana/README.md).', NULL, NULL, NULL, NULL\nWHERE (SELECT x FROM src) IS NULL\nORDER BY 6 DESC NULLS FIRST, 1"
+          "rawSql": "WITH src AS (\n  SELECT CASE WHEN coalesce(has_table_privilege(to_regclass('identity_conflicts')::oid, 'SELECT'), false)\n              THEN query_to_xml(format('SELECT encode(convert_to(row_to_json(q)::text, ''UTF8''), ''base64'') AS j FROM (SELECT kind, key, candidates, first_seen, last_seen FROM identity_conflicts WHERE resolved_at IS NULL AND (key = %L OR candidates @> jsonb_build_array(%L::text))) AS q', '$asset_id', '$asset_id'), true, false, '')\n         END AS x\n), rows AS (\n  SELECT convert_from(decode((xpath('/row/j/text()', r))[1]::text, 'base64'), 'UTF8')::jsonb AS j\n  FROM src, unnest(xpath('/table/row', src.x)) AS r\n), c AS (\n  SELECT j->>'kind' AS kind,\n         j->>'key' AS key,\n         j->'candidates' AS candidates,\n         (j->>'first_seen')::timestamptz AS first_seen,\n         (j->>'last_seen')::timestamptz AS last_seen\n  FROM rows\n)\nSELECT kind AS \"Kind\",\n       CASE kind\n         WHEN 'NODE_CLAIM' THEN 'Several assets claim one cluster node'\n         WHEN 'DUPLICATE_SERIAL' THEN 'Several server-scan records share this serial'\n         ELSE kind END AS \"What it means\",\n       key AS \"Key\",\n       (SELECT string_agg(v, ', ' ORDER BY v) FROM jsonb_array_elements_text(candidates) AS v\n         WHERE v <> '$asset_id') AS \"Other parties\",\n       first_seen AS \"First seen\",\n       last_seen AS \"Last seen\"\nFROM c\nUNION ALL\nSELECT 'Not available', 'No access: the Grafana role cannot read identity_conflicts (table missing or no SELECT grant; see grafana/README.md).', NULL, NULL, NULL, NULL\nWHERE (SELECT x FROM src) IS NULL\nORDER BY 6 DESC NULLS FIRST, 1"
         }
       ],
       "fieldConfig": {
@@ -1599,262 +1599,13 @@
       }
     },
     {
-      "type": "table",
-      "id": 14,
-      "title": "Latest collector record",
-      "description": "Definition: for assets the profile-less collector reports (collector-only assets: no server-scan record), the newest collector_servers row per manager and source id: manager, bound profile, GPUs it read, profile_unresolved (an ambiguous binding, treated as an identity conflict) and when that read finished. Matched on vendor and serial (or manager and source id when the serial is empty). A server-scan asset shows 'Not collector-only'.\nUnits: GPUs; times in the dashboard timezone.\nFilters: asset_id.\nUnknown vs zero: 'GPU inventory unread' = the manager did not return GPUs, never 0; 'none bound' = no profile (row 3, PROFILE_NONE). If the Grafana role cannot read the table (missing, or no SELECT grant) the panel shows one 'Not available' row instead of an error (the query runs through query_to_xml only when has_table_privilege allows it).",
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "ttv-postgres"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 40,
-        "w": 24,
-        "h": 7
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "ttv-postgres"
-          },
-          "editorMode": "code",
-          "format": "table",
-          "rawQuery": true,
-          "rawSql": "WITH a AS (\n  SELECT * FROM assets WHERE asset_id = '$asset_id'\n), src AS (\n  SELECT CASE WHEN coalesce(has_table_privilege(to_regclass('collector_servers')::oid, 'SELECT'), false) AND coalesce(has_table_privilege(to_regclass('collector_reads')::oid, 'SELECT'), false)\n              THEN query_to_xml(format('SELECT encode(convert_to(row_to_json(q)::text, ''UTF8''), ''base64'') AS j FROM (SELECT DISTINCT ON (manager, source_id) * FROM (SELECT r.manager, r.kind, r.finished_at, r.complete, s.source_id, to_jsonb(s) AS s FROM collector_servers s JOIN collector_reads r ON r.id = s.read_id WHERE s.vendor = %L AND s.serial_normalized = %L UNION ALL SELECT r.manager, r.kind, r.finished_at, r.complete, s.source_id, to_jsonb(s) AS s FROM collector_servers s JOIN collector_reads r ON r.id = s.read_id WHERE r.manager = %L AND s.source_id = %L) AS u ORDER BY manager, source_id, finished_at DESC) AS q', (SELECT vendor FROM a), (SELECT nullif(serial, '') FROM a), (SELECT aliases->>'manager' FROM a WHERE coalesce(serial, '') = ''), (SELECT aliases->>'collector_source_id' FROM a WHERE coalesce(serial, '') = '')), true, false, '')\n         END AS x\n), rows AS (\n  SELECT convert_from(decode((xpath('/row/j/text()', r))[1]::text, 'base64'), 'UTF8')::jsonb AS j\n  FROM src, unnest(xpath('/table/row', src.x)) AS r\n), c AS (\n  SELECT j->>'manager' AS manager,\n         j->>'kind' AS kind,\n         (j->>'finished_at')::timestamptz AS read_at,\n         (j->>'complete')::boolean AS complete,\n         j->'s' AS s\n  FROM rows\n)\nSELECT manager AS \"Manager\",\n       kind AS \"Kind\",\n       s->>'source_id' AS \"Source id\",\n       s->>'name' AS \"Name\",\n       coalesce(s->>'profile_name', 'none bound') AS \"Profile\",\n       CASE WHEN jsonb_typeof(s->'gpu_models') = 'array' THEN jsonb_array_length(s->'gpu_models') END AS \"GPUs\",\n       CASE WHEN jsonb_typeof(s->'gpu_models') = 'array'\n            THEN coalesce((SELECT string_agg(g.model || ' × ' || g.n, ', ' ORDER BY g.model)\n                             FROM (SELECT value AS model, count(*) AS n\n                                   FROM jsonb_array_elements_text(s->'gpu_models') GROUP BY value) AS g), 'no GPUs')\n            ELSE 'GPU inventory unread' END AS \"GPU models\",\n       s->>'profile_unresolved' AS \"Profile unresolved\",\n       read_at AS \"Read finished\",\n       CASE WHEN complete THEN 'complete' ELSE 'partial' END AS \"Read\"\nFROM c\nUNION ALL\nSELECT 'Not available', NULL, NULL, NULL, NULL, NULL,\n       'No access: the Grafana role cannot read collector_servers and collector_reads (table missing or no SELECT grant; see grafana/README.md).', NULL, NULL, NULL\nWHERE (SELECT x FROM src) IS NULL\nUNION ALL\nSELECT 'Not collector-only', NULL, NULL, NULL, NULL, NULL,\n       'Inventory comes from server-scan (' || coalesce((SELECT source FROM a), 'unknown source')\n       || '); no collector record has this serial.', NULL, NULL, NULL\nWHERE (SELECT x FROM src) IS NOT NULL\n  AND NOT EXISTS (SELECT 1 FROM c)\n  AND NOT coalesce((SELECT aliases ? 'collector_source_id' FROM a), false)\nORDER BY 9 DESC NULLS FIRST, 1"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "align": "auto",
-            "cellOptions": {
-              "type": "auto"
-            },
-            "inspect": false,
-            "filterable": false,
-            "wrapHeaderText": true
-          },
-          "noValue": "—"
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Manager"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 130
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Kind"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 90
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Source id"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 110
-              },
-              {
-                "id": "custom.wrapText",
-                "value": true
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Name"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 130
-              },
-              {
-                "id": "custom.wrapText",
-                "value": true
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Profile"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 120
-              },
-              {
-                "id": "custom.wrapText",
-                "value": true
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "GPUs"
-            },
-            "properties": [
-              {
-                "id": "custom.align",
-                "value": "right"
-              },
-              {
-                "id": "noValue",
-                "value": "unread"
-              },
-              {
-                "id": "custom.width",
-                "value": 55
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "GPU models"
-            },
-            "properties": [
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "auto",
-                  "wrapText": true
-                }
-              },
-              {
-                "id": "custom.minWidth",
-                "value": 120
-              },
-              {
-                "id": "custom.wrapText",
-                "value": true
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Profile unresolved"
-            },
-            "properties": [
-              {
-                "id": "noValue",
-                "value": "—"
-              },
-              {
-                "id": "custom.width",
-                "value": 100
-              },
-              {
-                "id": "custom.wrapText",
-                "value": true
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Read finished"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "dateTimeAsIso"
-              },
-              {
-                "id": "custom.width",
-                "value": 95
-              },
-              {
-                "id": "custom.wrapText",
-                "value": true
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Read"
-            },
-            "properties": [
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "color-text"
-                }
-              },
-              {
-                "id": "mappings",
-                "value": [
-                  {
-                    "type": "value",
-                    "options": {
-                      "complete": {
-                        "color": "text",
-                        "index": 0
-                      },
-                      "partial": {
-                        "color": "orange",
-                        "index": 1
-                      }
-                    }
-                  }
-                ]
-              },
-              {
-                "id": "custom.width",
-                "value": 80
-              }
-            ]
-          }
-        ]
-      },
-      "options": {
-        "showHeader": true,
-        "cellHeight": "sm",
-        "footer": {
-          "show": false,
-          "reducer": [
-            "sum"
-          ],
-          "countRows": false,
-          "fields": ""
-        },
-        "sortBy": []
-      }
-    },
-    {
       "type": "row",
       "id": 15,
       "title": "Selected period: category over time",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 47,
+        "y": 40,
         "w": 24,
         "h": 1
       },
@@ -1871,7 +1622,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 48,
+        "y": 41,
         "w": 16,
         "h": 9
       },
@@ -1998,7 +1749,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 48,
+        "y": 41,
         "w": 8,
         "h": 9
       },

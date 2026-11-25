@@ -15,8 +15,8 @@ panels:
   unit: share of physical GPUs
   numerator: sum(gpus) of open intervals in use class 1
   denominator: sum(gpus) of open intervals in use classes 1-5 (measured)
-  population: Every GPU in an open ledger interval (server-scan and the profile-less collector); 'measured'
-    = GPUs whose node is in a target cluster the engine reads.
+  population: Every GPU in an open ledger interval (inventory from server-scan); 'measured' = GPUs whose
+    node is in a target cluster the engine reads.
   window: now
   filters:
   - site
@@ -59,8 +59,8 @@ panels:
   unit: GPUs
   numerator: sum(gpus) of open intervals in use classes 2-3
   denominator: null
-  population: Every GPU in an open ledger interval (server-scan and the profile-less collector); 'measured'
-    = GPUs whose node is in a target cluster the engine reads.
+  population: Every GPU in an open ledger interval (inventory from server-scan); 'measured' = GPUs whose
+    node is in a target cluster the engine reads.
   window: now
   filters:
   - site
@@ -103,8 +103,8 @@ panels:
   unit: GPUs
   numerator: sum(gpus) of open intervals in use class 5
   denominator: null
-  population: Every GPU in an open ledger interval (server-scan and the profile-less collector); 'measured'
-    = GPUs whose node is in a target cluster the engine reads.
+  population: Every GPU in an open ledger interval (inventory from server-scan); 'measured' = GPUs whose
+    node is in a target cluster the engine reads.
   window: now
   filters:
   - site
@@ -146,8 +146,8 @@ panels:
   unit: share of physical GPUs
   numerator: sum(gpus) of open intervals in use class 6
   denominator: sum(gpus) of all open intervals in scope
-  population: Every GPU in an open ledger interval (server-scan and the profile-less collector); 'measured'
-    = GPUs whose node is in a target cluster the engine reads.
+  population: Every GPU in an open ledger interval (inventory from server-scan); 'measured' = GPUs whose
+    node is in a target cluster the engine reads.
   window: now
   filters:
   - site
@@ -225,8 +225,8 @@ panels:
   unit: GPUs
   numerator: sum(gpus) per use class 1-5
   denominator: null
-  population: Every GPU in an open ledger interval (server-scan and the profile-less collector); 'measured'
-    = GPUs whose node is in a target cluster the engine reads.
+  population: Every GPU in an open ledger interval (inventory from server-scan); 'measured' = GPUs whose
+    node is in a target cluster the engine reads.
   window: now
   filters:
   - site
@@ -309,13 +309,13 @@ panels:
   audience: CEO, Serving, POPAI
   decision: Why the GPU-use answer does not cover the rest of the fleet, and where to look.
   definition: 'Use class 6 GPUs grouped by why: not in a cluster yet (IDLE pipeline queue), outside the
-    target list (I7), target cluster not configured (CLUSTER_NOT_OBSERVED), excluded or other intended
-    use, unknown before cluster matching.'
+    target list (I7), target cluster not configured (CLUSTER_NOT_OBSERVED), excluded by configuration,
+    unknown before cluster matching.'
   unit: GPUs; share of all GPUs
   numerator: sum(gpus) of class 6 per group
   denominator: sum(gpus) of all open intervals in scope
-  population: Every GPU in an open ledger interval (server-scan and the profile-less collector); 'measured'
-    = GPUs whose node is in a target cluster the engine reads.
+  population: Every GPU in an open ledger interval (inventory from server-scan); 'measured' = GPUs whose
+    node is in a target cluster the engine reads.
   window: now
   filters:
   - site
@@ -357,8 +357,8 @@ panels:
   unit: GPUs; share of measured GPUs
   numerator: sum(gpus) per (class, reason, owner)
   denominator: sum(gpus) of classes 1-5
-  population: Every GPU in an open ledger interval (server-scan and the profile-less collector); 'measured'
-    = GPUs whose node is in a target cluster the engine reads.
+  population: Every GPU in an open ledger interval (inventory from server-scan); 'measured' = GPUs whose
+    node is in a target cluster the engine reads.
   window: now
   filters:
   - site
@@ -538,8 +538,8 @@ panels:
   unit: GPUs
   numerator: sum(gpus) per class at t
   denominator: null
-  population: Every GPU in an open ledger interval (server-scan and the profile-less collector); 'measured'
-    = GPUs whose node is in a target cluster the engine reads.
+  population: Every GPU in an open ledger interval (inventory from server-scan); 'measured' = GPUs whose
+    node is in a target cluster the engine reads.
   window: selected range
   filters:
   - site
@@ -584,8 +584,8 @@ panels:
   unit: share of physical GPUs
   numerator: class 1 GPUs; class 6 GPUs
   denominator: classes 1-5 GPUs; all GPUs
-  population: Every GPU in an open ledger interval (server-scan and the profile-less collector); 'measured'
-    = GPUs whose node is in a target cluster the engine reads.
+  population: Every GPU in an open ledger interval (inventory from server-scan); 'measured' = GPUs whose
+    node is in a target cluster the engine reads.
   window: selected range
   filters:
   - site
@@ -629,8 +629,8 @@ panels:
   unit: GPU-hours
   numerator: clipped GPU-hours per class and reason
   denominator: GPU-hours of classes 1-5 (share column)
-  population: Every GPU in an open ledger interval (server-scan and the profile-less collector); 'measured'
-    = GPUs whose node is in a target cluster the engine reads.
+  population: Every GPU in an open ledger interval (inventory from server-scan); 'measured' = GPUs whose
+    node is in a target cluster the engine reads.
   window: selected range
   filters:
   - site

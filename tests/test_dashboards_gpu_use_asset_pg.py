@@ -24,7 +24,7 @@ FROM, TO = "2026-10-01T00:00:00Z", "2026-10-01T12:00:00Z"
 #   syn-a  8 GPUs on a GPU-ready node: 2 SERVING_IN_USE, 2 RUNAI allocated_idle, 1 NO_REAL_DEMAND,
 #          1 NO_WORKLOAD, 1 GPU_MISSING, 1 TRAFFIC_UNOBSERVED; before 06:00 all 8 platform-not-ready
 #   syn-b  4 NODE_NOT_FOUND in c1; syn-f 4 IDENTITY_CONFLICT (NODE_CLAIM on c1)  -> use unknown
-#   syn-c  8 NOT_IN_CLUSTER; syn-d 4 OUTSIDE_TARGET_CLUSTERS; syn-e 4 PROFILE_NONE -> not measured
+#   syn-c  8 NOT_IN_CLUSTER; syn-d 4 OUTSIDE_TARGET_CLUSTERS; syn-e 4 MAINTENANCE -> not measured
 FIXTURE = """
 INSERT INTO scan_runs (kind, started_at, finished_at, status)
 VALUES ('engine', '2026-10-01 11:55+00', '2026-10-01 11:56+00', 'ok');
@@ -38,9 +38,8 @@ INSERT INTO assets (asset_id, aliases, vendor, serial, name, model, site, gpu_mo
   '2026-10-01 00:00+00', '2026-10-01 12:00+00'),
  ('dell:syn-d', '{}', 'dell', 'syn-d', 'other-d', 'SYN-4GPU', 's2', 'SYN-GPU', 4, 'OPENMANAGE',
   '2026-10-01 00:00+00', '2026-10-01 12:00+00'),
- ('hp:syn-e', '{"manager": "ucs-central-syn", "collector_source_id": "ls-e"}', 'hp', 'syn-e',
-  'blade-e', 'SYN-4GPU', NULL, 'SYN-GPU', 4, 'ucs-central-syn', '2026-10-01 00:00+00',
-  '2026-10-01 12:00+00'),
+ ('hp:syn-e', '{"serverscan_id": "srv-e"}', 'hp', 'syn-e', 'blade-e', 'SYN-4GPU', NULL,
+  'SYN-GPU', 4, 'STANDALONE', '2026-10-01 00:00+00', '2026-10-01 12:00+00'),
  ('dell:syn-f', '{}', 'dell', 'syn-f', 'gpu-node-f', 'SYN-4GPU', 's1', 'SYN-GPU', 4, 'OPENMANAGE',
   '2026-10-01 00:00+00', '2026-10-01 12:00+00');
 INSERT INTO capacity_intervals (asset_id, category, reason_code, stage, stage_owner,
@@ -78,9 +77,9 @@ INSERT INTO capacity_intervals (asset_id, category, reason_code, stage, stage_ow
  ('dell:syn-d', 'NOT_CHARGED', 'OUTSIDE_TARGET_CLUSTERS', NULL, NULL, NULL, false, NULL, NULL,
   NULL, 'SYN-GPU', 4, '{}', '2026-10-01 00:00+00', NULL,
   '{"lifecycle_state": "INSTALLED", "cluster_name": "x9"}', 'syn-1'),
- ('hp:syn-e', 'IDLE', 'PROFILE_NONE', 'PRE_PROVISIONING', 'DC', '2026-10-01 00:00+00', true, NULL,
+ ('hp:syn-e', 'IDLE', 'MAINTENANCE', 'PROVISIONING', 'Redbull', '2026-10-01 00:00+00', true, NULL,
   NULL, NULL, 'SYN-GPU', 4, '{}', '2026-10-01 00:00+00', NULL,
-  '{"manager": "ucs-central-syn", "source_id": "ls-e"}', 'syn-1'),
+  '{"maintenance_reason": "synthetic: PSU swap"}', 'syn-1'),
  ('dell:syn-f', 'UNKNOWN', 'IDENTITY_CONFLICT', NULL, NULL, NULL, false, NULL, NULL, NULL,
   'SYN-GPU', 4, '{}', '2026-10-01 00:00+00', NULL,
   '{"conflict": "node c1/node-7 also claimed by dell:syn-g"}', 'syn-1');
@@ -96,14 +95,6 @@ INSERT INTO next_action_annotations (asset_id, next_action_owner, reason, create
                                      expires_at) VALUES
  ('cisco:syn-a', 'Network', 'synthetic: VLAN for node b', 'tester', '2026-10-01 07:00+00',
   '2099-01-01 00:00+00');
-INSERT INTO collector_reads (id, manager, kind, started_at, finished_at, complete) VALUES
- (1, 'ucs-central-syn', 'ucs_central', '2026-10-01 10:00+00', '2026-10-01 10:01+00', true),
- (2, 'ucs-central-syn', 'ucs_central', '2026-10-01 11:00+00', '2026-10-01 11:01+00', true);
-INSERT INTO collector_servers (read_id, vendor, serial_normalized, source_id, name, model,
-                               profile_name, gpu_models) VALUES
- (1, 'hp', 'syn-e', 'ls-e', 'blade-e', 'SYN-4GPU', NULL, '["SYN-GPU", "SYN-GPU"]'),
- (2, 'hp', 'syn-e', 'ls-e', 'blade-e', 'SYN-4GPU', NULL,
-  '["SYN-GPU", "SYN-GPU", "SYN-GPU", "SYN-GPU"]');
 """
 
 
@@ -245,14 +236,11 @@ async def test_asset_panels(ledger: PostgresStore) -> None:
     timeline = await query(ledger, panel_sql("ttv-asset", 16), **a)
     at3 = [r for r in timeline if r["time"].hour == 3]
     assert [(r["metric"], r["value"]) for r in at3] == [("IDLE · GPU_PLATFORM_NOT_READY", 8)]
+    [held] = await query(ledger, panel_sql("ttv-asset", 9), asset="hp:syn-e")
+    assert (held["Owner"], held["Evidence"]) == ("Redbull", "In maintenance: synthetic: PSU swap")
 
 
-async def test_collector_record_and_no_access_state(ledger: PostgresStore) -> None:
-    [rec] = await query(ledger, panel_sql("ttv-asset", 14), asset="hp:syn-e")
-    assert (rec["Manager"], rec["Profile"], rec["GPUs"]) == ("ucs-central-syn", "none bound", 4)
-    [other] = await query(ledger, panel_sql("ttv-asset", 14), asset="cisco:syn-a")
-    assert other["Manager"] == "Not collector-only"
-    await ledger.conn.execute("DROP TABLE collector_servers, next_action_annotations")
-    for panel_id, column in ((14, "Manager"), (13, "Status")):
-        [row] = await query(ledger, panel_sql("ttv-asset", panel_id), asset="hp:syn-e")
-        assert row[column] == "Not available"
+async def test_unreadable_table_shows_not_available_not_an_error(ledger: PostgresStore) -> None:
+    await ledger.conn.execute("DROP TABLE next_action_annotations")
+    [row] = await query(ledger, panel_sql("ttv-asset", 13), asset="hp:syn-e")
+    assert row["Status"] == "Not available"

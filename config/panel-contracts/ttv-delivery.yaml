@@ -69,7 +69,7 @@ panels:
     drilldown: ttv-delivery#7
     action: Ask the owner of the overdue stage to clear the oldest episodes (Queues, "Longest waits").
     fixture: tests/test_delivery_sql.py
-    expected: One Redbull episode 10 d old (≥) and one DC episode 1 h old (≥) give 1 and "+1 may be".
+    expected: Two Redbull episodes that began before observation, 10 d and 1 h old, give 1 and "+1 may be".
 
   - id: 4
     title: Oldest open episode
@@ -115,7 +115,7 @@ panels:
     population: Engine scans.
     window: now
     filters: []
-    exclusions: Collector and other scan kinds.
+    exclusions: Scan kinds other than engine.
     query: grafana/dashboards/ttv-delivery.json#5
     lineage: [scan_runs.started_at, scan_runs.kind]
     freshness: Live.
@@ -166,7 +166,7 @@ panels:
     drilldown: ttv-queues
     action: Ask the owner with the oldest bands to clear them.
     fixture: tests/test_delivery_sql.py
-    expected: Redbull 10 d (≥) and DC 1 h (≥) are "Age unknown"; an exact 2-day Serving episode is "1–3 d".
+    expected: Redbull 10 d (≥) and 1 h (≥) are both "Age unknown"; an exact 2-day Serving episode is "1–3 d".
 
   - id: 7
     title: Backlog now, by stage owner
@@ -374,7 +374,7 @@ panels:
     audience: CEO, stage owners
     decision: Which clock or stage made delivery quicker or slower (§13 #1, #2, #7, #8).
     definition: >-
-      Eight separate clocks (four milestone clocks per server, four stage-episode clocks) with p50,
+      Seven separate clocks (four milestone clocks per server, three stage-episode clocks) with p50,
       p90 and n per period, the stage objective as target, and the change in p50 and p90.
     unit: min, h, d
     numerator: percentiles per clock and period (ADR-0005)
@@ -396,11 +396,11 @@ panels:
     value_kind: derived
     gate: history
     privileges: SELECT on capacity_intervals, milestones, scan_runs, stage_objectives, assets
-    cardinality: 8 rows
+    cardinality: 7 rows
     drilldown: ttv-delivery#19
     action: Ask the owner of a slower stage what changed.
     fixture: tests/test_delivery_sql.py
-    expected: Redbull 12 d → 8 d reads "4.0 d shorter / 33.3% shorter" with n "5 · 2 excl."; DC with 2 exact + 4 ≥ reads "≥ 3.5 d".
+    expected: Redbull 12 d → 8 d reads "4.0 d shorter / 33.3% shorter" with n "5 · 2 excl."; POPAI with 2 exact + 4 ≥ reads "≥ 3.5 d".
 
   - id: 15
     title: "Trend: rolling p50 and p90 — $clock"

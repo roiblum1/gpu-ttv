@@ -16,7 +16,7 @@ panels:
     unit: GPUs
     numerator: sum(capacity_intervals.gpus) where category = IDLE and ended_at IS NULL
     denominator: null            # or the population a share is taken of
-    population: Every GPU asset in the ledger (server-scan and the profile-less collector).
+    population: Every GPU asset in the ledger (server-scan is the only inventory source).
     window: now                  # now | selected range | <explicit window>
     filters: [stage_owner, site] # dashboard variables honoured
     exclusions: UNKNOWN, PRODUCTIVE and NOT_CHARGED GPUs.
@@ -33,7 +33,7 @@ panels:
     value_kind: observed         # observed | derived | forecast | scenario | benchmark | business_input | assumption
     gate: core                   # core | history | business_input
     privileges: SELECT on capacity_intervals, assets
-    cardinality: one row per stage owner (≤ 4)
+    cardinality: one row per stage owner (≤ 3)
     drilldown: ttv-queues#14     # panel or dashboard it opens into, or null
     action: Ask the stage owner to clear the longest waits (Queues, "Longest waits").
     fixture: tests/test_dashboards_sql.py             # fixture or test that exercises it

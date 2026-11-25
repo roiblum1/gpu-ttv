@@ -12,8 +12,7 @@ panels:
   unit: GPUs
   numerator: sum(gpus) of open IDLE intervals
   denominator: null
-  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
-    knows.'
+  population: Every GPU asset in the ledger (server-scan is the only inventory source).
   window: now
   filters:
   - stage_owner
@@ -50,8 +49,7 @@ panels:
   unit: USD per hour
   numerator: sum(gpus × per_gpu_hour_usd) of open IDLE intervals at the selected snapshot
   denominator: null
-  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
-    knows.'
+  population: Every GPU asset in the ledger (server-scan is the only inventory source).
   window: now
   filters:
   - stage_owner
@@ -93,8 +91,7 @@ panels:
   unit: percent
   numerator: PRODUCTIVE GPUs now
   denominator: PRODUCTIVE + IDLE GPUs now
-  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
-    knows.'
+  population: Every GPU asset in the ledger (server-scan is the only inventory source).
   window: now
   filters:
   - site
@@ -129,8 +126,7 @@ panels:
   unit: GPUs
   numerator: sum(gpus) of open UNKNOWN intervals
   denominator: null
-  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
-    knows.'
+  population: Every GPU asset in the ledger (server-scan is the only inventory source).
   window: now
   filters:
   - site
@@ -165,8 +161,7 @@ panels:
   unit: seconds
   numerator: now() − max(scan_runs.finished_at) of ok/partial scans
   denominator: null
-  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
-    knows.'
+  population: Every GPU asset in the ledger (server-scan is the only inventory source).
   window: now
   filters: []
   exclusions: null
@@ -193,15 +188,15 @@ panels:
   status: built
   audience: CEO, stage owners
   decision: Which handoff queue is the bottleneck and how long its oldest server has waited.
-  definition: 'the four handoff queues in pipeline order. Per stage owner: idle GPUs now; overdue GPUs
+  definition: 'the three handoff queues in pipeline order (PROVISIONING also holds servers in maintenance,
+    with critical hardware or an unreachable BMC: ADR-0008). Per stage owner: idle GPUs now; overdue GPUs
     (idle past the stage objective of the interval''s own policy version); servers waiting; the oldest
     wait among their current stage episodes; the objective; the idle value per hour at the selected snapshot;
     and the reason holding the most GPUs.'
   unit: GPUs, days, USD/h
   numerator: null
   denominator: null
-  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
-    knows.'
+  population: Every GPU asset in the ledger (server-scan is the only inventory source).
   window: now
   filters:
   - site
@@ -222,11 +217,12 @@ panels:
     from them are minimums. AWS-equivalent comparison, not a bill, our cost or a loss (ADR-0003); a per-GPU
     rate allocates the whole instance price. GPUs whose model has no rate are left out and the label says
     'at least'.
-  missing_data: All four owners always show; an owner with no idle GPUs shows 0 and '—'.
+  missing_data: Every pipeline stage always shows, under the owner its latest interval names (the stage
+    code until one does); an owner with no idle GPUs shows 0 and '—'.
   value_kind: observed
   gate: core
   privileges: SELECT on capacity_intervals, assets, stage_objectives, pricing_rates, gpu_model_aliases
-  cardinality: 4 rows
+  cardinality: 3 rows (one per pipeline stage)
   drilldown: ttv-queues
   action: Ask the owner with the most overdue GPUs to clear its longest waits.
   fixture: null
@@ -243,8 +239,7 @@ panels:
   unit: GPUs
   numerator: sum(gpus) of open intervals per category
   denominator: null
-  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
-    knows.'
+  population: Every GPU asset in the ledger (server-scan is the only inventory source).
   window: now
   filters:
   - site
@@ -280,8 +275,7 @@ panels:
   unit: GPUs, days, GPU-h, USD
   numerator: null
   denominator: null
-  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
-    knows.'
+  population: Every GPU asset in the ledger (server-scan is the only inventory source).
   window: now
   filters:
   - stage_owner
@@ -324,8 +318,7 @@ panels:
   unit: GPUs
   numerator: null
   denominator: null
-  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
-    knows.'
+  population: Every GPU asset in the ledger (server-scan is the only inventory source).
   window: now
   filters:
   - site
@@ -360,8 +353,7 @@ panels:
   unit: GPU-hours
   numerator: Σ gpus × hours of IDLE intervals clipped to the range
   denominator: null
-  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
-    knows.'
+  population: Every GPU asset in the ledger (server-scan is the only inventory source).
   window: selected range
   filters:
   - stage_owner
@@ -402,8 +394,7 @@ panels:
   unit: GPU-hours
   numerator: Σ gpus × hours after stage_entered_at + objective, clipped to the range
   denominator: null
-  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
-    knows.'
+  population: Every GPU asset in the ledger (server-scan is the only inventory source).
   window: selected range
   filters:
   - stage_owner
@@ -444,8 +435,7 @@ panels:
   unit: USD
   numerator: null
   denominator: null
-  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
-    knows.'
+  population: Every GPU asset in the ledger (server-scan is the only inventory source).
   window: selected range
   filters:
   - stage_owner
@@ -483,14 +473,13 @@ panels:
   audience: CEO, stage owners
   decision: Whether the queues are growing or shrinking.
   definition: 'idle GPUs at each point in the time range, sampled from the ledger (an interval counts
-    while it is open), stacked by stage owner in pipeline order; the red line is the overdue part (idle
-    past the stage objective). Rising = queues growing. The chart starts at the first engine scan: there
-    is no evidence before it.'
+    while it is open), stacked by stage owner in pipeline order (every owner that ever had idle GPUs;
+    names from the ledger); the red line is the overdue part (idle past the stage objective). Rising =
+    queues growing. The chart starts at the first engine scan: there is no evidence before it.'
   unit: GPUs
   numerator: null
   denominator: null
-  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
-    knows.'
+  population: Every GPU asset in the ledger (server-scan is the only inventory source).
   window: selected range
   filters:
   - stage_owner
@@ -511,11 +500,11 @@ panels:
   value_kind: observed
   gate: core
   privileges: SELECT on capacity_intervals, assets, stage_objectives, scan_runs
-  cardinality: 5 series × time points
+  cardinality: one series per stage owner the ledger names, plus the overdue line, × time points
   drilldown: null
   action: null
-  fixture: null
-  expected: null
+  fixture: tests/test_dashboards_sql.py
+  expected: Redbull 16, POPAI 2, Serving 6 idle and 16 overdue GPUs at the fixture's last sample.
 - id: 26
   title: GPU-ready · p50
   question: E02
@@ -680,8 +669,7 @@ panels:
   unit: none
   numerator: null
   denominator: null
-  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
-    knows.'
+  population: Every GPU asset in the ledger (server-scan is the only inventory source).
   window: now
   filters: []
   exclusions: null
@@ -712,8 +700,7 @@ panels:
   unit: none
   numerator: null
   denominator: null
-  population: 'Every GPU asset in the ledger: server-scan servers and servers only the profile-less collector
-    knows.'
+  population: Every GPU asset in the ledger (server-scan is the only inventory source).
   window: now
   filters: []
   exclusions: null

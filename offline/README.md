@@ -6,7 +6,7 @@ Evidence, on 2026-10-31:
 - `lab-tested` on a laptop (podman 6.1, arm64):
   - the wheelhouse built;
   - the image built from it with `--network none`;
-  - all three entry points ran with no network, a read-only root filesystem and an arbitrary UID;
+  - the three entry points of the time (`ttv-engine`, `ttv-pricing` and `ttv-collector`, since removed by ADR-0008) ran with no network, a read-only root filesystem and an arbitrary UID;
   - one image was mirrored with its digest verified;
   - both SBOMs were generated.
 - `fixture-tested`: the import script, against a stub skopeo.
@@ -99,14 +99,13 @@ Create these Secrets yourself, from files, so no value lands in shell history or
 ```bash
 oc -n gpu-ttv create secret generic ttv-database --from-file=url=./dsn               # postgresql://...?sslmode=verify-full
 oc -n gpu-ttv create secret generic ttv-serverscan --from-file=token=./auditor-token
-oc -n gpu-ttv create secret generic ttv-ucs-central --from-file=password=./ucs-password
 oc -n gpu-ttv create configmap ttv-ca-bundle --from-file=ca-bundle.pem=./internal-ca.pem
 ```
 
 Write `values-production.yaml` from `deploy/helm/gpu-ttv/values.yaml`:
 - `image.registry` and `image.digest`;
 - `serverscan`, `database`, `caBundle`;
-- the real `policy`, `clusters` and `collector.managers`;
+- the real `policy` and `clusters`;
 - leave `dryRun: true`.
 
 ## 5. Install, dry run, then writes
@@ -124,7 +123,8 @@ Then run the at-least-one-day dry run and its review in [`docs/dry-run-review.md
 **Upgrade.**
 1. Import the new bundle.
 2. Take a Postgres backup.
-3. Set the new `image.digest` and run `helm upgrade`. The engine restarts (`Recreate`) and applies new migrations at start.
+3. Apply the chart's upgrade notes to your values (`deploy/helm/gpu-ttv/README.md`, e.g. "Upgrading from 0.1.x").
+4. Set the new `image.digest` and run `helm upgrade`. The engine restarts (`Recreate`) and applies new migrations at start.
 
 **Rollback.**
 - **Without a migration in between:** `helm rollback gpu-ttv <revision>`, or set the previous digest.
@@ -154,9 +154,7 @@ Record the result next to the dry-run record.
 | ttv-engine | server-scan | 443/TCP | inventory, GET only | AUDITOR bearer token |
 | ttv-engine | each target cluster's kube API | 6443/TCP | nodes, pods, owners; GET only | reader ServiceAccount token |
 | ttv-engine | each target cluster's Thanos querier route | 443/TCP | instant PromQL queries | the same token (`cluster-monitoring-view`) |
-| ttv-engine, ttv-collector | Postgres | 5432/TCP | the ledger and collector reads | password from the DSN Secret; TLS `verify-full` recommended |
-| ttv-collector | UCS Central, and UCS Manager domains for the fallback | 443/TCP | GPU servers without a profile; read-only queries | the account and password file per manager |
-| ttv-collector | OpenManage Enterprise; iDRAC for the Redfish fallback | 443/TCP | the same | the same |
+| ttv-engine | Postgres | 5432/TCP | the ledger | password from the DSN Secret; TLS `verify-full` recommended |
 | user-workload Prometheus | ttv-engine | 8080/TCP | `/metrics/` | none (in-cluster, NetworkPolicy) |
 | Grafana | Postgres | 5432/TCP | dashboards and alert queries | `SELECT`-only role |
 | operator (port-forward) | ttv-engine | 8080/TCP | `/readyz`, `/decisions`, `/explain` | cluster RBAC for port-forward |

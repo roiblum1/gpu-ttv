@@ -1,10 +1,10 @@
 # gpu-ttv Helm chart
 
-Deploys ttv-engine (scan loop, read API, metrics) and, when managers are configured, the profile-less collector. Design and evidence are in [ADR-0007](../../../docs/adr/0007-deployment.md); the air-gapped install end to end is in [`offline/README.md`](../../../offline/README.md).
+Deploys ttv-engine (scan loop, read API, metrics). Design and evidence are in [ADR-0007](../../../docs/adr/0007-deployment.md); the air-gapped install end to end is in [`offline/README.md`](../../../offline/README.md).
 
 **Dry run by default.** `dryRun: true` renders `TTV_DRY_RUN=true`: the engine classifies and logs every scan and writes no ledger rows. Change it only after the review in [`docs/dry-run-review.md`](../../../docs/dry-run-review.md).
 
-Evidence: `fixture-tested`, and `lab-tested` by an install and upgrade on an OpenShift 4.22 workshop cluster ([ADR-0007](../../../docs/adr/0007-deployment.md), "Status").
+Evidence: `fixture-tested`, and `lab-tested` by an install and upgrade of chart 0.1.0 on an OpenShift 4.22 workshop cluster ([ADR-0007](../../../docs/adr/0007-deployment.md), "Status"). That install configured no managers, so it ran no collector. From the same values 0.2.0 renders the same engine objects (`fixture-tested`); 0.2.0 itself has not been installed.
 
 ## What it renders
 
@@ -12,9 +12,8 @@ Evidence: `fixture-tested`, and `lab-tested` by an install and upgrade on an Ope
 | --- | --- | --- |
 | Deployment + Service `<release>-engine` | always | 1 replica (more wait behind the leader lock), `Recreate`, startup/liveness `/healthz`, readiness `/readyz`, port 8080 |
 | ServiceMonitor | `serviceMonitor.enabled` | scrapes `/metrics/` |
-| Deployment `<release>-collector` | `collector.managers` lists a manager | requires `database.existingSecret` |
-| ConfigMaps `-policy`, `-clusters`, `-managers` | policy always; the others when set | a change restarts the workload that reads it |
-| NetworkPolicies | `networkPolicy.enabled` (default) | engine port from the listed peers; collector no ingress; egress only if `networkPolicy.egress` is set |
+| ConfigMaps `-policy`, `-clusters` | policy always; clusters when set | a change restarts the engine |
+| NetworkPolicy `<release>-engine` | `networkPolicy.enabled` (default) | engine port from the listed peers; egress only if `networkPolicy.egress` is set |
 | ServiceAccount | `serviceAccount.create` | no token mounted, no RBAC bound |
 | Grafana ConfigMaps | `grafana.dashboards/datasource/alerting.enabled` | sidecar labels; rendered from the repo's `grafana/` through `files/grafana` (a link, no copy) |
 
@@ -31,7 +30,6 @@ The chart contains no Secret: every credential is an existing Secret you create,
 | `caBundle.configMap` / `key` | internal CA bundle, mounted at `/etc/pki/ttv` |
 | `policy` | the business policy (schema: `config/policy.example.yaml`); empty uses the example |
 | `clusters[]` | `config/clusters.yaml` entries plus `tokenSecret` (keys `token`, `ca.crt`); names must be policy targets |
-| `collector.managers`, `collector.secretMounts` | `config/managers.yaml` content and the Secrets its password files come from |
 | `settings` | other `TTV_*` scalars; `values.schema.json` lists the allowed names (see `.env.example`) |
 | `pricing.snapshotsConfigMap` | price snapshots to import instead of the image's (`TTV_PRICING_DIR`) |
 | `grafana.*` | sidecar provisioning; set `grafana.alerting.notifications: false` in a shared Grafana (ADR-0006) |
@@ -45,6 +43,14 @@ helm lint deploy/helm/gpu-ttv -f values-production.yaml
 helm template gpu-ttv deploy/helm/gpu-ttv -n gpu-ttv -f values-production.yaml > rendered.yaml   # review it
 ```
 
-`deploy/helm/gpu-ttv/ci/full-values.yaml` switches every optional part on with synthetic names; `tests/test_helm_charts.py` renders it and the defaults and checks: no RBAC write verb, every image by digest, `TTV_DRY_RUN` true by default, no Secret data, Grafana files byte-identical to `grafana/`, every `TTV_*` variable a real setting, and generated config files that load in the engine and collector.
+`deploy/helm/gpu-ttv/ci/full-values.yaml` switches every optional part on with synthetic names; `tests/test_helm_charts.py` renders it and the defaults and checks: no RBAC write verb, every image by digest, `TTV_DRY_RUN` true by default, no Secret data, Grafana files byte-identical to `grafana/`, every `TTV_*` variable a real setting, generated config files that load in the engine, and a refusal of the removed `collector` values and DC stage.
+
+## Upgrading from 0.1.x
+
+0.2.0 removes the profile-less collector and the DC stage (ADR-0008); server-scan is the only inventory source.
+- Delete the `collector` section from your values: the chart refuses to render while it is there, and `settings` no longer accepts `TTV_COLLECTOR_*`.
+- Delete `PRE_PROVISIONING` from the policy's `teams` and `stage_objectives`, and bump its `policy_version`: the chart and the engine refuse a policy that still names it.
+- `helm upgrade` deletes the collector Deployment, its NetworkPolicy and the `-managers` ConfigMap. The manager credential Secrets were yours, so delete them yourself.
+- At start the engine applies `migrations/0006_drop_collector.sql`, which drops the collector tables. Take the Postgres backup first ([`offline/README.md`](../../../offline/README.md), "Upgrade and rollback").
 
 Installing is the user's step (`helm upgrade --install`, or an Argo CD Application with these values); nothing in this repository installs into a cluster.

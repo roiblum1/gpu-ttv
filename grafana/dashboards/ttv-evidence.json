@@ -361,7 +361,7 @@
       "type": "stat",
       "id": 43,
       "title": "Failing sources",
-      "description": "Definition: sources (server-scan, each cluster's kube API and Thanos) whose latest read failed or that never succeeded, plus configured collector managers with no complete read within 1 h (TTV_COLLECTOR_STALE_AFTER default; a manager removed from TTV_MANAGERS_FILE no longer counts). 0 = every source answered on its latest attempt. The tables below name them.\nFilters: none.",
+      "description": "Definition: sources (server-scan, each cluster's kube API and Thanos) whose latest read failed or that never succeeded. 0 = every source answered on its latest attempt. The tables below name them.\nFilters: none.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "ttv-postgres"
@@ -382,7 +382,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "WITH active AS (\n  SELECT manager, kind, added_at AS since FROM collector_managers WHERE removed_at IS NULL\n  UNION ALL\n  SELECT r.manager, min(r.kind), min(r.started_at) FROM collector_reads r\n  WHERE NOT EXISTS (SELECT 1 FROM collector_managers m WHERE m.manager = r.manager)\n  GROUP BY r.manager\n)\nSELECT (SELECT count(*) FROM source_state WHERE failed_scans > 0 OR last_success_at IS NULL)\n     + (SELECT count(*) FROM active a\n        WHERE NOT EXISTS (SELECT 1 FROM collector_reads r\n                          WHERE r.manager = a.manager AND r.complete\n                            AND r.finished_at >= now() - interval '1 hour')) AS \"Failing sources\"\nWHERE EXISTS (SELECT 1 FROM source_state)"
+          "rawSql": "SELECT (SELECT count(*) FROM source_state WHERE failed_scans > 0 OR last_success_at IS NULL) AS \"Failing sources\"\nWHERE EXISTS (SELECT 1 FROM source_state)"
         }
       ],
       "options": {
@@ -435,7 +435,7 @@
       "type": "stat",
       "id": 44,
       "title": "Identity conflicts",
-      "description": "Definition: open rows in identity_conflicts (two records claiming one asset, two assets claiming one node, ambiguous collector profiles). Their GPUs are UNKNOWN (IDENTITY_CONFLICT) until resolved; the table below lists them.\nFilters: none.",
+      "description": "Definition: open rows in identity_conflicts (two server-scan records claiming one asset, two assets claiming one node). Their GPUs are UNKNOWN (IDENTITY_CONFLICT) until resolved; the table below lists them.\nFilters: none.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "ttv-postgres"
@@ -588,7 +588,7 @@
       "type": "table",
       "id": 21,
       "title": "Source health (source_state)",
-      "description": "Definition: engine-side health per source (server-scan, each target cluster, collector targets): consecutive failed scans, last success, last attempt and last error.\nUnits: counts; timestamps in the dashboard timezone; time since success as duration.\nState: 'ok' (green) = last fetch succeeded; 'failing, within grace' (orange) = 1 consecutive failure; 'beyond grace: assets UNKNOWN' (red) = 2 or more, the default unknown_grace_scans, at which the engine turns the source's assets UNKNOWN; 'never succeeded' (purple) = no complete fetch yet. Thresholds assume the default grace; change the SQL if the policy changes it.\nFilters: none.\nUnknown vs zero: 'never' = the source has not completed a fetch since the engine started tracking it; its assets are UNKNOWN, not empty.",
+      "description": "Definition: engine-side health per source (server-scan, each target cluster's kube API and Thanos): consecutive failed scans, last success, last attempt and last error.\nUnits: counts; timestamps in the dashboard timezone; time since success as duration.\nState: 'ok' (green) = last fetch succeeded; 'failing, within grace' (orange) = 1 consecutive failure; 'beyond grace: assets UNKNOWN' (red) = 2 or more, the default unknown_grace_scans, at which the engine turns the source's assets UNKNOWN; 'never succeeded' (purple) = no complete fetch yet. Thresholds assume the default grace; change the SQL if the policy changes it.\nFilters: none.\nUnknown vs zero: 'never' = the source has not completed a fetch since the engine started tracking it; its assets are UNKNOWN, not empty.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "ttv-postgres"
@@ -839,316 +839,6 @@
     },
     {
       "type": "table",
-      "id": 30,
-      "title": "Profile-less collector: managers",
-      "description": "Definition: one row per UCS Central / OpenManage manager in TTV_MANAGERS_FILE, or read by the collector and not since removed from it (ADR-0004). State: never read; ok; latest read incomplete (no server can be retired); stale (no complete read within 1 h, the TTV_COLLECTOR_STALE_AFTER default: its collector-only servers are UNKNOWN); never complete. Counts come from the latest complete read: servers listed, servers with GPUs, servers whose GPU inventory could not be read, servers whose profile binding is ambiguous.\nEmpty = no manager configured (TTV_MANAGERS_FILE) or the collector has not run.\nFilters: none.",
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "ttv-postgres"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 11,
-        "w": 24,
-        "h": 5
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "ttv-postgres"
-          },
-          "editorMode": "code",
-          "format": "table",
-          "rawQuery": true,
-          "rawSql": "WITH active AS (\n  SELECT manager, kind, added_at AS since FROM collector_managers WHERE removed_at IS NULL\n  UNION ALL\n  SELECT r.manager, min(r.kind), min(r.started_at) FROM collector_reads r\n  WHERE NOT EXISTS (SELECT 1 FROM collector_managers m WHERE m.manager = r.manager)\n  GROUP BY r.manager\n), latest AS (\n  SELECT DISTINCT ON (manager) manager, finished_at, complete, errors\n  FROM collector_reads ORDER BY manager, finished_at DESC, id DESC\n), ok AS (\n  SELECT DISTINCT ON (manager) manager, id, finished_at\n  FROM collector_reads WHERE complete ORDER BY manager, finished_at DESC, id DESC\n), srv AS (\n  SELECT read_id, count(*) AS servers,\n         count(*) FILTER (WHERE jsonb_array_length(gpu_models) > 0) AS gpu_servers,\n         count(*) FILTER (WHERE gpu_models IS NULL) AS unread,\n         count(*) FILTER (WHERE profile_unresolved IS NOT NULL) AS unresolved\n  FROM collector_servers GROUP BY read_id\n)\nSELECT a.manager AS \"Manager\",\n       a.kind AS \"Kind\",\n       CASE WHEN l.manager IS NULL THEN 'never read'\n            WHEN ok.finished_at IS NULL THEN 'never complete'\n            WHEN now() - ok.finished_at > interval '1 hour' THEN 'stale: servers UNKNOWN'\n            WHEN NOT l.complete THEN 'latest read incomplete'\n            ELSE 'ok' END AS \"State\",\n       ok.finished_at AS \"Last complete read\",\n       s.servers AS \"Servers\",\n       s.gpu_servers AS \"GPU servers\",\n       s.unread AS \"GPUs unread\",\n       s.unresolved AS \"Profile unresolved\",\n       jsonb_array_length(l.errors) AS \"Errors (latest read)\",\n       l.errors ->> 0 AS \"First error\"\nFROM active a\nLEFT JOIN latest l ON l.manager = a.manager\nLEFT JOIN ok ON ok.manager = a.manager\nLEFT JOIN srv s ON s.read_id = ok.id\nORDER BY 1"
-        }
-      ],
-      "options": {
-        "showHeader": true,
-        "cellHeight": "sm",
-        "footer": {
-          "show": false,
-          "reducer": [
-            "sum"
-          ],
-          "countRows": false,
-          "fields": ""
-        },
-        "sortBy": []
-      },
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "align": "auto",
-            "cellOptions": {
-              "type": "auto"
-            },
-            "inspect": false,
-            "filterable": false,
-            "wrapHeaderText": true
-          },
-          "noValue": "no manager read yet (TTV_MANAGERS_FILE unset or ttv-collector not running)"
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Manager"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 170
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Kind"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 90
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "State"
-            },
-            "properties": [
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "color-text"
-                }
-              },
-              {
-                "id": "mappings",
-                "value": [
-                  {
-                    "type": "value",
-                    "options": {
-                      "ok": {
-                        "color": "green",
-                        "index": 0
-                      },
-                      "failing, within grace": {
-                        "color": "orange",
-                        "index": 1
-                      },
-                      "beyond grace: assets UNKNOWN": {
-                        "color": "red",
-                        "index": 2
-                      },
-                      "never succeeded": {
-                        "color": "purple",
-                        "index": 3
-                      },
-                      "latest read incomplete": {
-                        "color": "orange",
-                        "index": 4
-                      },
-                      "stale: servers UNKNOWN": {
-                        "color": "red",
-                        "index": 5
-                      },
-                      "never complete": {
-                        "color": "purple",
-                        "index": 6
-                      },
-                      "never read": {
-                        "color": "purple",
-                        "index": 7
-                      }
-                    }
-                  }
-                ]
-              },
-              {
-                "id": "custom.width",
-                "value": 165
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Last complete read"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "dateTimeFromNow"
-              },
-              {
-                "id": "custom.width",
-                "value": 150
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Servers"
-            },
-            "properties": [
-              {
-                "id": "custom.align",
-                "value": "right"
-              },
-              {
-                "id": "custom.width",
-                "value": 65
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "GPU servers"
-            },
-            "properties": [
-              {
-                "id": "custom.align",
-                "value": "right"
-              },
-              {
-                "id": "custom.width",
-                "value": 65
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "GPUs unread"
-            },
-            "properties": [
-              {
-                "id": "custom.align",
-                "value": "right"
-              },
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "color-text"
-                }
-              },
-              {
-                "id": "color",
-                "value": {
-                  "mode": "thresholds"
-                }
-              },
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    {
-                      "color": "text",
-                      "value": null
-                    },
-                    {
-                      "color": "purple",
-                      "value": 1
-                    }
-                  ]
-                }
-              },
-              {
-                "id": "custom.width",
-                "value": 70
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Profile unresolved"
-            },
-            "properties": [
-              {
-                "id": "custom.align",
-                "value": "right"
-              },
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "color-text"
-                }
-              },
-              {
-                "id": "color",
-                "value": {
-                  "mode": "thresholds"
-                }
-              },
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    {
-                      "color": "text",
-                      "value": null
-                    },
-                    {
-                      "color": "purple",
-                      "value": 1
-                    }
-                  ]
-                }
-              },
-              {
-                "id": "custom.width",
-                "value": 80
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Errors (latest read)"
-            },
-            "properties": [
-              {
-                "id": "custom.align",
-                "value": "right"
-              },
-              {
-                "id": "custom.width",
-                "value": 65
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "First error"
-            },
-            "properties": [
-              {
-                "id": "noValue",
-                "value": "—"
-              },
-              {
-                "id": "custom.minWidth",
-                "value": 150
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "type": "table",
       "id": 25,
       "title": "Unknown GPUs now, by reason",
       "description": "Definition: sum(gpus) and distinct assets of open UNKNOWN intervals, by reason_code (SOURCE_STALE, IDENTITY_CONFLICT, CONTESTED, CLUSTER_NOT_OBSERVED, ...).\nUnits: physical GPUs; assets.\nFilters: site.\nUnknown vs zero: '(none)' with 0 = the latest scan has no UNKNOWN GPUs in scope; 'No ledger data yet' = no open intervals at all. UNKNOWN GPUs are never counted as idle, productive or zero. Current state = intervals still open in the ledger (ended_at IS NULL), i.e. the result of the latest engine scan; check 'Data as of' for its age.",
@@ -1158,7 +848,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 16,
+        "y": 11,
         "w": 10,
         "h": 10
       },
@@ -1265,14 +955,14 @@
       "type": "table",
       "id": 26,
       "title": "Assets by source",
-      "description": "Definition: assets in the ledger by the source that first registered them (server-scan, profile-less collector, ...): asset count, GPUs per inventory (assets.gpu_count), assets whose GPU count is unread, newest observation and assets not observed in the last hour.\nUnits: assets; GPUs; timestamps in the dashboard timezone.\nFilters: site.\nUnknown vs zero: assets with an unread GPU count are excluded from 'GPUs (inventory)' and counted in their own column, never as 0 GPUs. 'Not seen > 1 h' may be listing lag or a removed asset; a partial listing never closes intervals.",
+      "description": "Definition: assets in the ledger by server-scan's source_provider (the server-scan collector that reports them): asset count, GPUs per inventory (assets.gpu_count), assets whose GPU count is unread, newest observation and assets not observed in the last hour.\nUnits: assets; GPUs; timestamps in the dashboard timezone.\nFilters: site.\nUnknown vs zero: assets with an unread GPU count are excluded from 'GPUs (inventory)' and counted in their own column, never as 0 GPUs. 'Not seen > 1 h' may be listing lag or a removed asset; a partial listing never closes intervals.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "ttv-postgres"
       },
       "gridPos": {
         "x": 10,
-        "y": 16,
+        "y": 11,
         "w": 14,
         "h": 10
       },
@@ -1475,7 +1165,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 26,
+        "y": 21,
         "w": 24,
         "h": 10
       },
@@ -1615,7 +1305,7 @@
       "title": "Selected period: scans and coverage over time",
       "gridPos": {
         "x": 0,
-        "y": 36,
+        "y": 31,
         "w": 24,
         "h": 1
       },
@@ -1633,7 +1323,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 37,
+        "y": 32,
         "w": 12,
         "h": 8
       },
@@ -1749,7 +1439,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 37,
+        "y": 32,
         "w": 12,
         "h": 8
       },
@@ -1877,7 +1567,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 45,
+        "y": 40,
         "w": 24,
         "h": 6
       },

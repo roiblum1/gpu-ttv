@@ -2,6 +2,8 @@
 
 **Revision 3 (merged) — 28 October 2026.** Merges the user's Super Prompt (revision 2) with Claude's burn-meter draft 1.1 and the user's decisions on their conflicts.
 
+**Revision 4 — 25 November 2026.** The user removed the DC stage and the profile-less collector (§0, ADR-0008). Three teams remain: Redbull, POPAI and Serving.
+
 - **Section 0** records the user's binding decisions and verified environment facts.
 - **Section 20** is the concrete Release 1 implementation spec.
 - **Precedence: Section 0 > Section 20 > Sections 1–19.** Where Sections 1–19 ask for more than Release 1, they are the contract for later releases (0.6).
@@ -12,12 +14,18 @@ The brief was prepared on **28 October 2026**. Research and pricing must be refr
 
 ## 0. Binding decisions and environment facts
 
-### 0.1 Accountable teams (four; names configurable)
+> **Decision of 2026-11-25 (the user; `docs/adr/0008-drop-dc-stage-and-collector.md`).** "Remove the part of DC team. Focus on the ServerScanner — if there is a GPU node there which is not inside a cluster, Redbull costs money, and from then the rest is the same."
+> - Three accountable teams remain: **Redbull, POPAI and Serving**. The DC team, its stage and the profile-less collector are removed.
+> - **server-scan is the only inventory source.** A GPU server's pipeline starts when it first appears in server-scan, in Redbull's stage. Time before that cannot be observed: it is shown as unknown or as a lower bound (`≥ X`), never as zero.
+> - GPU servers with no qualifying `ocp*` profile are invisible to server-scan (0.3), so they are **out of scope**: the platform neither finds nor charges them.
+> - Maintenance, critical hardware health and an unreachable BMC are **Redbull's** (I8), with the same reason codes.
+> - This decision overrides any text below that still implies a DC stage.
+
+### 0.1 Accountable teams (three; names configurable)
 
 | Stage owner | Holds the GPUs while… |
 | --- | --- |
-| **DC** | A GPU-equipped server exists in UCS or OpenManage but has no applied profile: none, assigned but not applied, or failed to apply. |
-| **Redbull** | The server is in server-scan with a qualifying `ocp*` profile, or is a standalone DGX that Redbull registered in server-scan. It is not yet a Ready, schedulable node in a target GPU cluster. |
+| **Redbull** | The server is in server-scan with GPUs and is not yet a Ready, schedulable node in a target GPU cluster. server-scan lists a server once it has a qualifying `ocp*` profile, or once Redbull registers a standalone DGX in it (0.3). This includes time in maintenance, with critical hardware health or with an unreachable BMC (I8). |
 | **POPAI** | The node is Ready and schedulable, but the GPU platform is not. Examples: the driver or device plugin is not advertising healthy GPUs, DCGM is not reporting them, or a required RDMA capability is missing. |
 | **Serving** | The GPU platform is ready but GPUs are not productively used. This covers: no qualifying workload, workload not ready, service not published or reachable, published with no genuine demand, and genuine use below the useful-capacity target. |
 
@@ -56,18 +64,17 @@ The brief was prepared on **28 October 2026**. Research and pricing must be refr
   - OneView skips hardware without an assigned profile (`oneview/provider.py`).
   - Every collector applies a profile-name filter (`collector_name_pattern`, `ome_name_pattern`, … in `backend/app/config/settings.py`).
   - Cisco behaviour: `docs/cisco-collectors.md`, "Service profiles and server names".
-- **Build one new read-only profile-less GPU collector** for UCS and OpenManage (§4) to find GPU-equipped servers server-scan cannot see.
-  - Once a server appears in server-scan (same vendor + normalised serial), server-scan becomes its source. The collector's record remains as history.
-  - The `ocp*` rule must use the same pattern server-scan's collectors use; verify it in Discovery.
-- **Standalone DGX servers** need no profile and have no DC stage.
-  - Redbull registers them in server-scan manually, and their pipeline starts at Redbull at that moment.
-  - Time before registration is unobservable. Report it as unknown (a lower bound), never as zero.
+  - **So servers without a qualifying profile are out of scope** (decision of 2026-11-25, ADR-0008). Absence from server-scan is not proof that a server does not exist, and the platform does not look for such servers. The `ocp*` rule that decides this scope is server-scan's own name filter; Discovery records its production value.
+- **Every server's pipeline starts at Redbull** when it first appears in server-scan.
+  - Time before that is unobservable. Report it as unknown (a lower bound), never as zero.
+- **Standalone DGX servers** need no profile.
+  - Redbull registers them in server-scan manually, and their pipeline starts at Redbull at that moment, by the same rule.
 - **Target GPU clusters are a static configured list:** `ocp4-prod-gpu-site1` … `ocp4-prod-gpu-siteN`.
   - Read each cluster's kube API and Thanos querier, read-only.
   - Management/MCE clusters are optional R2 sources for Redbull sub-progress.
 - **No new agent on GPU nodes.** Use the GPU Operator's existing DCGM exporter and the kube API for attribution.
   - Rejected: third-party node agents such as Last9 l9gpu.
-  - They add a privileged DaemonSet across air-gapped clusters and cannot see the pre-cluster stages, where most of the idle time sits.
+  - They add a privileged DaemonSet across air-gapped clusters and cannot see the pre-cluster stage (Redbull's), where most of the idle time sits.
 
 ### 0.4 Access and safety
 
@@ -85,7 +92,7 @@ Follow §10's three separate views.
 
 | Release | Scope | Executive questions (§13) |
 | --- | --- | --- |
-| **R1 — core (build now)** | Profile-less collector; server-scan, cluster-API and Thanos adapters; identity join; classification engine with the four owners; interval ledger with raw idle and overdue GPU-hours; AWS-equivalent value; Grafana home, queues, delivery, GPU-use, asset and evidence pages; alerts for monitoring blindness and stage-objective breaches; offline packaging | E01 (inventory and in-service status; procurement fields show "input missing"), E02 (from observed history, lower bounds flagged), E03, E12, E18 |
+| **R1 — core (build now)** | server-scan, cluster-API and Thanos adapters; identity join; classification engine with the three owners; interval ledger with raw idle and overdue GPU-hours; AWS-equivalent value; Grafana home, queues, delivery, GPU-use, asset and evidence pages; alerts for monitoring blindness and stage-objective breaches; offline packaging | E01 (inventory and in-service status; procurement fields show "input missing"), E02 (from observed history, lower bounds flagged), E03, E12, E18 |
 | **R2** | Service graph and publication evidence (`NOT_PUBLISHED`), service quality, adoption, power and energy, review snapshots, action list, backlog flow, MCE provisioning sub-progress | E04, E05, E07, E10, E11, E15 |
 | **R3** | Business and planning inputs: procurement, commitments, reservations, forecasts, what-if, fit check, resilience, intervention verification, unit economics | E06, E08, E09, E13, E14, E16, E17 |
 
@@ -99,14 +106,14 @@ Proceed with these labelled assumptions; none blocks the R1 build.
 
 | ID | Input | Provisional assumption |
 | --- | --- | --- |
-| I1 | Stage objectives used to split overdue from normal time | DC 3 d, Redbull 2 d, POPAI 1 d, Serving 7 d |
+| I1 | Stage objectives used to split overdue from normal time | Redbull 2 d, POPAI 1 d, Serving 7 d (DC's 3 d removed with the DC stage, 2026-11-25) |
 | I2 | Useful-use policy for serving (minimum genuine requests per GPU-hour, window), per model class | Record traffic distributions during Discovery and propose values. Until approved, `LOW_USE` is reported as "unverified", while `NO_REAL_DEMAND` (zero genuine requests) applies. |
 | I3 | AWS region and FX date | Confirmed at pricing capture |
 | I4 | Where the platform runs; existing Postgres/Grafana to reuse | Blocks deployment, not build |
 | I5 | Intentional exclusions (lab, teaching, cold spare) | Empty list |
-| I6 | GPU servers with an applied non-`ocp` profile | Visible as "other intended use"; not charged to any team |
+| I6 | GPU servers with an applied non-`ocp` profile | **Closed 2026-11-25 (ADR-0008):** server-scan does not list them, so they are out of scope and no longer shown. Was: visible as "other intended use", not charged. |
 | I7 | GPU servers installed in clusters outside the target list | Visible as "not measured"; not charged |
-| I8 | Maintenance, critical hardware health, unreachable BMC | Stage owner DC; reason from the maintenance reason |
+| I8 | Maintenance, critical hardware health, unreachable BMC | **Decided 2026-11-25 (ADR-0008):** stage owner Redbull (was DC); reason codes `MAINTENANCE`, `HARDWARE_CRITICAL`, `BMC_UNREACHABLE`, with the maintenance reason in evidence |
 | I9 | Servers parked in MCE inventory with no cluster | Redbull |
 | I10 | Run:ai inference workloads: presence or traffic rule | Presence |
 
@@ -136,12 +143,13 @@ The current path is:
 
 **Hardware intake → pre-provisioning → OpenShift cluster creation and node provisioning → platform configuration → GPU workload deployment → service publication → real user consumption → effective utilization.**
 
+The platform observes this path from the moment a server appears in server-scan (0.3). Hardware intake and pre-provisioning happen before that point and are not measured; that time shows as unknown or a lower bound (decision of 2026-11-25, ADR-0008).
+
 These are the initial business rules. Preserve their intent and make their implementation precise:
 
 | Situation | Default accountable team | Required interpretation |
 | --- | --- | --- |
-| A managed GPU server lacks the required assigned server/service profile (found by the profile-less collector, since server-scan cannot see it) | DC | Pre-provisioning has not been completed. Profile applicability, intake eligibility, and successful inventory collection must be established first. |
-| A GPU server has a successfully applied qualifying profile whose name starts with `ocp` (or is a standalone DGX registered in server-scan by Redbull), but is not a Ready, schedulable node in a target GPU cluster | Redbull | Pre-provisioning is complete; cluster/node provisioning remains. Show intermediate provisioning and configuration progress. |
+| A GPU server is in server-scan (it has a qualifying profile whose name starts with `ocp`, or is a standalone DGX registered in server-scan by Redbull), but is not a Ready, schedulable node in a target GPU cluster. This includes maintenance, critical hardware health and an unreachable BMC (I8). | Redbull | Pre-provisioning is complete; cluster/node provisioning remains. Show intermediate provisioning and configuration progress. |
 | The node is Ready and schedulable, but the GPU platform is not ready (driver, device plugin, DCGM, required RDMA) | POPAI | Infrastructure is accepted; the GPU stack is not. Distinguish missing/unhealthy GPUs from monitoring gaps. |
 | A GPU server is genuinely ready for the intended workload, but has no qualifying GPU workload | Serving (Samurai side, `NO_WORKLOAD` / `OTHER_WORKLOAD`) | Available capacity has not been put into a GPU workload. Also detect unused GPUs on partly occupied servers. |
 | A GPU workload is deployed, but its service has not been made available to intended users | Serving (Applai side, `NOT_PUBLISHED`; R2) | Verify the complete publication/access path. An absent OpenShift Route alone is insufficient evidence. |
@@ -160,7 +168,7 @@ For example, a broken GPU driver is not automatically an adoption failure; a pen
 
 Time and value stay in the stage owner's ledger; the next-action owner is shown beside it and never moves the totals (0.1).
 
-Use clear executive language such as “Awaiting DC profile,” “Awaiting Redbull provisioning,” “Awaiting POPAI GPU platform,” and “No real demand — Serving.” Retain technical reason codes and evidence in drilldowns. Ownership changes and exceptions must be auditable. Do not silently erase a team’s previous queue time when ownership changes.
+Use clear executive language such as “Awaiting Redbull provisioning,” “Awaiting POPAI GPU platform,” and “No real demand — Serving.” Retain technical reason codes and evidence in drilldowns. Ownership changes and exceptions must be auditable. Do not silently erase a team’s previous queue time when ownership changes.
 
 ## 3. Working method and research discipline
 
@@ -181,7 +189,7 @@ Do not ask for permission at every phase. Continue within the authorized scope. 
 
 ## 4. Source discovery and connector contracts
 
-Support multiple independent instances of every management appliance and multiple OpenShift environments. All endpoints and credentials must be supplied through configurable registries and secret references.
+Support multiple OpenShift environments, and multiple instances of every management appliance through server-scan, which reads them. All endpoints and credentials must be supplied through configurable registries and secret references.
 
 ### server-scan — inventory source of truth (existing; read-only)
 
@@ -194,43 +202,20 @@ Support multiple independent instances of every management appliance and multipl
   - collector freshness
 - Use its audit events (`SERVER_CREATED`, `OPENSHIFT_STATE_CHANGED`) as milestone evidence.
 - Treat its fleet gauges (`backend/app/observability/metrics.py`) as coverage and freshness signals.
-- server-scan only ingests servers whose profile passes its name filter (0.3). Absence from server-scan is therefore **not** proof that a server does not exist.
+- server-scan only ingests servers whose profile passes its name filter (0.3). Absence from server-scan is therefore **not** proof that a server does not exist. Such servers are out of scope (ADR-0008).
+- A server's first appearance in server-scan (`created_at`, `SERVER_CREATED`) starts its pipeline, in Redbull's stage. Earlier time is shown as unknown or a lower bound.
 - Field and code references are in §20.4.
 
-### Profile-less GPU collector (new; read-only) — scope and handover
+### Profile-less GPU collector, UCS Central and Dell OpenManage — removed 2026-11-25
 
-- **Purpose:** find GPU-equipped servers in UCS (Manager/Central, and Intersight where used) and OpenManage that server-scan cannot see, because they have no applied profile matching the `ocp*` rule. These servers form the DC queue.
-- **Scope:** list every physical server per manager. Keep a server only when its GPU evidence comes from actual inventory. Drop any server already present in server-scan, matched on vendor + normalised serial using server-scan's normalisation.
-- **Reason codes:** `PROFILE_NONE`, `PROFILE_ASSIGNED_NOT_APPLIED`, `PROFILE_APPLY_FAILED`, `OTHER_INTENDED_USE` (applied non-`ocp` profile, I6), `HANDOVER_PENDING` (an `ocp` profile is applied but server-scan has not ingested the server within a grace period; this is a data-quality signal, not a DC fault).
-- **Reuse vendor code:** reuse server-scan's vendor clients, mapping and GPU catalogue (`infrastructure/providers/*`, `domain/value_objects/gpu_models.py`) as a library where practical, rather than writing new vendor code. Decide how in Discovery.
-- **Credentials:** use the same read-only manager accounts server-scan uses, unless a capability needs more. Document any extra permission.
-- **Handover:** once the server appears in server-scan, the DC stage closes and server-scan is authoritative. The collector's observations are kept as history.
-- **Cadence:** the collector is a slow inventory loop (default 15 min), separate from the faster telemetry loop.
-
-The two subsections below apply to this collector.
-
-### Cisco UCS Central and its managed domains (profile-less collector)
-
-- Discover registered domains, GPU-bearing physical servers, identity, health, power information where available, and service-profile associations.
-- Verify global and local profile visibility, assigned versus unassigned profiles, association state, deployment failures, and the relationship between a template and an actual server association.
-- Determine what the installed UCS Central API exposes directly and when read-only access to UCS Manager or CIMC is needed. Do not assume a GUI field has the same API path or is available at all scopes.
-- Extract GPU inventory from actual inventory evidence; do not classify a server as GPU-equipped solely because its model often ships with GPUs.
-- Establish a supported fallback and capability status when a field is unavailable.
-
-### Dell OpenManage (profile-less collector)
-
-- Identify the actual product and version: OpenManage Enterprise, Enterprise-Modular, associated Power Manager functionality, and/or direct iDRAC.
-- Verify device inventory, GPU inventory, service tags/serials, profile objects, template deployment, assignment, task results, and compliance semantics.
-- Do not translate a Cisco service profile into “a Dell template exists.” A template, a profile, assignment, successful application, and drift are distinct facts.
-- Document the exact mapping that proves Dell pre-provisioning is complete for the chosen workflow. Detect profile-based versus alternative supported provisioning paths.
-- Use direct iDRAC/Redfish only where needed and supported. Document additional credentials, permissions, sensors, and licenses required for each capability.
+The user removed the DC stage and the profile-less collector on 2026-11-25 (ADR-0008). The platform reads no management appliance (UCS Manager/Central, Intersight, OpenManage, iDRAC) directly; server-scan's collectors already read them, and server-scan is the only inventory source. The earlier contract for the collector and its UCS Central and OpenManage readers, with reason codes `PROFILE_NONE`, `PROFILE_ASSIGNED_NOT_APPLIED`, `PROFILE_APPLY_FAILED`, `OTHER_INTENDED_USE` and `HANDOVER_PENDING`, is kept in git history and in ADR-0004 (superseded). ADR-0008 says what would bring it back.
 
 ### Standalone NVIDIA DGX BMC / Redfish
 
-- Standalone DGX systems need no profile and have no DC stage.
-- Redbull registers each one in server-scan manually (server-scan's standalone Redfish collector, ADR-0016). Registration is the start of its pipeline, with Redbull as stage owner.
+- Standalone DGX systems need no profile.
+- Redbull registers each one in server-scan manually (server-scan's standalone Redfish collector, ADR-0016). Registration is the start of its pipeline, with Redbull as stage owner, as for every other server.
 - Do not build a separate standalone inventory file in R1. server-scan's registration is that inventory.
-- Standalone DGX systems must not fail the Cisco/Dell profile gate. Identify them by server-scan's `source_provider`.
+- The platform has no profile gate of its own (server-scan's name filter is the only one, and it exempts standalone Redfish), so a standalone DGX never shows a missing-profile failure. Identify them by server-scan's `source_provider`.
 - Time before registration is unobservable. Show it as unknown or a lower bound, never zero.
 - Verify expected identity against observed identity, using server-scan's serial and system UUID. Do not accept a stale entry silently pointing to a replacement server.
 - Power and sensor telemetry from DGX BMCs is R2 (E15). Follow supported Redfish resource links per generation and firmware rather than assuming identical paths.
@@ -291,7 +276,7 @@ Track lifecycle milestones separately from current operating condition. A server
 Minimum lifecycle milestones:
 
 - Ordered, received, racked/powered, and accepted into the deployment queue, when authoritative input exists.
-- Pre-provisioning accepted.
+- First seen in server-scan (`in_serverscan`, server-scan's `created_at`); the pipeline starts here (ADR-0008).
 - Assigned to a target cluster.
 - Provisioning started and completed.
 - GPU platform ready.
@@ -302,8 +287,7 @@ Minimum lifecycle milestones:
 
 Minimum current-condition categories:
 
-- Awaiting pre-provisioning.
-- Awaiting assignment/provisioning or configuration.
+- Awaiting assignment/provisioning or configuration, including maintenance and broken hardware outside a cluster (Redbull, I8).
 - GPU-ready with unallocated/unused capacity.
 - GPU workload present but service not ready or not accessible.
 - Service accessible but no observed real demand.
@@ -316,9 +300,9 @@ Minimum current-condition categories:
 
 Specify precedence, entry/exit conditions, hysteresis, grace windows, minimum observation periods, freshness TTLs, and handling of regressions. List all reason codes and map them to evidence and next actions.
 
-The intended `ocp*` rule is a **starts-with/glob policy**. If implemented with a regular expression, use an explicitly anchored equivalent such as `^ocp.*`, with documented case sensitivity. Do not mistake the regex `ocp*` for this requirement. Make the matcher and vendor-specific applicability configurable.
+The intended `ocp*` rule is a **starts-with/glob policy**. If implemented with a regular expression, use an explicitly anchored equivalent such as `^ocp.*`, with documented case sensitivity. Do not mistake the regex `ocp*` for this requirement. Since 2026-11-25 the only implementation is server-scan's own name filter, which decides what the platform can see (0.3); the platform matches no profile names itself. Anything that reads or reports that rule (Discovery probes, documentation) uses server-scan's configured pattern.
 
-Non-`ocp` profiles still belong in inventory; classify their intended use rather than dropping or automatically condemning them. If strong cluster-membership evidence contradicts missing profile data, surface the conflict; do not blindly choose the earliest failure category.
+Servers with non-`ocp` profiles are invisible to server-scan and therefore out of scope (I6, ADR-0008); they are neither shown nor charged. If strong cluster-membership evidence contradicts profile data, surface the conflict; do not blindly choose the earliest failure category.
 
 ### GPU platform readiness
 
@@ -535,7 +519,6 @@ Example configuration categories to implement, with final names documented:
 - Inventory, cluster, standalone-BMC, service-catalog, and policy file paths.
 - CA bundles, TLS settings, secret references, and token rotation.
 - Collection intervals, freshness TTLs, API deadlines, concurrency, retry, and circuit-breaker settings.
-- Profile match rules and vendor-specific pre-provisioning acceptance.
 - Team ownership, stage objectives, calendars, maintenance/reservation policies, and workload exclusions.
 - Utilization thresholds/windows, readiness checks, and synthetic-check budgets.
 - Metrics destinations, storage, retention, HA, and recording intervals.
@@ -563,7 +546,7 @@ Assign stable IDs to these questions. Map each to one or more panels, definition
 | --- | --- | --- | --- |
 | E01 | **What did we buy, and what is delivering value?** | Procurement/intake cohorts: ordered, received, accepted, GPU-ready, user-accessible, first real use, and sustained use. Show installed GPU classes and, when supplied, acquisition value not yet in service. | Track each investment to an operational outcome; distinguish supplier delivery from internal delay. |
 | E02 | **Are we getting faster?** | Comparable-cohort p50/p90 time to readiness, publication and first real use; intake-to-value conversion by age; throughput; unresolved aging; failures/rework alongside speed. | Judge whether delivery improvements are real and sustainable. |
-| E03 | **Where are we stuck—and why?** | Four handoff queues (DC, Redbull, POPAI, Serving with its sub-reasons) with overdue GPUs, waiting versus processing time where known, aging, blocking dependencies, default/actual owner, and repeat failure reasons. | Identify the current limiting step and responsible next action. |
+| E03 | **Where are we stuck—and why?** | Three handoff queues (Redbull, POPAI, Serving with its sub-reasons) with overdue GPUs, waiting versus processing time where known, aging, blocking dependencies, default/actual owner, and repeat failure reasons. | Identify the current limiting step and responsible next action. |
 | E04 | **What changed since our last review?** | Reconciled movement from the previous snapshot: newly received, newly useful, recovered, regressed, decommissioned, and newly unobserved capacity; material demand/quality changes. | Focus the meeting on meaningful developments. |
 | E05 | **What should I unblock today?** | Ranked intervention cards: exact action, owner, unique compatible capacity potentially released, affected commitments, prerequisites, effort/risk, evidence, and estimated impact range. | Choose the highest-impact achievable intervention. |
 | E06 | **When will this batch or project get usable GPUs?** | Commitments and forecast ranges for readiness/publication by batch/project; planned date versus observed progress, dependencies, and delivery risk. | Manage launch promises and escalation timing. |
@@ -749,13 +732,14 @@ Implement meaningful automated tests and, where necessary, explicit live-validat
 
 ### Classification and identity
 
-- A managed GPU server has no required profile: DC queue after valid inventory and applicability checks.
-- A qualifying profile exists but is unassigned, failed, or still applying: distinguish these states from completed pre-provisioning.
+- A GPU server with no qualifying profile is absent from server-scan: it is not in the ledger and no team is charged (out of scope, ADR-0008).
+- A qualifying `ocp` profile is assigned but not applied, or failed to apply: server-scan already lists the server, so it is in Redbull's queue (C1 in `docs/discovery.md`); the apply state is not observable.
 - A successfully applied `ocp` profile has no cluster membership after complete fresh cluster inventory: Redbull queue.
 - A cluster exists, but its GPU node is still provisioning or not schedulable: Redbull queue. The node is Ready but lacks healthy, allocatable, DCGM-reporting GPUs: POPAI queue. Neither is Serving-ready capacity.
 - A fully ready node has no qualifying GPU workload: Serving queue (`NO_WORKLOAD`).
-- A GPU-equipped server with no profile is absent from server-scan: the profile-less collector finds it and it enters the DC queue. When its `ocp` profile is applied and server-scan ingests it, the DC interval closes and Redbull's opens with no gap or overlap (handover by vendor + normalised serial).
-- A standalone DGX registered in server-scan by Redbull: Redbull queue from registration, no DC stage, earlier time shown as unknown.
+- A GPU server appears in server-scan for the first time: Redbull's queue opens, its stage clock starts at `openshift.claim_changed_at` if set, else at server-scan's `created_at` marked as a lower bound (`≥`). Earlier time is shown as unknown, never zero.
+- A standalone DGX registered in server-scan by Redbull: Redbull queue from registration, earlier time shown as unknown (the same rule as every server).
+- A server in maintenance, with critical hardware health or with an unreachable BMC: Redbull's queue with reason `MAINTENANCE`, `HARDWARE_CRITICAL` or `BMC_UNREACHABLE` (I8). A server Redbull already held keeps one Redbull episode across the reason change; maintenance on an INSTALLED node starts a Redbull episode at `maintenance.created_at`.
 - GPUs held by running Run:ai training, distributed, runaijobs, inference or deployment workloads: productive. A GPU held by a notebook or debug pod: Serving (`OTHER_WORKLOAD`) with the pod named.
 - A model is loaded and Ready but serves zero genuine requests over the window: Serving (`NO_REAL_DEMAND`), not productive.
 - Redbull's server is blocked on Network (PXE VLAN): stage owner Redbull keeps the GPU-hours; next-action owner Network is shown with the recorded reason.
@@ -766,7 +750,7 @@ Implement meaningful automated tests and, where necessary, explicit live-validat
 - Only probes, warmups, or benchmarks generate traffic: no false first-user-use or adoption claim.
 - Sustained low utilization with healthy service and low demand: Serving `LOW_USE` policy candidate (Applai/Mador 885 side).
 - Low utilization caused by storage/network/driver problems: identify the technical constraint and appropriate next-action owner.
-- Standalone DGX: alternative pre-provisioning policy, no false missing-profile failure.
+- Standalone DGX: no profile is needed, and no false missing-profile failure is reported.
 - One machine appears in two appliances; two clusters use identical node names; a machine changes hostname or cluster: correct stable identity and historical accounting.
 - Missing/duplicate serials, replaced hardware, contradictory evidence, and ambiguous joins: visible conflict rather than silent merge.
 - Non-OpenShift and legitimate batch/training workloads: inventory remains visible without false serving-failure claims.
@@ -854,7 +838,7 @@ The work is complete only when the deliverables and available acceptance gates a
 
 ## 19. Official research starting points
 
-These are starting points, not a substitute for version-specific verification. They were consulted while preparing this brief on 28 October 2026. Recheck them and the actual deployed versions when executing the mission.
+These are starting points, not a substitute for version-specific verification. They were consulted while preparing this brief on 28 October 2026. Recheck them and the actual deployed versions when executing the mission. The Cisco UCS Central and Dell OpenManage links served the profile-less collector, removed on 2026-11-25 (ADR-0008); they remain background for reading server-scan's own collectors.
 
 - [Cisco UCS Central developer APIs and SDKs](https://developer.cisco.com/docs/ucs-dev-center/ucs-central/)
 - [Cisco UCS Central inventory and profile visibility](https://www.cisco.com/c/en/us/td/docs/unified_computing/ucs/ucs-central/cli-reference-manual/2-0/b_CiscoUCSCentral-CLI-Reference-Manual-Release2-0/b_CiscoUCSCentral-CLI-Reference-Manual-Release2-0_chapter_010011.html)
@@ -887,8 +871,7 @@ Section 0 overrides this section; this section overrides Sections 1–19 for R1.
 ### 20.1 Architecture
 
 ```
- UCS Manager/Central, Intersight, OpenManage ──▶ profile-less collector (15 min) ──┐
- server-scan API (inventory, audit events, fleet gauges) ─────────────────────────┤
+ server-scan API (inventory, audit events, fleet gauges) ─────────────────────────┐
  ocp4-prod-gpu-site1..N                                                            ▼
    kube API (nodes, pods, run.ai kinds, serving kinds) ──▶ ttv-engine (one active replica, 5 min)
    Thanos querier (DCGM, serving request counters) ─────▶   snapshot → classify (pure) → ledger
@@ -898,7 +881,7 @@ Section 0 overrides this section; this section overrides Sections 1–19 for R1.
                                                              Postgres ──▶ Grafana (provisioned as code, offline)
 ```
 
-- **Profile-less collector.** Reads the managers and writes its observations to Postgres. It is the only new inventory code.
+- **No new inventory code.** server-scan is the only inventory source. The profile-less collector was removed on 2026-11-25 (ADR-0008).
 - **ttv-engine.** Builds an immutable snapshot from all sources and classifies it with a pure function. It diffs the result into capacity intervals and milestones, and serves `/metrics` and the explain API.
 - **Leadership and idempotency.** One active engine holds a Postgres advisory lock. Writes are idempotent per scan id, so HA replicas never duplicate time or value (§11).
 - **No new metrics backend.** Query each target cluster's existing Thanos querier. Prometheus gauges are not the business ledger; Postgres is (§9).
@@ -906,7 +889,7 @@ Section 0 overrides this section; this section overrides Sections 1–19 for R1.
 ### 20.2 Classification — ordered, first match wins
 
 Evaluate per asset.
-- `E` = expected GPUs from inventory: server-scan `hardware.gpus`, or the collector's GPU evidence.
+- `E` = expected GPUs from inventory: server-scan `hardware.gpus`.
 - A server-level match assigns all `E` GPUs.
 - If no server-level row matches, continue to the GPU-level rows.
 
@@ -916,10 +899,8 @@ Evaluate per asset.
 | --- | --- | --- | --- | --- |
 | 1 | `EXCLUDED` | Matches the exclusion config (I5) | NOT_CHARGED | — |
 | 2 | `SOURCE_STALE` | The source owning this asset is stale or its last run was partial, beyond grace | UNKNOWN | — |
-| 3 | `PROFILE_NONE`, `PROFILE_ASSIGNED_NOT_APPLIED`, `PROFILE_APPLY_FAILED` | Asset known only to the profile-less collector | IDLE | DC |
-| 4 | `OTHER_INTENDED_USE` | Collector-only asset with an applied non-`ocp` profile (I6) | NOT_CHARGED | — |
-| 5 | `HANDOVER_PENDING` | Collector-only, `ocp` profile applied, not in server-scan after grace | UNKNOWN + data-quality alert | — |
-| 6 | `MAINTENANCE`, `HARDWARE_CRITICAL`, `BMC_UNREACHABLE` | server-scan `maintenance.enabled`, `health.overall == CRITICAL`, or `reachable == false` | IDLE | DC (I8) |
+| 3–5 | *removed 2026-11-25* | Rows 3–5 (`PROFILE_NONE`, `OTHER_INTENDED_USE`, `HANDOVER_PENDING`) classified servers only the profile-less collector saw. They were removed with it (ADR-0008); the numbers stay unused so later rows keep their numbers. | — | — |
+| 6 | `MAINTENANCE`, `HARDWARE_CRITICAL`, `BMC_UNREACHABLE` | server-scan `maintenance.enabled`, `health.overall == CRITICAL`, or `reachable == false` | IDLE | Redbull (I8) |
 | 7 | `CONTESTED` | `openshift.contested_with` is set | UNKNOWN | — |
 | 8 | `NOT_IN_CLUSTER` | `openshift.lifecycle_state == AVAILABLE` | IDLE | Redbull |
 | 9 | `IN_MCE_INVENTORY` | `lifecycle_state == INSTALLED_TO_INVENTORY` | IDLE | Redbull (I9) |
@@ -928,6 +909,12 @@ Evaluate per asset.
 | 12 | `NODE_NOT_FOUND` | No node matches the asset (20.3) | UNKNOWN + alert | — |
 | 13 | `NODE_NOT_READY`, `NODE_UNSCHEDULABLE` | Node `Ready != True`, or `spec.unschedulable` | IDLE | Redbull |
 | 14 | `GPU_PLATFORM_NOT_READY` | Allocatable `nvidia.com/gpu` is 0, or no DCGM series exists for the node | IDLE | POPAI |
+
+**Row 6 and Redbull's stage clock** (decision of 2026-11-25, ADR-0008; as amended by C3 in `docs/discovery.md`):
+- Redbull's normal clock (rows 6, 8 and 9) is `openshift.claim_changed_at` if set, else server-scan's `created_at` as a lower bound.
+- Maintenance on an INSTALLED server starts Redbull's episode at `maintenance.created_at`. Outside a cluster, maintenance keeps Redbull's normal clock, because Redbull already held the server.
+- Critical health or an unreachable BMC matches row 6 only for a server that is not INSTALLED (C3: running work wins; on an INSTALLED server they are flags). On a not-Ready node in a target cluster they become row 13's reason (`HARDWARE_CRITICAL` or `BMC_UNREACHABLE`), still Redbull's, with the node-Ready clock.
+- The ledger keeps one Redbull episode running across these reason changes, because the stage stays the same.
 
 **GPU-level** — the node passed rows 1–14. `A` = allocatable GPUs; `R` = GPUs reporting DCGM.
 
@@ -993,15 +980,15 @@ Evaluate per asset.
 | Hardware state | `maintenance.enabled`, `maintenance.reason`, `health.overall`, `reachable`, `unreachable_since`, `last_seen_at`, `created_at` | `domain/models/server.py`, `domain/models/maintenance.py` |
 | Milestone evidence | `GET /api/v1/events?event_type=…&server_id=…&since=…` — `SERVER_CREATED`, `OPENSHIFT_STATE_CHANGED` (`data.from`, `data.to`, `data.cluster_name`). Requires audit access. | `api/v1/events.py`, `domain/models/audit_event.py`, ADR-0043, ADR-0045 |
 | Freshness and coverage | `server_scan_collector_last_seen_timestamp_seconds`, `server_scan_collector_last_run_partial`, `server_scan_membership_last_run_unmatched`, `server_scan_servers_stale` | `observability/metrics.py`, ADR-0029 |
-| Name filter (why profile-less servers are absent) | `collector_name_pattern`, `ucs_central_name_pattern`, `intersight_name_pattern`, `ome_name_pattern`, `oneview_name_pattern`, `redfish_name_pattern` | `config/settings.py`, `infrastructure/providers/*` |
+| Name filter (why profile-less servers are absent, and so out of scope) | `collector_name_pattern`, `ucs_central_name_pattern`, `intersight_name_pattern`, `ome_name_pattern`, `oneview_name_pattern`, `redfish_name_pattern` | `config/settings.py`, `infrastructure/providers/*` |
 
-Profile assignment is not audited by server-scan, so `profile_applied` milestones come from the profile-less collector's last observation before handover. Otherwise the milestone is the server-scan first-seen time, marked as a lower bound.
+Profile assignment is not audited by server-scan, so there is no `profile_applied` milestone. The first milestone is `in_serverscan` (server-scan's `created_at`), and Redbull's stage clock from it is a lower bound (ADR-0008).
 
 ### 20.5 Ledger (Postgres, plain SQL migrations)
 
 ```sql
 assets(asset_id text primary key,          -- '<vendor>:<serial_normalized>'
-       aliases jsonb,                      -- server-scan _id, manager ids, (cluster uid, node uid)
+       aliases jsonb,                      -- server-scan _id, (cluster uid, node uid)
        vendor text, serial text, system_uuid text, model text, site text,
        gpu_model text, gpu_count int, source text,
        first_observed_at timestamptz, last_observed_at timestamptz);
@@ -1022,7 +1009,7 @@ next_action_annotations(id bigserial primary key, asset_id text, next_action_own
 
 milestones(asset_id text, milestone text, observed_at timestamptz, lower_bound boolean,
        evidence jsonb, primary key (asset_id, milestone));
-       -- first_seen, profile_applied, in_serverscan, assigned_cluster, node_ready,
+       -- first_seen, in_serverscan, assigned_cluster, node_ready,
        -- gpu_ready, workload_running, first_genuine_request
 
 identity_conflicts(id bigserial primary key, kind text, candidates jsonb,
@@ -1053,8 +1040,8 @@ scan_runs(id bigserial primary key, kind text, started_at timestamptz,
 
 ### 20.6 Scan loop
 
-- **Cadences:** classification and telemetry every 5 min; server-scan list every 5 min; profile-less inventory every 15 min.
-- **Snapshot and isolation:** the snapshot is immutable. Sources are fetched concurrently with per-source deadlines, so one failing cluster or manager never blocks the others.
+- **Cadences:** classification and telemetry every 5 min; server-scan list every 5 min.
+- **Snapshot and isolation:** the snapshot is immutable. Sources are fetched concurrently with per-source deadlines, so one failing cluster never blocks the others.
 - **Diff:**
   - An unchanged bucket keeps its interval open.
   - A changed bucket closes at scan time and a new one opens.
@@ -1072,7 +1059,7 @@ scan_runs(id bigserial primary key, kind text, started_at timestamptz,
 ### 20.8 Stack, access and delivery
 
 - **Stack.** Mirror server-scan's conventions:
-  - Python 3.12, FastAPI (read API), httpx async (kube REST, Thanos and vendor APIs; one client per endpoint, with CA bundles).
+  - Python 3.12, FastAPI (read API), httpx async (server-scan, kube REST and Thanos; one client per endpoint, with CA bundles).
   - pydantic v2 + pydantic-settings, psycopg 3, structlog, prometheus-client.
   - pytest, ruff, ty.
   - Record decisions as ADRs in `docs/adr/`.
@@ -1085,7 +1072,7 @@ scan_runs(id bigserial primary key, kind text, started_at timestamptz,
   - ServiceAccount; ClusterRole with `get/list/watch` on nodes, pods, and the discovered Run:ai and serving kinds.
   - Binding to `cluster-monitoring-view`; a long-lived token Secret.
   - No write verbs.
-- **Managers:** read-only accounts only. Document any extra privilege a capability needs.
+- **server-scan:** the read-only AUDITOR token only. The platform holds no management-appliance credentials (ADR-0008).
 
 ### 20.9 Repository layout
 
@@ -1093,11 +1080,10 @@ scan_runs(id bigserial primary key, kind text, started_at timestamptz,
 gpu-ttv/
   AGENT.md
   docs/discovery.md  docs/adr/  docs/executive-question-map.md
-  config/            # schemas + examples: clusters, managers, owners, pools, team_map,
+  config/            # schemas + examples: clusters, owners, pools, team_map,
                      # exclusions, policy (objectives, windows, thresholds), panel-contracts
   src/ttv/
     sources/serverscan.py  sources/kube.py  sources/prometheus.py
-    collector/ucs.py  collector/openmanage.py
     identity.py  snapshot.py  classify.py   # classify.py is pure: no I/O
     ledger.py  milestones.py  pricing/  metrics.py  api.py  main.py
   migrations/
@@ -1115,13 +1101,7 @@ Write `docs/discovery.md` covering the following.
 - Which endpoint returns every 20.4 field, with a sample per `lifecycle_state`.
 - The configured name patterns per collector, and the serial normalisation function.
 
-**Managers**
-- UCS Manager/Central, Intersight and OpenManage versions.
-- The API calls that list all physical servers, including unassociated ones.
-- GPU inventory fields.
-- Profile assignment, apply and failure fields.
-- Whether server-scan's provider code can be imported.
-- Any "first discovered" timestamp usable as evidence.
+**Managers** — no longer a Discovery item. The platform reads no manager since the profile-less collector was removed on 2026-11-25 (ADR-0008). The findings already recorded stay in `docs/discovery.md` as background.
 
 **Target clusters**
 - Exact Run:ai CRD names, pod ownership chains and labels, and fractional/reservation pods.
@@ -1149,7 +1129,7 @@ Stop and report any contradiction with Section 0; do not redesign silently.
   - productive share of eligible GPUs
   - p50 and p90 time to GPU-ready and to first genuine request, marked "≥" where lower-bounded
   - unknown and not-measured GPUs
-- A four-queue strip with aging.
+- A three-queue strip (Redbull, POPAI, Serving) with aging.
 - A longest-waits table: asset, stage, reason, stage owner, next-action owner, since, GPU-hours, value.
 
 Reference queries:
@@ -1178,18 +1158,18 @@ GROUP BY i.stage_owner;
 
 ### 20.12 Definition of done (R1)
 
-- Every GPU asset found in server-scan or by the profile-less collector appears in exactly one category per GPU on every scan.
+- Every GPU asset found in server-scan appears in exactly one category per GPU on every scan.
 - §17's numerical checks pass as automated tests: 24 → 16 overdue GPU-hours; 12 GPU-hours partial idle; linear pricing equivalence; unknown is never zero.
 - Scenario tests pass:
-  - DC → Redbull handover with no gap or overlap
-  - standalone DGX starts at Redbull
+  - every server starts at Redbull when it first appears in server-scan, with earlier time unknown (a lower bound); a standalone DGX follows the same rule from its registration
+  - maintenance or broken hardware is Redbull's, and one Redbull episode runs across the reason change
   - Run:ai workload counts as productive
   - `NO_REAL_DEMAND`
   - `OTHER_WORKLOAD`
   - a next-action annotation never moves totals
   - partial listing ≠ deletion
   - source failure → UNKNOWN after grace.
-- Read-only is verified: cluster RBAC has no write verbs, and manager and server-scan accounts are read-only.
+- Read-only is verified: cluster RBAC has no write verbs, and the server-scan token is read-only.
 - A dry run of at least one day is reviewed with the user, plus a manual spot check of at least 10 assets across all categories.
 - The offline install test (§15) passes for R1 components.
 

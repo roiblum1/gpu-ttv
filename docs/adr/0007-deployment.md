@@ -1,10 +1,11 @@
 # ADR-0007: Packaging and deployment (image, Helm charts, offline bundle, CI)
 
 - **Status:** accepted 2026-10-31 (R1 slice 5).
+  - **Updated 2026-11-25** ([ADR-0008](0008-drop-dc-stage-and-collector.md)): the collector workload, its values, secrets and egress were removed, so the image has two entry points and the chart one workload. All the `lab-tested` evidence below dates from October 2026 and predates this change; the sandbox and the workshop cluster it used no longer exist. The collector was never lab-tested.
   - `fixture-tested`: `tests/test_helm_charts.py`, `tests/test_deploy_packaging.py`, `tests/test_api_decisions.py`.
   - `lab-tested`, on a laptop (podman 6.1, arm64; Helm 4.3.1):
     - the image built with the network off, from a wheelhouse;
-    - all three entry points ran with a read-only root filesystem, an arbitrary UID and no network;
+    - all three entry points of the time (`ttv-engine`, `ttv-collector`, `ttv-pricing`) ran with a read-only root filesystem, an arbitrary UID and no network;
     - the engine ran a dry run in the image against the sandbox server-scan (3,008 demo servers);
     - `mirror-images.sh` archived one image with its digest intact;
     - `sbom.sh` produced both SBOMs.
@@ -17,7 +18,7 @@
     - `deploy/gpu-cluster-rbac` on the same cluster, approved by the user: with its token the engine read nodes, pods, owner chains up to KServe's LLMInferenceService, and Thanos, and gave the same GPU counts per category, reason and cluster as an engine reading the cluster as admin; the read-only proof (`docs/dry-run-review.md`, step 2) showed only get/list/watch plus `prometheuses/api` from `cluster-monitoring-view`; the token's `ca.crt` verified the external API name;
     - `networkPolicy.egress` limited to Postgres, server-scan, and the target's API and Thanos route: a full scan read every source; other hosts, and other ports on the allowed addresses, timed out;
     - the first egress attempt failed, because inside the cluster the target's API and route names resolved to an internal address, not the public one a laptop sees (split-horizon DNS). The engine reported `cluster.read_failed` and `cluster_sources_failed: 2`, as the source alert expects;
-    - not covered: the collector (no managers in the lab).
+    - not covered: the collector (no managers in the lab), since removed (ADR-0008).
   - Nothing here has run against production.
 - **Context:** AGENT.md §20.8 (air-gapped: internal registry and Python mirror, digest-pinned images, no runtime downloads, GitLab CI, Helm, Argo CD; per-cluster RBAC with no write verbs), §20.9 (layout), §15 (offline release process), §20.6 (dry run before writes), §20.12 (read-only verified, offline install test).
 - **Files:** `Containerfile`, `.containerignore`, `deploy/helm/gpu-ttv/`, `deploy/gpu-cluster-rbac/`, `offline/`, `.gitlab-ci.yml`, `docs/dry-run-review.md`.
@@ -26,7 +27,7 @@
 
 ### Image
 
-**One image runs all three entry points.** `ttv-engine` is the default command, and the chart runs `ttv-collector` with the same digest.
+**One image runs both entry points:** `ttv-engine`, the default command, and `ttv-pricing`. Until 2026-11-25 it also ran `ttv-collector` (ADR-0008).
 
 **The base images are pinned by multi-arch index digest:** `python:3.12-slim` (3.12.16-slim-trixie) and `uv` 0.13.6 (the build stage only). References carry no tag next to the digest, because skopeo refuses `name:tag@digest` (seen 2026-10-31) and container runtimes differ on it. The tags live in `offline/images.lock`.
 
@@ -59,20 +60,20 @@
   - `livenessProbe` on `/healthz` and `readinessProbe` on `/readyz`.
 - **Service and ServiceMonitor.** The Service serves the API and `/metrics`. The ServiceMonitor is optional and scrapes `/metrics/`, because `/metrics` answers 307 to `/metrics/` (the ASGI mount, seen 2026-10-31).
 
-**The collector Deployment** is rendered only when `collector.managers` lists a manager, and then requires `database.existingSecret`. It has no probes: it serves no HTTP, a crash restarts it, and a stalled one raises "TTV collector manager stale".
+**No collector workload.** Until 2026-11-25 the chart also rendered a collector Deployment when `collector.managers` listed a manager. It was removed with the collector (ADR-0008).
 
 **Configuration:**
-- The policy, clusters and managers files are ConfigMaps. A checksum annotation restarts the workload that reads them, because both read them only at startup.
+- The policy and clusters files are ConfigMaps. A checksum annotation restarts the engine when one changes, because it reads them only at startup.
 - The policy defaults to `config/policy.example.yaml`, and `NOTES.txt` warns when it is used.
 - `clusters` entries get `token_file` and `ca_bundle` from the Secret each one names (`tokenSecret`, keys `token` and `ca.crt`), which matches the RBAC chart's token Secret.
-- The chart fails at render time when a cluster is not in the policy's `target_clusters`, when the collector has no database, or when the digest is not `sha256:<64 hex>`.
+- The chart fails at render time when a cluster is not in the policy's `target_clusters`, when the digest is not `sha256:<64 hex>`, when the policy still names `PRE_PROVISIONING` (the engine refuses such a policy too), or when the values still have a `collector:` section (chart 0.2.0, ADR-0008).
 
-**Secrets are referenced by name only:** `database.existingSecret` (the DSN), `serverscan.tokenSecret`, `clusters[].tokenSecret` and `collector.secretMounts`. They are mounted read-only with mode 0440. The chart contains no Secret object.
+**Secrets are referenced by name only:** `database.existingSecret` (the DSN), `serverscan.tokenSecret` and `clusters[].tokenSecret`. They are mounted read-only with mode 0440. The chart contains no Secret object, and no manager credentials exist any more.
 
 **Settings:**
 - `TTV_DRY_RUN` comes only from `dryRun`, which defaults to `true` (§20.6) and must be a boolean.
-- Other scalars go under `settings`. `values.schema.json` lists the 13 settings the chart leaves open and refuses any other key, including `TTV_DRY_RUN`, so a typo or a bypass fails the render.
-- `tests/test_helm_charts.py` checks that the open settings plus the 11 the chart sets itself are exactly `ttv.config.Settings`.
+- Other scalars go under `settings`. `values.schema.json` lists the 10 settings the chart leaves open and refuses any other key, including `TTV_DRY_RUN`, so a typo or a bypass fails the render.
+- `tests/test_helm_charts.py` checks that the open settings plus the 10 the chart sets itself are exactly `ttv.config.Settings`.
 
 **Pods:**
 - `runAsNonRoot`, `RuntimeDefault` seccomp, no privilege escalation, all capabilities dropped, a read-only root filesystem with an emptyDir `/tmp`.
@@ -82,11 +83,11 @@
 **Shutdown.** `shareProcessNamespace: true` makes the pause container PID 1.
 - As PID 1, Python ignores SIGTERM unless it installs a handler. uvicorn stops serving but re-raises SIGTERM, and that re-raise is ignored, so the scan loop kept running until SIGKILL: 20 s in the lab.
 - With an init as PID 1, the engine stopped in 0.3 s.
-- The collector and a standby engine install no handler, so the same applies to them.
+- A standby engine installs no handler, so the same applies to it.
 
 **NetworkPolicy:**
-- Ingress to the engine's port is allowed only from the listed peers (default: user-workload monitoring and the same namespace). The collector accepts no ingress.
-- Egress is not restricted by default, because the destinations (server-scan, kube APIs, Thanos routes, managers, Postgres) are site-specific CIDRs. Setting `networkPolicy.egress` restricts it, and DNS is then added. Resolve each destination from a pod in the gpu-ttv namespace: with split-horizon DNS, pods can get an internal address that a laptop never sees (lab, 2026-10-31).
+- Ingress to the engine's port is allowed only from the listed peers (default: user-workload monitoring and the same namespace).
+- Egress is not restricted by default, because the destinations (server-scan, kube APIs, Thanos routes, Postgres) are site-specific CIDRs. Since ADR-0008 there is no egress to UCS Central, OpenManage or iDRAC. Setting `networkPolicy.egress` restricts it, and DNS is then added. Resolve each destination from a pod in the gpu-ttv namespace: with split-horizon DNS, pods can get an internal address that a laptop never sees (lab, 2026-10-31).
 
 **Grafana provisioning, for a sidecar-based Grafana:**
 - **Opt-in ConfigMaps** with the k8s-sidecar labels `grafana_dashboard`, `grafana_datasource` and `grafana_alert`, rendered from the repo's `grafana/` files. `files/grafana` and `files/policy.example.yaml` are symbolic links into the repo, which Helm follows when it renders and packages the chart, so there is no copy to drift. A test compares every rendered file byte for byte.
@@ -150,6 +151,5 @@ A read-only endpoint that lists the last scan's buckets per asset, filterable by
 
 **Open limits:**
 - **Untested installs.** The chart was rendered and linted, never installed. The §15 clean-room install test and the §20.6 dry run remain to be run on site. The import script was tested only against a stub skopeo, never against a registry.
-- **The collector has no health endpoint.** A hung collector is caught only by the staleness alert.
 - **SIGTERM handling.** A follow-up could add a handler in `main.py`; `shareProcessNamespace` would then be unnecessary.
 - **The standby engine serves no HTTP while it waits for the lock.** That is why the startup probe exists. Serving `/healthz` while waiting would let the startup window shrink.

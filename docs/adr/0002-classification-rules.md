@@ -1,20 +1,22 @@
 # ADR-0002: Classification rules as implemented
 
 - **Status:** accepted 2026-10-30
-- **Context:** AGENT.md §20.2, amended by the user's decisions in `docs/discovery.md` (C3, C6, C7, simplified collector)
+- **Context:** AGENT.md §20.2, amended by the user's decisions in `docs/discovery.md` (C3, C6, C7) and by [ADR-0008](0008-drop-dc-stage-and-collector.md)
 - **Code:** `src/ttv/classify.py` (server-level rows), `src/ttv/gpu_rows.py` (rows 15-22), `src/ttv/cluster_view.py` (node and DCGM indexes). All pure: no I/O.
 - **Updated 2026-10-31:** slice 2 (target clusters, rows 11-22) implemented; additions marked *(added)*.
+- **Updated 2026-11-25 (ADR-0008):** the DC stage (`PRE_PROVISIONING`) and rows 3-5 (collector-only assets) were removed. Rows 6a, 6b and the row-13 hardware case are Redbull's. Row numbers are unchanged, so 3-5 are unused.
 
-Rules are evaluated per asset in order; the first match wins. A server-level match assigns all `E` GPUs (expected GPUs from inventory). If none matches, the GPU-level rows split `E` across buckets. Per asset, bucket GPU counts always sum to `E`.
+Rules are evaluated per asset in order; the first match wins. A server-level match assigns all `E` GPUs (expected GPUs from server-scan's `hardware.gpus`). If none matches, the GPU-level rows split `E` across buckets. Per asset, bucket GPU counts always sum to `E`.
 
 ## Stages and default owners
 
 | Stage | Default team (configurable) |
 | --- | --- |
-| `PRE_PROVISIONING` | DC |
 | `PROVISIONING` | Redbull |
 | `GPU_PLATFORM` | POPAI |
 | `SERVING` | Serving |
+
+A policy that still names `PRE_PROVISIONING` in `teams` or `stage_objectives` is refused at startup (ADR-0008).
 
 ## Server-level rows
 
@@ -22,14 +24,10 @@ Rules are evaluated per asset in order; the first match wins. A server-level mat
 | --- | --- | --- | --- | --- | --- |
 | 1 | `EXCLUDED` | Asset in the exclusion list (I5) | NOT_CHARGED | — | 1 |
 | 2 | `SOURCE_STALE` | The asset's source failed beyond `unknown_grace_scans`, or server-scan marks the record `stale` | UNKNOWN | — | 1 |
-| 2b | `IDENTITY_CONFLICT` | Two source records claim the same asset id, or the collector could not resolve which profile is bound (`profile_unresolved`) | UNKNOWN | — | 1 |
-| 3 | `PROFILE_NONE` | Collector-only GPU server with no bound profile. Stage clock: the collector's first sighting, a lower bound | IDLE | PRE_PROVISIONING | 3 |
-| 4 | `OTHER_INTENDED_USE` | Collector-only GPU server whose bound profile name does not match `collector.ocp_profile_pattern` (`^ocp`, case-sensitive `re.search`, as server-scan; I6) | NOT_CHARGED | — | 3 |
-| 5 | `HANDOVER_PENDING` | Collector-only GPU server with an OCP profile, not (yet) in server-scan. Past `collector.handover_grace` (6 h) from the first sighting of that profile, flagged `handover_overdue` for the data-quality alert | UNKNOWN | — | 3 |
-
-Collector-only assets *(added, slice 3)*: a server from the collector's latest complete read of each manager whose `<vendor>:<serial>` server-scan does not list (server-scan wins for the same vendor and serial). For them, row 2 means the manager's latest complete read is older than `TTV_COLLECTOR_STALE_AFTER` (1 h). A serial reported by two managers, or twice by one, is a `COLLECTOR_DUPLICATE` conflict (row 2b); a server whose profile binding is ambiguous (e.g. an OME `TargetName` shared by several devices) is a `COLLECTOR_PROFILE_AMBIGUOUS` conflict (row 2b), never row 3. A server whose GPU inventory the manager could not read is carried and counted, never zero. Collector-only assets are retired only after `tombstone_after` of absence while every manager's latest read is fresh and complete.
-| 6a | `MAINTENANCE` | `maintenance.enabled` | IDLE | PRE_PROVISIONING | 1 |
-| 6b | `HARDWARE_CRITICAL`, `BMC_UNREACHABLE` | `health.overall` is a configured critical value, or `reachable == false`, **and the server is not INSTALLED in any cluster** (C3: running work wins). For INSTALLED servers they become flags; in a target cluster whose node is observed not Ready, 6b applies there (slice 2). | IDLE | PRE_PROVISIONING | 1 |
+| 2b | `IDENTITY_CONFLICT` | Two source records claim the same asset id | UNKNOWN | — | 1 |
+| 3-5 | *removed 2026-11-25* | `PROFILE_NONE`, `OTHER_INTENDED_USE` and `HANDOVER_PENDING` classified GPU servers only the profile-less collector saw (ADR-0004). They were removed with it (ADR-0008). | — | — | — |
+| 6a | `MAINTENANCE` | `maintenance.enabled`. Stage clock: `maintenance.created_at` for an INSTALLED server; otherwise Redbull's normal clock (below), because Redbull already held the server | IDLE | PROVISIONING (I8) | 1 |
+| 6b | `HARDWARE_CRITICAL`, `BMC_UNREACHABLE` | `health.overall` is a configured critical value, or `reachable == false`, **and the server is not INSTALLED in any cluster** (C3: running work wins). For INSTALLED servers they become flags; in a target cluster whose node is observed not Ready, the hardware reason applies at row 13 (slice 2). Stage clock: Redbull's normal clock | IDLE | PROVISIONING (I8) | 1 |
 | 7 | `CONTESTED` | `openshift.contested_with` is set | UNKNOWN | — | 1 |
 | 8 | `NOT_IN_CLUSTER` | `lifecycle_state == AVAILABLE` (also a GPU server whose `ocp*` profile is only assigned: C1) | IDLE | PROVISIONING | 1 |
 | 9 | `IN_MCE_INVENTORY` | `lifecycle_state == INSTALLED_TO_INVENTORY` (I9) | IDLE | PROVISIONING | 1 |
@@ -39,7 +37,7 @@ Collector-only assets *(added, slice 3)*: a server from the collector's latest c
 | 11 | `CLUSTER_UNREACHABLE` | The cluster's kube API or Thanos failed `unknown_grace_scans` times in a row. Within grace the last good snapshot is used; a cold start with no snapshot yet carries the asset's intervals unchanged | UNKNOWN | — | 2 |
 | 12 | `NODE_NOT_FOUND` | No node's cleaned name equals `clean_hostname(reported_name or name)` (server-scan's own rule, D10) | UNKNOWN (+ alert) | — | 2 |
 | 12 | `IDENTITY_CONFLICT` *(added)* | Two nodes clean to the same name, or two assets claim one node (`NODE_CLAIM` conflict) | UNKNOWN | — | 2 |
-| 13 | `NODE_NOT_READY`, `NODE_UNSCHEDULABLE` | Node `Ready != True` or `spec.unschedulable`. A not-Ready node whose hardware is critical or whose BMC is unreachable is row 6b instead (DC) | IDLE | PROVISIONING | 2 |
+| 13 | `NODE_NOT_READY`, `NODE_UNSCHEDULABLE` | Node `Ready != True` or `spec.unschedulable`. A not-Ready node whose hardware is critical or whose BMC is unreachable keeps the hardware reason (`HARDWARE_CRITICAL` or `BMC_UNREACHABLE`; trace `13 NODE_NOT_READY + 6b hardware`), still Redbull's with the node-Ready clock | IDLE | PROVISIONING | 2 |
 | 14 | `GPU_PLATFORM_NOT_READY` | `A` (allocatable GPU resource) is 0, or `R` (distinct DCGM UUIDs on the node) is 0 | IDLE | GPU_PLATFORM | 2 |
 
 ## GPU-level rows (slice 2)
@@ -70,14 +68,15 @@ How the GPU rows are applied *(added)*:
 - **Allocation order.** Row 15 takes its GPUs first, then holders in row order (productive first), then row 22 takes what is left. When holders claim more GPUs than are healthy, the shortfall comes off the lowest-precedence holders and the trace says so. GPU models are dealt to buckets in sorted order, so a mixed-model server still yields one bucket per model and the counts sum to `E`.
 - **Flags.** `allocated_idle` on rows 16-17 needs DCGM activity evidence covering the whole window (`DCGM_FI_PROF_GR_ENGINE_ACTIVE` ratio, else `DCGM_FI_DEV_GPU_UTIL` / 100) below the threshold, and a pod at least as old as the window; no data is never idle. Activity is read per pod, so under MIG it is relative to the pod's slice, not the parent GPU (fact 31; D4's parent-GPU rule is not applied yet). Hardware flags (C3) ride on every bucket.
 - **Pools and teams.** `pool` is the first `pools` entry whose node selector matches. `team` is set on productive buckets from `team_map` (workload, then namespace), else `unassigned`.
-- **Stage clocks.** Row 13 dates Redbull's episode from the node's `Ready` `lastTransitionTime` as a lower bound. Rows 14-22 have no start evidence, so a new episode starts at first observation (`≥`).
+- **Stage clocks.** Redbull's normal clock (rows 6a outside a cluster, 6b, 8 and 9) is `openshift.claim_changed_at` if set, else server-scan's `created_at` as a lower bound: a server's pipeline starts when it first appears in server-scan, and earlier time is unknown (ADR-0008). Row 6a on an INSTALLED server uses `maintenance.created_at`. Row 13 dates Redbull's episode from the node's `Ready` `lastTransitionTime` as a lower bound, with or without a hardware reason. Rows 14-22 have no start evidence, so a new episode starts at first observation (`≥`).
+- **Clocks only date new assets.** The classifier's stage clock is used only for a server the ledger has never seen. For a known server the ledger keeps the episode while the stage stays the same, across reason changes and UNKNOWN gaps, so maintenance or a hardware fault outside a cluster continues Redbull's episode. A move into another stage starts a new episode at that scan (`ledger.py` `_stage_clock`).
 - **Milestones.** `assigned_cluster` (exact from `claim_changed_at`, else a lower bound), `node_ready`, `gpu_ready`, `workload_running` and `first_genuine_request`, each first-time only.
 
 ## Assets with no GPUs
 
 A server-scan record whose `hardware.gpus` is empty is not a GPU asset and gets no buckets. A record whose GPU inventory is unread (server-scan lists `hardware.gpus` in `unread_fields`; at `defe172` the list itself is never null) is counted in the coverage gauge `ttv_gpu_inventory_unread_servers`, never as zero GPUs, and keeps any intervals it already has. A GPU without a model name is recorded with no model, so it is unpriced rather than priced as a model called "".
 
-## Invariants (tested: `tests/test_classify.py`, `tests/test_classify_cluster.py`, `tests/test_classify_collector.py`, `tests/test_engine_clusters_pg.py`, `tests/test_engine_collector_pg.py`)
+## Invariants (tested: `tests/test_classify.py`, `tests/test_classify_cluster.py`, `tests/test_ledger_plan.py`, `tests/test_engine_clusters_pg.py`)
 
 - Per asset, bucket GPU counts sum to `E`; each GPU has exactly one category.
 - UNKNOWN and NOT_CHARGED buckets are never valued.

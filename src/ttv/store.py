@@ -15,15 +15,13 @@ from psycopg.types.json import Jsonb
 from ttv.config import Policy
 from ttv.identity import IdentityConflict
 from ttv.ledger import BucketKey, LastStage, LedgerPlan, OpenInterval
-from ttv.models import CollectorRead, ManagerServer, SourceStatus
+from ttv.models import SourceStatus
 from ttv.pricing.catalog import CATALOG_VERSION
 from ttv.sources.serverscan import CachedDetail
 
 MIGRATIONS = Path(__file__).resolve().parents[2] / "migrations"
 # One active engine: a session-level advisory lock on this key (AGENT.md §20.1).
 LEADER_LOCK_KEY = 7_211_042_301
-# One active profile-less collector (ADR-0004); LEADER_LOCK_KEY + 1 serialises migrations.
-COLLECTOR_LOCK_KEY = LEADER_LOCK_KEY + 2
 _DICT_ROWS: Any = dict_row  # Any: ty mis-resolves psycopg's row-factory overloads
 
 _CREATE_MIGRATIONS = """
@@ -161,84 +159,6 @@ class Milestone:
     evidence: dict[str, Any] = field(default_factory=dict)
 
 
-_INSERT_COLLECTOR_READ = """
-INSERT INTO collector_reads (manager, kind, started_at, finished_at, complete, coverage, errors)
-VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id
-"""
-_INSERT_COLLECTOR_SERVER = """
-INSERT INTO collector_servers (read_id, vendor, serial_normalized, source_id, name, model,
-    profile_name, gpu_models, domain, evidence, profile_unresolved)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (read_id, source_id) DO NOTHING
-"""
-_INSERT_FIRST_SEEN = """
-INSERT INTO collector_first_seen (vendor, serial_normalized, first_seen_at) VALUES (%s, %s, %s)
-ON CONFLICT (vendor, serial_normalized) DO NOTHING
-"""
-_INSERT_PROFILE_FIRST_SEEN = """
-INSERT INTO collector_profile_first_seen (vendor, serial_normalized, profile_name, first_seen_at)
-VALUES (%s, %s, %s, %s) ON CONFLICT (vendor, serial_normalized, profile_name) DO NOTHING
-"""
-_LATEST_COLLECTOR_READS = """
-SELECT DISTINCT ON (r.manager)
-       r.id, r.manager, r.kind, r.started_at, r.finished_at, r.complete, r.coverage, r.errors
-FROM collector_reads r
-WHERE (r.complete OR NOT %(complete_only)s)
-  AND NOT EXISTS (SELECT 1 FROM collector_managers m
-                  WHERE m.manager = r.manager AND m.removed_at IS NOT NULL)
-ORDER BY r.manager, r.finished_at DESC, r.id DESC
-"""
-_UPSERT_COLLECTOR_MANAGER = """
-INSERT INTO collector_managers (manager, kind, added_at) VALUES (%s, %s, %s)
-ON CONFLICT (manager) DO UPDATE SET
-    kind = EXCLUDED.kind,
-    added_at = CASE WHEN collector_managers.removed_at IS NULL
-                    THEN collector_managers.added_at ELSE EXCLUDED.added_at END,
-    removed_at = NULL
-"""
-_REMOVE_UNREGISTERED_MANAGERS = """
-INSERT INTO collector_managers (manager, kind, added_at, removed_at)
-SELECT manager, min(kind), min(started_at), %(now)s FROM collector_reads
-WHERE manager <> ALL(%(configured)s::text[]) GROUP BY manager
-ON CONFLICT (manager) DO NOTHING
-RETURNING manager
-"""
-_REMOVE_UNCONFIGURED_MANAGERS = """
-UPDATE collector_managers SET removed_at = %(now)s
-WHERE removed_at IS NULL AND manager <> ALL(%(configured)s::text[])
-RETURNING manager
-"""
-_COLLECTOR_SERVERS = """
-SELECT s.*, f.first_seen_at, p.first_seen_at AS profile_since
-FROM collector_servers s
-LEFT JOIN collector_first_seen f
-       ON f.vendor = s.vendor AND f.serial_normalized = s.serial_normalized
-LEFT JOIN collector_profile_first_seen p
-       ON p.vendor = s.vendor AND p.serial_normalized = s.serial_normalized
-      AND p.profile_name = s.profile_name
-WHERE s.read_id = ANY(%s) ORDER BY s.read_id, s.source_id
-"""
-
-
-@dataclass(frozen=True)
-class CollectorState:
-    """
-    The profile-less collector's latest view, as the engine reads it each scan.
-
-    Attributes:
-        reads (list[CollectorRead]): Each manager's latest complete read, with its servers.
-        last_attempt (dict[str, tuple[datetime, bool]]): Each manager's latest read of any
-            kind: when it finished and whether it was complete.
-        first_seen (dict[tuple[str, str], datetime]): `(vendor, serial)` → first sighting.
-        profile_since (dict[tuple[str, str, str], datetime]): `(vendor, serial, profile name)`
-            → first time that profile was seen bound.
-    """
-
-    reads: list[CollectorRead]
-    last_attempt: dict[str, tuple[datetime, bool]]
-    first_seen: dict[tuple[str, str], datetime]
-    profile_since: dict[tuple[str, str, str], datetime]
-
-
 @dataclass(frozen=True)
 class LedgerState:
     """
@@ -344,17 +264,14 @@ class PostgresStore:
                 applied.append(path.stem)
         return applied
 
-    async def try_acquire_leadership(self, key: int = LEADER_LOCK_KEY) -> bool:
+    async def try_acquire_leadership(self) -> bool:
         """
-        Take a session-level leader lock if no other process holds it.
-
-        Args:
-            key (int): Lock key: `LEADER_LOCK_KEY` (engine) or `COLLECTOR_LOCK_KEY`.
+        Take the engine's session-level leader lock if no other process holds it.
 
         Returns:
             bool: True if this connection now holds the lock.
         """
-        row = await self._one("SELECT pg_try_advisory_lock(%s) AS ok", (key,))
+        row = await self._one("SELECT pg_try_advisory_lock(%s) AS ok", (LEADER_LOCK_KEY,))
         return bool(row["ok"])
 
     async def sync_objectives(self, policy: Policy) -> None:
@@ -574,133 +491,6 @@ class PostgresStore:
         async with self.conn.transaction():
             await self._upsert_aliases(aliases, now)
         return len(aliases)
-
-    async def record_collector_read(self, read: CollectorRead) -> int:
-        """
-        Store one manager read and every server in it, and the first-seen clocks, atomically.
-
-        Args:
-            read (CollectorRead): The read.
-
-        Returns:
-            int: The read's id.
-        """
-        async with self.conn.transaction():
-            row = await self._one(
-                _INSERT_COLLECTOR_READ,
-                (
-                    read.manager,
-                    read.kind,
-                    read.started_at,
-                    read.finished_at,
-                    read.complete,
-                    Jsonb(dict(read.coverage)),
-                    Jsonb(list(read.errors)),
-                ),
-            )
-            read_id = int(row["id"])
-            for m in read.servers:
-                gpus = None if m.gpu_models is None else Jsonb(list(m.gpu_models))
-                await self.conn.execute(
-                    _INSERT_COLLECTOR_SERVER,
-                    (
-                        read_id,
-                        m.vendor,
-                        m.serial_normalized,
-                        m.source_id,
-                        m.name,
-                        m.model,
-                        m.profile_name,
-                        gpus,
-                        m.domain,
-                        Jsonb(dict(m.evidence)),
-                        m.profile_unresolved,
-                    ),
-                )
-                if not m.serial_normalized:
-                    continue
-                await self.conn.execute(
-                    _INSERT_FIRST_SEEN, (m.vendor, m.serial_normalized, read.finished_at)
-                )
-                if m.profile_name is not None and m.profile_unresolved is None:
-                    await self.conn.execute(
-                        _INSERT_PROFILE_FIRST_SEEN,
-                        (m.vendor, m.serial_normalized, m.profile_name, read.finished_at),
-                    )
-        return read_id
-
-    async def sync_collector_managers(
-        self, configured: Mapping[str, str], now: datetime
-    ) -> list[str]:
-        """
-        Record the configured managers and mark every other known manager removed.
-
-        Args:
-            configured (Mapping[str, str]): Kind by manager name, from `TTV_MANAGERS_FILE`.
-            now (datetime): When the collector job started.
-
-        Returns:
-            list[str]: Managers newly marked removed, sorted.
-        """
-        params = {"configured": list(configured), "now": now}
-        async with self.conn.transaction():
-            for name, kind in configured.items():
-                await self.conn.execute(_UPSERT_COLLECTOR_MANAGER, (name, kind, now))
-            removed = await self._all(_REMOVE_UNREGISTERED_MANAGERS, params)
-            removed += await self._all(_REMOVE_UNCONFIGURED_MANAGERS, params)
-        return sorted(r["manager"] for r in removed)
-
-    async def load_collector_state(self) -> CollectorState:
-        """
-        Read each manager's latest complete read and latest attempt.
-
-        Returns:
-            CollectorState: What the engine classifies collector-only servers from.
-        """
-        complete = await self._all(_LATEST_COLLECTOR_READS, {"complete_only": True})
-        attempts = await self._all(_LATEST_COLLECTOR_READS, {"complete_only": False})
-        rows = await self._all(_COLLECTOR_SERVERS, ([r["id"] for r in complete],))
-        servers: dict[int, list[ManagerServer]] = {}
-        first_seen: dict[tuple[str, str], datetime] = {}
-        profile_since: dict[tuple[str, str, str], datetime] = {}
-        by_id = {r["id"]: r for r in complete}
-        for r in rows:
-            gpus = r["gpu_models"]
-            servers.setdefault(r["read_id"], []).append(
-                ManagerServer(
-                    vendor=r["vendor"],
-                    serial_normalized=r["serial_normalized"],
-                    manager=by_id[r["read_id"]]["manager"],
-                    source_id=r["source_id"],
-                    name=r["name"],
-                    model=r["model"],
-                    profile_name=r["profile_name"],
-                    gpu_models=None if gpus is None else tuple(str(g) for g in gpus),
-                    domain=r["domain"],
-                    evidence=r["evidence"] or {},
-                    profile_unresolved=r["profile_unresolved"],
-                )
-            )
-            if r["first_seen_at"] is not None:
-                first_seen[(r["vendor"], r["serial_normalized"])] = r["first_seen_at"]
-            if r["profile_since"] is not None and r["profile_name"] is not None:
-                key = (r["vendor"], r["serial_normalized"], r["profile_name"])
-                profile_since[key] = r["profile_since"]
-        reads = [
-            CollectorRead(
-                manager=r["manager"],
-                kind=r["kind"],
-                started_at=r["started_at"],
-                finished_at=r["finished_at"],
-                complete=r["complete"],
-                servers=tuple(servers.get(r["id"], ())),
-                errors=tuple(r["errors"] or ()),
-                coverage=r["coverage"] or {},
-            )
-            for r in complete
-        ]
-        last = {r["manager"]: (r["finished_at"], bool(r["complete"])) for r in attempts}
-        return CollectorState(reads, last, first_seen, profile_since)
 
     async def intervals_for(self, asset_id: str, limit: int = 50) -> list[dict[str, Any]]:
         """

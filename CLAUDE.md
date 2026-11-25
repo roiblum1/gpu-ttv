@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-GPU Time-to-Value platform: tracks GPU servers from intake to productive use and charges idle GPU-hours to the stage owner (DC → Redbull → POPAI → Serving). The binding brief is `AGENT.md` (~1,200 lines; read the sections a task touches rather than working from memory). Precedence: **Section 0 > Section 20 > Sections 1–19**. Where Sections 1–19 go beyond Release 1, they are the contract for R2/R3.
+GPU Time-to-Value platform: tracks GPU servers from their first appearance in server-scan to productive use and charges idle GPU-hours to the stage owner, one of three teams (Redbull → POPAI → Serving). The DC stage and the profile-less collector were removed on 2026-11-25 (`docs/adr/0008-drop-dc-stage-and-collector.md`). The binding brief is `AGENT.md` (~1,200 lines; read the sections a task touches rather than working from memory). Precedence: **Section 0 > Section 20 > Sections 1–19**. Where Sections 1–19 go beyond Release 1, they are the contract for R2/R3.
 
 - Current phase: **R1, Phase 0 Discovery (§20.10)**. Produce `docs/discovery.md`; no product code until Discovery is done. If a finding contradicts Section 0, stop and report it instead of redesigning.
 - This folder is the repo root. §20.9 calls it `gpu-ttv/`; build that layout (`src/ttv/`, `migrations/`, `config/`, `grafana/`, `deploy/`, `offline/`) here, not in a subfolder.
@@ -23,7 +23,7 @@ GPU Time-to-Value platform: tracks GPU servers from intake to productive use and
 - Serving traffic: one counter of record per logical deployment. Never add gateway, frontend and worker counters together, and never average per-instance percentiles. No prompt content or request/user IDs in metric labels.
 - Ledger intervals hold physical GPU counts only; money is computed at query time from a selected pricing snapshot. Next-action annotations never move totals.
 - Keep the three money views separate (energy, AWS-equivalent, internal cost) and never sum them. AWS-equivalent value is a comparison, not our cost or a loss.
-- Don't rebuild server-scan's collectors; the only new inventory code is the profile-less collector.
+- Don't rebuild server-scan's collectors, and write no new inventory code: server-scan is the only inventory source. Servers it does not list (no qualifying `ocp*` profile) are out of scope, and time before a server first appears there is unknown or a lower bound, never zero (ADR-0008).
 
 ## server-scan
 

@@ -47,9 +47,9 @@ def only(decision: Decision) -> tuple[Category, Reason, str | None]:
             (Category.UNKNOWN, Reason.CLUSTER_NOT_OBSERVED, None),
         ),
         ({"lifecycle_state": None}, (Category.UNKNOWN, Reason.MEMBERSHIP_UNKNOWN, None)),
-        ({"maintenance_enabled": True}, (Category.IDLE, Reason.MAINTENANCE, "DC")),
-        ({"health_overall": "CRITICAL"}, (Category.IDLE, Reason.HARDWARE_CRITICAL, "DC")),
-        ({"reachable": False}, (Category.IDLE, Reason.BMC_UNREACHABLE, "DC")),
+        ({"maintenance_enabled": True}, (Category.IDLE, Reason.MAINTENANCE, "Redbull")),
+        ({"health_overall": "CRITICAL"}, (Category.IDLE, Reason.HARDWARE_CRITICAL, "Redbull")),
+        ({"reachable": False}, (Category.IDLE, Reason.BMC_UNREACHABLE, "Redbull")),
         ({"contested_with": "ocp4-prod-gpu-site2"}, (Category.UNKNOWN, Reason.CONTESTED, None)),
         ({"stale": True}, (Category.UNKNOWN, Reason.SOURCE_STALE, None)),
     ],
@@ -143,6 +143,45 @@ def test_redbull_stage_clock_prefers_claim_change_then_lower_bound_creation(poli
     )
     clock = run(policy).stage_clocks["PROVISIONING"]
     assert (clock.since, clock.lower_bound) == (T0 - timedelta(days=10), True)
+
+
+def test_maintenance_outside_a_cluster_keeps_redbulls_clock(policy: Policy) -> None:
+    """Redbull held the server before maintenance began, so maintenance does not restart it."""
+    since = T0 - timedelta(hours=2)
+    clock = run(policy, maintenance_enabled=True, maintenance_since=since).stage_clocks
+    assert (clock["PROVISIONING"].since, clock["PROVISIONING"].source) == (
+        T0 - timedelta(days=10),
+        "created_at",
+    )
+
+
+def test_maintenance_of_a_cluster_node_starts_redbulls_clock_at_maintenance(
+    policy: Policy,
+) -> None:
+    """An INSTALLED node came back to Redbull when maintenance began."""
+    since = T0 - timedelta(hours=2)
+    decision = run(
+        policy,
+        maintenance_enabled=True,
+        maintenance_since=since,
+        lifecycle_state="INSTALLED",
+        cluster_name="ocp4-prod-gpu-site1",
+    )
+    assert only(decision) == (Category.IDLE, Reason.MAINTENANCE, "Redbull")
+    clock = decision.stage_clocks["PROVISIONING"]
+    assert (clock.since, clock.lower_bound) == (since, False)
+
+
+def test_policy_naming_the_removed_dc_stage_is_refused() -> None:
+    """An old policy file fails with a message that says what to delete."""
+    with pytest.raises(ValueError, match="PRE_PROVISIONING"):
+        Policy.model_validate(
+            {
+                "policy_version": "old",
+                "teams": {"PRE_PROVISIONING": "DC", "PROVISIONING": "Redbull"},
+                "stage_objectives": {"PROVISIONING": "2d"},
+            }
+        )
 
 
 def test_unknown_and_not_charged_have_no_stage(policy: Policy) -> None:

@@ -1,4 +1,4 @@
-"""Shared logging setup for the engine and the collector job: one JSON object per line on stdout."""
+"""Logging setup for the engine: one JSON object per line on stdout."""
 
 from __future__ import annotations
 
