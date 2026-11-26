@@ -1,6 +1,6 @@
 # ADR-0003: AWS On-Demand comparison pricing in USD
 
-- **Status:** accepted 2026-10-31. The user approved the proxies, the size rule and the unpriced V100 16GB the same day, and asked for B300 and H100 94/95GB (map 2026-10-31.2).
+- **Status:** accepted 2026-10-31. The user approved the proxies, the size rule and the unpriced V100 16GB the same day, and asked for B300 and H100 94/95GB (map 2026-10-31.2). On 2026-11-26 the user asked for more inventory names (catalogue `server-scan@defe172+ttv.3`): `B200 180GB HBM` and `B200 180GB HBM3e` identify the `NVIDIA B200 180GB` row, `T4 PG183-200` (the board part number) the T4, `L4 24G` the L4, and `Volta V100-SXM2 32GB` the V100 32GB; each is priced like its row. `Tesla P100 16GB` was already identified and stays unpriced (no EC2 instance has a P100). A B200 with another capacity stays unpriced.
 - **Context:** AGENT.md §0.5, §10 "AWS comparison pricing", §17 "Numerical checks", §20.5, §20.7, §20.11; user decision of 2026-10-31 in `docs/discovery.md` ("Inputs from the user").
 - **Code:** `src/ttv/pricing/` (`catalog.py`, `mapping.py`, `snapshot.py`, `capture.py`, `importer.py`, `cli.py`), `migrations/0002_pricing.sql`, `src/ttv/queries.py`. Since 2026-11-26 the manager pages (`grafana/dashboards/`, ADR-0009) show waste at present-day AWS prices from the engine's selected snapshot; the Queues value panels were removed with the old pages.
 

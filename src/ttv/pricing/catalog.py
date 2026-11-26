@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from functools import cache
 
 # Bump the suffix whenever the table or the matching rules below change.
-CATALOG_VERSION = "server-scan@defe172+ttv.2"
+CATALOG_VERSION = "server-scan@defe172+ttv.3"
 
 # (canonical name, VRAM in GB, identifiers this row matches), verbatim from server-scan.
 GPU_MODELS: tuple[tuple[str, int, tuple[str, ...]], ...] = (
@@ -32,9 +32,11 @@ GPU_MODELS: tuple[tuple[str, int, tuple[str, ...]], ...] = (
             "Tesla V100-SXM2-32GB",
             "Tesla V100S-PCIE-32GB",
             "V100-32GB",
+            "Volta V100-SXM2 32GB",  # local addition (user, 2026-11-26)
         ),
     ),
-    ("NVIDIA T4 16GB", 16, ("UCSC-GPU-T4-16", "UCSX-GPU-T4-16", "Tesla T4", "T4")),
+    # "T4 PG183-200" (the board's part number) is a local addition (user, 2026-11-26).
+    ("NVIDIA T4 16GB", 16, ("UCSC-GPU-T4-16", "UCSX-GPU-T4-16", "Tesla T4", "T4", "T4 PG183-200")),
     ("NVIDIA Quadro RTX 6000 24GB", 24, ("UCSC-GPU-RTX6000", "Quadro RTX 6000")),
     ("NVIDIA Quadro RTX 8000 48GB", 48, ("UCSC-GPU-RTX8000", "Quadro RTX 8000")),
     ("NVIDIA A2 16GB", 16, ("A2",)),
@@ -77,7 +79,8 @@ GPU_MODELS: tuple[tuple[str, int, tuple[str, ...]], ...] = (
     ("NVIDIA A800 40GB", 40, ("A800-SXM4-40GB", "A800 40GB")),
     ("NVIDIA A800 80GB", 80, ("A800-SXM4-80GB", "A800-PCIE-80GB", "A800 80GB")),
     ("NVIDIA H800 80GB", 80, ("H800-SXM5-80GB", "H800 PCIe", "H800 80GB", "H800")),
-    ("NVIDIA L4 24GB", 24, ("UCSC-GPU-L4", "UCSC-GPU-L4M6", "UCSX-GPU-L4", "L4")),
+    # "L4 24G" is a local addition (user, 2026-11-26).
+    ("NVIDIA L4 24GB", 24, ("UCSC-GPU-L4", "UCSC-GPU-L4M6", "UCSX-GPU-L4", "L4", "L4 24G")),
     ("NVIDIA L40 48GB", 48, ("UCSC-GPU-L40", "UCSX-GPU-L40", "L40")),
     ("NVIDIA L40S 48GB", 48, ("UCSC-GPU-L40S", "UCSX-GPU-L40S", "L40S")),
     (
@@ -99,7 +102,8 @@ GPU_MODELS: tuple[tuple[str, int, tuple[str, ...]], ...] = (
         ("UCSC-GPU-H100-NVL", "UCSX-GPU-H100-NVL", "H100 NVL", "H100 NVL 94GB"),
     ),
     ("NVIDIA H200 141GB", 141, ("H200", "H200 NVL", "H200-SXM-141GB", "H200 141GB")),
-    ("NVIDIA B200 180GB", 180, ("B200", "B200 180GB")),
+    # The two HBM names are a local addition (user, 2026-11-26).
+    ("NVIDIA B200 180GB", 180, ("B200", "B200 180GB", "B200 180GB HBM", "B200 180GB HBM3e")),
     # Local additions, absent from server-scan (defe172 and main of 2026-10-29); user, 2026-10-31.
     (
         "NVIDIA B300 288GB",

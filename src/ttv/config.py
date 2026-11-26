@@ -213,6 +213,7 @@ DEFAULT_POWER_RATINGS: tuple[PowerRating, ...] = tuple(
         ("A40", 300),
         ("T4", 70),
         ("V100", 250),
+        ("P100", 250),
     )
 )
 

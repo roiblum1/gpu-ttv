@@ -259,7 +259,7 @@ def test_release_runs_the_gate_then_publishes_by_digest() -> None:
     assert publish["permissions"] == {"contents": "write", "packages": "write"}
     script = "\n".join(s.get("run", "") for s in publish["steps"])
     assert "podman push --digestfile" in script
-    assert 'offline/set-chart-image.sh deploy/helm/gpu-ttv/values.yaml ghcr.io' in script
+    assert "offline/set-chart-image.sh deploy/helm/gpu-ttv/values.yaml ghcr.io" in script
     assert "helm package deploy/helm/gpu-ttv" in script
     assert "helm package deploy/gpu-cluster-rbac" in script
     assert 'gh release create "$GITHUB_REF_NAME"' in script

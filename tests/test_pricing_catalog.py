@@ -74,6 +74,23 @@ def test_proxies_are_only_the_user_approved_ones() -> None:
 def test_b300_and_h100_95gb_are_recognised() -> None:
     assert canonical_gpu_model("NVIDIA B300 SXM6 AC") == "NVIDIA B300 288GB"
     assert canonical_gpu_model("NVIDIA B300") == "NVIDIA B300 288GB"
+    for raw in ("NVIDIA B200 180GB HBM", "B200 180GB HBM", "NVIDIA B200 180GB HBM3e"):
+        assert canonical_gpu_model(raw) == "NVIDIA B200 180GB", raw
+
+
+@pytest.mark.parametrize(
+    ("raw", "canonical"),
+    [
+        ("NVIDIA T4 PG183-200", "NVIDIA T4 16GB"),
+        ("T4 PG183-200", "NVIDIA T4 16GB"),
+        ("L4 24G", "NVIDIA L4 24GB"),
+        ("NVIDIA L4 24G", "NVIDIA L4 24GB"),
+        ("NVIDIA Volta V100-SXM2 32GB", "NVIDIA Tesla V100 32GB"),
+        ("Tesla P100 16GB", "NVIDIA Tesla P100 16GB"),
+    ],
+)
+def test_names_the_user_added_on_2026_11_26(raw: str, canonical: str) -> None:
+    assert canonical_gpu_model(raw) == canonical
     assert canonical_gpu_model("NVIDIA H100 95GB") == "NVIDIA H100 94GB"
     assert canonical_gpu_model("NVIDIA H100 NVL") == "NVIDIA H100 NVL 94GB"
 
